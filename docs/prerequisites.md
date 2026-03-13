@@ -102,6 +102,9 @@ orchestrator.sh
        ├─ devcontainer exec ──→ run-agent.sh (designer)
        ├─ devcontainer exec ──→ run-agent.sh (developer)
        ├─ devcontainer exec ──→ run-agent.sh (tester)
+       ├─ devcontainer exec ──→ run-agent.sh (secops)
+       ├─ devcontainer exec ──→ run-agent.sh (infrastructure)
+       ├─ devcontainer exec ──→ run-agent.sh (devops)
        ├─ devcontainer exec ──→ run-agent.sh (reviewer)
        │                      │
        ├─ docker stop ───────→ Container removed

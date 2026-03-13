@@ -27,7 +27,10 @@ flowchart TD
             A1["🏗️ Architect"] --> A2["🎨 Designer"]
             A2 --> A3["💻 Developer"]
             A3 --> A4["🧪 Tester"]
-            A4 --> A5["🔍 Reviewer"]
+            A4 --> A5["🔐 SecOps"]
+            A5 --> A6["🏗️ Infrastructure"]
+            A6 --> A7["⚙️ DevOps"]
+            A7 --> A8["🔍 Reviewer"]
         end
     end
 
@@ -137,17 +140,19 @@ flowchart TD
         Check -->|Yes| Skip[Skip agent]
         Check -->|No| Run["devcontainer exec\nrun-agent.sh\n(Ralph Loop)"]
         Run --> ValidateOut{Agent\ncompleted?}
-        ValidateOut -->|Yes| Next[Next agent]
-        ValidateOut -->|No, non-critical| Next
+        ValidateOut -->|Yes| Cleanup["Scrub runtime artifacts\nfrom git index"]
+        ValidateOut -->|No, non-critical| Cleanup
         ValidateOut -->|No, critical| Fail([Pipeline Failed])
+        Cleanup --> Next[Next agent]
         Skip --> Next
     end
 
     Loop --> StopDC["🐳 Stop Dev Container\n(docker stop)"]
     StopDC --> CreatePR{--skip-pr?}
-    CreatePR -->|No| PR[Push branch &\ngh pr create]
+    CreatePR -->|No| PR["Push branch &\ngh pr create\n(3 retries)"]
+    PR --> Evidence["Post evidence comments\n(agent reports → PR)"]
     CreatePR -->|Yes| Done
-    PR --> Done([Pipeline Complete])
+    Evidence --> Done([Pipeline Complete])
 ```
 
 ### Dev Container Execution Notes
@@ -158,6 +163,11 @@ flowchart TD
 - Agent commit identity is propagated from host git config (`user.name` / `user.email`) into container execution.
 - Agent runtime logs inside containers are written under `.pipeline/logs` (excluded from git), not the target repo `logs/`.
 - Per-agent progress files are cleared at the start of each PRD run to avoid cross-PRD completion leakage.
+- Agent model is resolved per step: `<AGENT_NAME>_MODEL` override first, then `CLAUDE_MODEL`.
+- **Runtime artifact protection**: `.agent-progress/`, `logs/`, `.pipeline/`, and `CLAUDE.md` are excluded from git via `.git/info/exclude`. After each agent finishes, the pipeline scrubs these paths from the git index in case an agent committed them accidentally.
+- **PRD working branch**: The feature branch name is read from the PRD's `**Working Branch**` metadata field (e.g. `delehner/01-foundation`). If not declared, falls back to auto-generation from the PRD title.
+- **PR evidence comments**: After PR creation, agent reports (tester, secops, infrastructure, devops) are posted as PR comments. Configurable via `--evidence-agents` or `EVIDENCE_AGENTS` env var.
+- **Mandatory PR creation**: PR creation retries up to 3 times. If all attempts fail, the pipeline exits with an error. Use `--skip-pr` only for local testing.
 
 ## Agent Responsibilities
 
@@ -179,11 +189,23 @@ flowchart TD
         T_In[Reads: PRD +\narchitecture.md +\ncode] --> T_Out[Produces: test-report.md\nUnit/integration/E2E tests,\ncoverage, bug fixes]
     end
 
+    subgraph SecOps["🔐 SecOps"]
+        S_In[Reads: PRD +\narchitecture.md +\ncode + tests] --> S_Out[Produces: security-report.md\nSecurity hardening,\nrisk triage]
+    end
+
+    subgraph Infrastructure["🏗️ Infrastructure"]
+        I_In[Reads: PRD +\narchitecture.md +\nsecurity-report.md] --> I_Out[Produces: infrastructure.md\nEnv/runtime contracts,\ndeployment constraints]
+    end
+
+    subgraph DevOps["⚙️ DevOps"]
+        O_In[Reads: PRD +\ninfrastructure.md +\ncode/tests] --> O_Out[Produces: devops.md\nCI/CD and release\nrunbook updates]
+    end
+
     subgraph Reviewer["🔍 Reviewer"]
         R_In[Reads: All prior\nagent output + code] --> R_Out[Produces: pr-description.md\nReview fixes, quality gates,\nfinal verification]
     end
 
-    Architect --> Designer --> Developer --> Tester --> Reviewer
+    Architect --> Designer --> Developer --> Tester --> SecOps --> Infrastructure --> DevOps --> Reviewer
 ```
 
 ## Context Passing Between Agents
@@ -193,7 +215,7 @@ Agents don't communicate directly. Each agent writes artifacts to disk, and subs
 ```mermaid
 flowchart LR
     subgraph Filesystem["Shared Filesystem (workspace inside container)"]
-        Progress[".agent-progress/\n├── architect.md\n├── designer.md\n├── developer.md\n├── tester.md\n└── reviewer.md"]
+        Progress[".agent-progress/\n├── architect.md\n├── designer.md\n├── developer.md\n├── tester.md\n├── secops.md\n├── infrastructure.md\n├── devops.md\n└── reviewer.md"]
         Docs["docs/architecture/prd-slug/\n├── prd.md\n├── architecture.md\n├── design.md\n├── test-report.md\n└── pr-description.md"]
         Code["src/\n└── (implemented code)"]
         Context["CLAUDE.md\n(ephemeral, from contexts/)"]
@@ -238,11 +260,12 @@ flowchart LR
 | `--prd-dir <dir>` | Legacy: directory of PRD files | — |
 | `--repo <url>` | Override repo for all PRDs | From manifest |
 | `--branch <name>` | Override branch for all PRDs | From manifest |
-| `--agents <list>` | Comma-separated agent list | All five |
+| `--agents <list>` | Comma-separated agent list | architect,designer,developer,tester,secops,infrastructure,devops,reviewer |
 | `--sequential` | Run work units one at a time | Parallel |
 | `--max-parallel <n>` | Max concurrent pipelines | 4 |
 | `--skip-pr` | Don't create PRs | false |
 | `--no-devcontainer` | Run on host instead of in containers | false |
 | `--no-context-update` | Don't update CLAUDE.md after agents | false |
-| `--model <name>` | Claude model | claude-opus-4-6 |
+| `--model <name>` | Default Claude model | sonnet |
 | `--max-iterations <n>` | Per-agent iteration cap | 10 |
+| `--evidence-agents <list>` | Agents whose reports are posted as PR comments | tester,secops,infrastructure,devops |

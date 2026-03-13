@@ -9,6 +9,7 @@ flowchart TD
     subgraph Required["Required Files"]
         Prompt["agents/new-agent/prompt.md\n(agent instructions)"]
         Pipe["pipeline/run-pipeline.sh\n(register in AGENTS variable)"]
+        Orch["pipeline/orchestrator.sh\n(register in AGENTS variable)"]
     end
 
     subgraph Optional["Optional Files"]
@@ -17,7 +18,8 @@ flowchart TD
     end
 
     Prompt --> Working[Agent runs\nin pipeline]
-        Pipe --> Working
+    Pipe --> Working
+    Orch --> Working
     Skill --> Cursor[Available as\nCursor skill]
 ```
 
@@ -63,11 +65,11 @@ Rules:
 
 ### 2. Register in the Pipeline
 
-Edit `pipeline/run-pipeline.sh` — update the default `AGENTS` variable:
+Edit `pipeline/run-pipeline.sh` and `pipeline/orchestrator.sh` — update the default `AGENTS` variable:
 
 ```bash
 # Before
-AGENTS="architect,designer,developer,tester,reviewer"
+AGENTS="architect,designer,developer,tester,secops,infrastructure,devops,reviewer"
 
 # After (example: adding a "security" agent after tester)
 AGENTS="architect,designer,developer,tester,security,reviewer"
@@ -77,15 +79,18 @@ The position determines:
 - Which agents run before (their progress is passed as context)
 - Which agents run after (they'll receive this agent's progress)
 
-### 3. Add Environment Variable Override (Optional)
+### 3. Add Environment Variable Overrides (Optional)
 
-In `.env.example`, add an iteration override:
+In `.env.example`, add optional model and iteration overrides:
 
 ```bash
+SECURITY_MODEL=
 SECURITY_MAX_ITERATIONS=
 ```
 
-The naming convention is `<AGENT_NAME_UPPER>_MAX_ITERATIONS`.
+Naming conventions:
+- Model: `<AGENT_NAME_UPPER>_MODEL`
+- Iterations: `<AGENT_NAME_UPPER>_MAX_ITERATIONS`
 
 ### 4. Create a Cursor Skill (Optional)
 

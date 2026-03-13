@@ -4,6 +4,7 @@
 > **Author**: [name]
 > **Date**: [YYYY-MM-DD]
 > **Priority**: P0 (Critical) | P1 (High) | P2 (Medium) | P3 (Low)
+> **Working Branch**: [username/prd-slug, e.g. delehner/01-foundation]
 
 ## Overview
 

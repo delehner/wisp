@@ -16,7 +16,7 @@
   "containerEnv": {
     "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
     "GITHUB_TOKEN": "${localEnv:GITHUB_TOKEN}",
-    "CLAUDE_MODEL": "${localEnv:CLAUDE_MODEL:-claude-opus-4-6}",
+    "CLAUDE_MODEL": "${localEnv:CLAUDE_MODEL:-sonnet}",
     "PIPELINE_MAX_ITERATIONS": "${localEnv:PIPELINE_MAX_ITERATIONS:-10}"
   },
   "mounts": [

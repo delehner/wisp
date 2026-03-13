@@ -4,6 +4,7 @@
 > **Author**: Denilson
 > **Date**: 2026-03-12
 > **Priority**: P1 (High)
+> **Working Branch**: denilson/oauth-authentication
 
 ## Target Repositories
 

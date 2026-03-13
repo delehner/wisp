@@ -51,6 +51,12 @@ Before starting work, always read:
 - Use conventional commits format: `type(scope): description`
 - Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `arch`, `design`
 - Never force push. Never rewrite history.
+- **NEVER commit these runtime-only paths** — they are managed by the pipeline and must stay untracked:
+  - `.agent-progress/` (progress tracking files)
+  - `logs/` (pipeline log output)
+  - `.pipeline/` (pipeline staging directory)
+  - `CLAUDE.md` (ephemeral project context injected by the pipeline)
+- When staging changes, prefer explicit file paths (`git add src/...`) over broad commands (`git add .`). If you use `git add .`, always run `git status` first and verify no runtime files are staged.
 
 ## Quality Standards
 

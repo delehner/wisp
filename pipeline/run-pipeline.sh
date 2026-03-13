@@ -59,11 +59,12 @@ REPO_URL=""
 CONTEXT_FILE=""
 BASE_BRANCH="${DEFAULT_BASE_BRANCH:-main}"
 WORK_DIR="${PIPELINE_WORK_DIR:-/tmp/coding-agents-work}"
-AGENTS="architect,designer,developer,tester,reviewer"
+AGENTS="architect,designer,developer,tester,secops,infrastructure,devops,reviewer"
 SKIP_PR=false
-MODEL="${CLAUDE_MODEL:-claude-opus-4-6}"
+MODEL="${CLAUDE_MODEL:-sonnet}"
 MAX_ITERATIONS="${PIPELINE_MAX_ITERATIONS:-10}"
 USE_DEVCONTAINER="${USE_DEVCONTAINER:-true}"
+EVIDENCE_AGENTS="${EVIDENCE_AGENTS:-tester,secops,infrastructure,devops}"
 PIPELINE_GIT_NAME=""
 PIPELINE_GIT_EMAIL=""
 
@@ -80,6 +81,7 @@ while [[ $# -gt 0 ]]; do
     --no-devcontainer) USE_DEVCONTAINER=false; shift ;;
     --model) MODEL="$2"; shift 2 ;;
     --max-iterations) MAX_ITERATIONS="$2"; shift 2 ;;
+    --evidence-agents) EVIDENCE_AGENTS="$2"; shift 2 ;;
     -h|--help)
       cat <<'HELP'
 Usage: run-pipeline.sh --prd <path> --repo <url> [options]
@@ -90,12 +92,14 @@ Options:
   --context <path>       Project context file injected as CLAUDE.md (ephemeral, never committed)
   --branch <name>        Base branch (default: main)
   --workdir <path>       Working directory for cloned repo
-  --agents <list>        Comma-separated agent list (default: architect,designer,developer,tester,reviewer)
+  --agents <list>        Comma-separated agent list (default: architect,designer,developer,tester,secops,infrastructure,devops,reviewer)
   --skip-pr              Don't create a PR at the end
   --no-context-update    Don't update CLAUDE.md after agents finish
   --no-devcontainer      Run agents directly on host instead of inside a Dev Container
-  --model <name>         Claude model to use (default: claude-opus-4-6)
+  --model <name>         Claude model to use (default: sonnet)
   --max-iterations <n>   Max iterations per agent (default: 10)
+  --evidence-agents <list>  Comma-separated agents whose reports are posted as PR comments
+                            (default: tester,secops,infrastructure,devops)
 HELP
       exit 0
       ;;
@@ -157,7 +161,8 @@ REPO_WORKDIR="$WORK_DIR/$REPO_NAME"
 log "INFO" "Preparing repository at $REPO_WORKDIR..."
 clone_or_prepare_repo "$REPO_URL" "$REPO_WORKDIR" "$BASE_BRANCH"
 
-FEATURE_BRANCH=$(generate_branch_name "$PRD_FILE")
+WORKING_BRANCH=$(parse_prd_working_branch "$PRD_FILE")
+FEATURE_BRANCH="${WORKING_BRANCH:-$(generate_branch_name "$PRD_FILE")}"
 create_feature_branch "$REPO_WORKDIR" "$FEATURE_BRANCH"
 
 log "INFO" "Working on branch: $FEATURE_BRANCH"
@@ -219,6 +224,7 @@ if [ "$USE_DEVCONTAINER" = true ]; then
 
   # Stage pipeline tools in the workspace so they're accessible inside the container
   PIPELINE_STAGING="$REPO_WORKDIR/.pipeline"
+  rm -rf "$PIPELINE_STAGING"
   mkdir -p "$PIPELINE_STAGING"
   cp -r "$SCRIPT_DIR/." "$PIPELINE_STAGING/pipeline/"
   cp -r "$SCRIPT_DIR/../agents" "$PIPELINE_STAGING/agents"
@@ -339,12 +345,27 @@ validate_claude_auth || exit 1
 IFS=',' read -ra AGENT_LIST <<< "$AGENTS"
 PREVIOUS_AGENTS=""
 
+resolve_agent_model() {
+  local agent="$1"
+  local agent_upper model_var
+  agent_upper=$(echo "$agent" | tr '[:lower:]-' '[:upper:]_')
+  model_var="${agent_upper}_MODEL"
+
+  if [ -n "${!model_var:-}" ]; then
+    echo "${!model_var}"
+  else
+    echo "$MODEL"
+  fi
+}
+
 for agent in "${AGENT_LIST[@]}"; do
   agent=$(echo "$agent" | xargs)
+  agent_model=$(resolve_agent_model "$agent")
 
   log "INFO" ""
   log "INFO" "========================================="
   log "INFO" "  Running Agent: $agent"
+  log "INFO" "  Model: $agent_model"
   log "INFO" "========================================="
 
   if is_agent_completed "$REPO_WORKDIR" "$agent"; then
@@ -362,7 +383,7 @@ for agent in "${AGENT_LIST[@]}"; do
         --workdir "$CONTAINER_WORKSPACE" \
         --prd "$CONTAINER_WORKSPACE/.pipeline/prd.md" \
         --max-iterations "$MAX_ITERATIONS" \
-        --model "$MODEL" \
+        --model "$agent_model" \
         --previous-agents "$PREVIOUS_AGENTS"
   else
     "$SCRIPT_DIR/run-agent.sh" \
@@ -370,7 +391,7 @@ for agent in "${AGENT_LIST[@]}"; do
       --workdir "$REPO_WORKDIR" \
       --prd "$PRD_FILE" \
       --max-iterations "$MAX_ITERATIONS" \
-      --model "$MODEL" \
+      --model "$agent_model" \
       --previous-agents "$PREVIOUS_AGENTS"
   fi
   agent_exit=$?
@@ -390,6 +411,19 @@ for agent in "${AGENT_LIST[@]}"; do
         exit 1
         ;;
     esac
+  fi
+
+  # Safety net: remove runtime artifacts if an agent accidentally committed them
+  runtime_dirty=false
+  for runtime_path in .agent-progress logs .pipeline CLAUDE.md; do
+    if git -C "$REPO_WORKDIR" ls-files --error-unmatch "$runtime_path" &>/dev/null; then
+      git -C "$REPO_WORKDIR" rm -r --cached "$runtime_path" &>/dev/null || true
+      runtime_dirty=true
+    fi
+  done
+  if [ "$runtime_dirty" = true ]; then
+    git -C "$REPO_WORKDIR" commit -m "chore: remove accidentally committed runtime artifacts" 2>/dev/null || true
+    log "WARN" "Removed runtime artifacts that were accidentally committed by agent $agent"
   fi
 
   PREVIOUS_AGENTS="${PREVIOUS_AGENTS:+$PREVIOUS_AGENTS,}$agent"
@@ -479,28 +513,43 @@ fi
 # =============================================================================
 # Create Pull Request (runs on host — uses host git and gh auth)
 # =============================================================================
+PR_URL=""
 if [ "$SKIP_PR" = false ]; then
   log "INFO" ""
   log "INFO" "========================================="
   log "INFO" "  Creating Pull Request"
   log "INFO" "========================================="
 
-  if command -v gh &> /dev/null; then
+  if ! command -v gh &> /dev/null; then
+    log "ERROR" "GitHub CLI (gh) is required for PR creation. Install with: brew install gh"
+    exit 1
+  fi
+
+  for attempt in 1 2 3; do
     set +e
-    pr_url=$(create_pull_request "$REPO_WORKDIR" "$BASE_BRANCH" "$PRD_SLUG")
+    PR_URL=$(create_pull_request "$REPO_WORKDIR" "$BASE_BRANCH" "$PRD_SLUG")
     pr_exit=$?
     set -e
 
-    if [ $pr_exit -eq 0 ]; then
+    if [ $pr_exit -eq 0 ] && [ -n "$PR_URL" ]; then
       log "INFO" "Pull Request created successfully!"
-      log "INFO" "PR URL: $pr_url"
-    else
-      log "ERROR" "Failed to create Pull Request. You can create it manually from branch: $FEATURE_BRANCH"
+      log "INFO" "PR URL: $PR_URL"
+      break
     fi
-  else
-    log "WARN" "GitHub CLI not found. Push branch manually:"
-    log "WARN" "  cd $REPO_WORKDIR && git push -u origin $FEATURE_BRANCH"
+
+    if [ "$attempt" -lt 3 ]; then
+      log "WARN" "PR creation attempt $attempt/3 failed. Retrying in 5s..."
+      sleep 5
+    fi
+  done
+
+  if [ -z "$PR_URL" ]; then
+    log "ERROR" "Failed to create PR after 3 attempts. Branch: $FEATURE_BRANCH"
+    exit 1
   fi
+
+  # Post evidence comments on the PR
+  post_pr_evidence "$REPO_WORKDIR" "$PR_URL" "$PRD_SLUG" "$EVIDENCE_AGENTS"
 else
   log "INFO" "Skipping PR creation (--skip-pr flag)"
   log "INFO" "Branch $FEATURE_BRANCH is ready at $REPO_WORKDIR"

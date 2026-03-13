@@ -10,31 +10,47 @@ clone_or_prepare_repo() {
     log "INFO" "Repository already exists at $workdir, fetching latest..."
     cd "$workdir" || exit 1
     git fetch origin
-    git checkout "$base_branch" 2>/dev/null || true
-    git pull origin "$base_branch" 2>/dev/null || true
+
+    if ! git rev-parse HEAD &>/dev/null; then
+      _seed_empty_repo "$workdir" "$base_branch" "$repo_url"
+    else
+      git checkout "$base_branch" 2>/dev/null || true
+      git pull origin "$base_branch" 2>/dev/null || true
+    fi
   else
     log "INFO" "Cloning $repo_url into $workdir..."
     mkdir -p "$(dirname "$workdir")"
     git clone "$repo_url" "$workdir" 2>&1 || {
-      # If clone fails (e.g., repo doesn't exist yet), init a new repo
       log "WARN" "Clone failed — initializing new local repository"
       mkdir -p "$workdir"
       cd "$workdir" || exit 1
       git init
       git remote add origin "$repo_url"
-      git checkout -b "$base_branch"
+      _seed_empty_repo "$workdir" "$base_branch" "$repo_url"
       return
     }
     cd "$workdir" || exit 1
 
-    # Handle empty repos (no commits yet, no branches)
     if ! git rev-parse HEAD &>/dev/null; then
-      log "INFO" "Empty repository detected — initializing branch $base_branch"
-      git checkout -b "$base_branch"
+      _seed_empty_repo "$workdir" "$base_branch" "$repo_url"
     else
       git checkout "$base_branch" 2>/dev/null || git checkout -b "$base_branch"
     fi
   fi
+}
+
+_seed_empty_repo() {
+  local workdir="$1"
+  local base_branch="$2"
+  local repo_url="$3"
+
+  cd "$workdir" || exit 1
+  log "INFO" "Empty repository detected — seeding $base_branch with initial commit"
+  git checkout -b "$base_branch" 2>/dev/null || git checkout "$base_branch"
+  git commit --allow-empty -m "chore: initialize repository"
+  git push -u origin "$base_branch" 2>/dev/null || {
+    log "WARN" "Could not push $base_branch to origin (will retry at PR time)"
+  }
 }
 
 create_feature_branch() {
@@ -91,4 +107,35 @@ create_pull_request() {
     --base "$base_branch" \
     --title "$pr_title" \
     --body "$pr_body"
+}
+
+# Post agent report files as PR comments for evidence/traceability.
+# Args: workdir, pr_url, prd_slug, comma-separated agent list
+post_pr_evidence() {
+  local workdir="$1"
+  local pr_url="$2"
+  local prd_slug="$3"
+  local agents="$4"
+
+  IFS=',' read -ra agent_list <<< "$agents"
+  for agent in "${agent_list[@]}"; do
+    agent=$(echo "$agent" | xargs)
+    local report_file=""
+    case "$agent" in
+      tester)         report_file="$workdir/docs/architecture/$prd_slug/test-report.md" ;;
+      secops)         report_file="$workdir/docs/architecture/$prd_slug/security-report.md" ;;
+      infrastructure) report_file="$workdir/docs/architecture/$prd_slug/infrastructure.md" ;;
+      devops)         report_file="$workdir/docs/architecture/$prd_slug/devops.md" ;;
+    esac
+
+    if [ -n "$report_file" ] && [ -f "$report_file" ]; then
+      local header
+      header=$(echo "$agent" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')
+      local body
+      body=$(printf "## %s Report\n\n%s" "$header" "$(cat "$report_file")")
+      gh pr comment "$pr_url" --body "$body" 2>/dev/null || {
+        log "WARN" "Failed to post $agent evidence comment on PR"
+      }
+    fi
+  done
 }

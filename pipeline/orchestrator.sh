@@ -56,15 +56,16 @@ REPO_OVERRIDE=""
 BRANCH_OVERRIDE=""
 CONTEXT_FILE=""
 WORK_DIR="${PIPELINE_WORK_DIR:-/tmp/coding-agents-work}"
-AGENTS="architect,designer,developer,tester,reviewer"
+AGENTS="architect,designer,developer,tester,secops,infrastructure,devops,reviewer"
 SKIP_PR=false
 NO_CONTEXT_UPDATE=false
 NO_DEVCONTAINER=false
 AUTO_CONTINUE=false
-MODEL="${CLAUDE_MODEL:-claude-opus-4-6}"
+MODEL="${CLAUDE_MODEL:-sonnet}"
 MAX_ITERATIONS="${PIPELINE_MAX_ITERATIONS:-10}"
 SEQUENTIAL=false
 MAX_PARALLEL="${PIPELINE_MAX_PARALLEL:-4}"
+EVIDENCE_AGENTS="${EVIDENCE_AGENTS:-tester,secops,infrastructure,devops}"
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -85,6 +86,7 @@ while [[ $# -gt 0 ]]; do
     --max-iterations) MAX_ITERATIONS="$2"; shift 2 ;;
     --sequential) SEQUENTIAL=true; shift ;;
     --max-parallel) MAX_PARALLEL="$2"; shift 2 ;;
+    --evidence-agents) EVIDENCE_AGENTS="$2"; shift 2 ;;
     -h|--help)
       cat <<'HELP'
 Usage: orchestrator.sh [options]
@@ -102,12 +104,14 @@ Legacy mode (single PRD):
   --branch <name>           Base branch (default: main)
 
 Pipeline options:
-  --agents <list>           Comma-separated agent list (default: architect,designer,developer,tester,reviewer)
+  --agents <list>           Comma-separated agent list (default: architect,designer,developer,tester,secops,infrastructure,devops,reviewer)
   --skip-pr                 Don't create PRs at the end
   --no-context-update       Don't update CLAUDE.md after agents finish
   --no-devcontainer         Run agents on host instead of inside Dev Containers
-  --model <name>            Claude model (default: claude-opus-4-6)
+  --model <name>            Claude model (default: sonnet)
   --max-iterations <n>      Per-agent iteration cap (default: 10)
+  --evidence-agents <list>  Agents whose reports are posted as PR comments
+                            (default: tester,secops,infrastructure,devops)
 
 Execution:
   --sequential              Run work units one at a time (default: parallel)
@@ -136,6 +140,7 @@ build_extra_flags() {
   [ "$SKIP_PR" = true ] && flags+=" --skip-pr"
   [ "$NO_CONTEXT_UPDATE" = true ] && flags+=" --no-context-update"
   [ "$NO_DEVCONTAINER" = true ] && flags+=" --no-devcontainer"
+  flags+=" --evidence-agents $EVIDENCE_AGENTS"
   echo "$flags"
 }
 

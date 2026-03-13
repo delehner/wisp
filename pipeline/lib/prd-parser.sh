@@ -63,6 +63,12 @@ parse_prd_priority() {
   grep '**Priority**' "$prd_file" 2>/dev/null | head -1 | sed 's/.*\*\*Priority\*\*:[[:space:]]*//' | xargs || echo "P2"
 }
 
+parse_prd_working_branch() {
+  local prd_file="$1"
+  grep '**Working Branch**' "$prd_file" 2>/dev/null | head -1 \
+    | sed 's/.*\*\*Working Branch\*\*:[[:space:]]*//' | xargs || echo ""
+}
+
 collect_prd_files() {
   local input="$1"
 

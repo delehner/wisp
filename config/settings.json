@@ -1,7 +1,7 @@
 {
   "$schema": "https://docs.claude.com/schemas/claude-code-settings.json",
   "_comment": "Copy relevant settings to ~/.claude/settings.json or project .claude/settings.json",
-  "model": "claude-opus-4-6",
+  "model": "sonnet",
   "permissions": {
     "allow": [
       "Edit",

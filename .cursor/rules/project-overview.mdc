@@ -23,7 +23,7 @@ AI agent pipeline that turns PRDs into Pull Requests using Claude Code, Ralph Lo
 ## Pipeline Flow
 
 ```
-N PRDs → orchestrator.sh → N×M work units → run-pipeline.sh → [Architect → Designer → Developer → Tester → Reviewer] → PRs
+N PRDs → orchestrator.sh → N×M work units → run-pipeline.sh → [Architect → Designer → Developer → Tester → SecOps → Infrastructure → DevOps → Reviewer] → PRs
 ```
 
 Each PRD defines target repos in a `## Target Repositories` table. The orchestrator dispatches one `run-pipeline.sh` per PRD×repo pair (parallel by default, max 4). Each agent runs in a Ralph Loop with filesystem-based progress tracking via `.agent-progress/*.md`.

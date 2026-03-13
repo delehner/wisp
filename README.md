@@ -18,6 +18,9 @@ A **manifest** JSON defines the execution plan: a sequence of **orders**, each c
 | **Designer** | UI/UX specs, component design, API contracts | Design specs, component hierarchy |
 | **Developer** | Implementation based on architecture + design | Working code, commits |
 | **Tester** | Test strategy, test implementation, coverage | Tests, coverage reports |
+| **SecOps** | Security hardening and vulnerability remediation | Security report, security fixes |
+| **Infrastructure** | Runtime/deployment infrastructure validation | Infrastructure plan, env contracts |
+| **DevOps** | CI/CD and release readiness automation | DevOps runbook, pipeline updates |
 | **Reviewer** | Code review, quality gates, final fixes | Review notes, fix commits |
 
 ## Quick Start
@@ -140,6 +143,9 @@ coding-agents/
 │   ├── designer/prompt.md
 │   ├── developer/prompt.md
 │   ├── tester/prompt.md
+│   ├── secops/prompt.md
+│   ├── infrastructure/prompt.md
+│   ├── devops/prompt.md
 │   └── reviewer/prompt.md
 ├── manifests/                   # Manifest JSON files (orders + PRDs + repos + contexts)
 │   └── portfolio.json
@@ -194,6 +200,7 @@ Create a new directory under `agents/` with a `prompt.md` file following the exi
 ### Environment Variables
 
 See `.env.example` for all available configuration options.
+You can keep costs down with `CLAUDE_MODEL=sonnet` and optionally override specific agents (for example `REVIEWER_MODEL=opus`).
 
 ### MCP Servers
 
@@ -209,6 +216,9 @@ Ralph Loops consume API tokens per iteration. With a **Claude Max subscription**
 | Designer | 2-5 | $2-10 |
 | Developer | 5-15 | $10-30 |
 | Tester | 3-8 | $5-15 |
+| SecOps | 2-5 | $3-8 |
+| Infrastructure | 2-4 | $2-6 |
+| DevOps | 2-4 | $2-6 |
 | Reviewer | 2-5 | $2-10 |
 
 ## License

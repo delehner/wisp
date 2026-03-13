@@ -29,6 +29,9 @@ flowchart TD
     Agents --> ADes["designer/prompt.md"]
     Agents --> ADev["developer/prompt.md"]
     Agents --> ATest["tester/prompt.md"]
+    Agents --> ASec["secops/prompt.md"]
+    Agents --> AInfra["infrastructure/prompt.md"]
+    Agents --> AOps["devops/prompt.md"]
     Agents --> ARev["reviewer/prompt.md"]
 
     DevC --> DCMain["devcontainer.json\n(for editing this repo)"]
@@ -57,7 +60,7 @@ flowchart LR
 
     subgraph AgentLayer["Agent Layer"]
         Base["_base-system.md"]
-        Prompts["Agent prompts\n(5 agents)"]
+        Prompts["Agent prompts\n(8 agents)"]
     end
 
     subgraph Infra["Infrastructure"]
@@ -67,9 +70,10 @@ flowchart LR
     end
 
     subgraph Output["Pipeline Output"]
-        Branch["Feature branch"]
+        Branch["Feature branch\n(from PRD Working Branch)"]
         Artifacts["Architecture docs\nDesign specs\nTest reports"]
         PullReq["Pull Request"]
+        Evidence["Evidence comments\n(agent reports on PR)"]
         CtxUpdate["Updated context\n(synced to contexts/)"]
     end
 
@@ -87,6 +91,7 @@ flowchart LR
     Claude --> Branch
     Claude --> Artifacts
     Pipe --> PullReq
+    PullReq --> Evidence
     Pipe --> CtxUpdate
 ```
 
@@ -97,9 +102,9 @@ flowchart LR
 | `pipeline/orchestrator.sh` | Manifest orchestrator: orders, parallel PRDs, per-repo context | Changing execution model, adding manifest features |
 | `pipeline/run-pipeline.sh` | Single PRD × single repo: Dev Container lifecycle, agent sequence, PR, repo-root logging | Adding agents, changing container config, flow |
 | `pipeline/run-agent.sh` | Ralph Loop implementation, prompt assembly | Changing iteration logic or prompt structure |
-| `pipeline/lib/prd-parser.sh` | Parse PRD metadata: status, title, priority | Changing PRD metadata format |
+| `pipeline/lib/prd-parser.sh` | Parse PRD metadata: status, title, priority, working branch | Changing PRD metadata format |
 | `pipeline/lib/progress.sh` | Read/write `.agent-progress/` files | Changing progress format |
-| `pipeline/lib/git-utils.sh` | Clone, branch, PR creation helpers | Changing git workflow |
+| `pipeline/lib/git-utils.sh` | Clone, branch, PR creation, PR evidence posting | Changing git workflow |
 | `pipeline/lib/validation.sh` | Environment, PRD, and devcontainer validation | Adding new validations |
 | `agents/_base-system.md` | Shared instructions for all agents | Changing universal agent behavior |
 | `agents/*/prompt.md` | Per-agent instructions and completion criteria | Modifying agent behavior |

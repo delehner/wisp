@@ -8,7 +8,7 @@ This repository contains a generic AI agent pipeline that turns PRDs into Pull R
 - `pipeline/run-pipeline.sh` — Single PRD × single repo: clones, branches, starts Dev Container, runs agents, creates PR
 - `pipeline/run-agent.sh` — Ralph Loop wrapper for one agent
 - `pipeline/lib/` — Shared utilities (prd-parser.sh, progress.sh, git-utils.sh, validation.sh)
-- `agents/` — Agent prompt files (architect, designer, developer, tester, reviewer)
+- `agents/` — Agent prompt files (architect, designer, developer, tester, secops, infrastructure, devops, reviewer)
 - `manifests/` — Manifest JSON files defining orders, PRDs, repos, and contexts
 - `contexts/` — Per-repository context files (injected as ephemeral CLAUDE.md, never committed to target repos)
 - `templates/` — PRD template, manifest template, project context template
@@ -24,7 +24,9 @@ This repository contains a generic AI agent pipeline that turns PRDs into Pull R
 - **Per-repo context**: Each repository has its own context file in `contexts/`. The context is injected as an ephemeral `CLAUDE.md` into the working directory and never committed.
 - **Ralph Loop**: Iterative Claude Code sessions. Each iteration gets a fresh context window. Progress is tracked via `.agent-progress/` files.
 - **Dev Containers**: Agents run inside isolated containers by default. The pipeline manages the container lifecycle automatically.
-- **Pipeline Order**: Architect → Designer → Developer → Tester → Reviewer → PR
+- **Working Branch**: Each PRD declares a `**Working Branch**` in its metadata (e.g. `delehner/01-foundation`). The pipeline uses it as the feature branch name. Falls back to auto-generation if not specified.
+- **PR Evidence**: After PR creation, agent reports (tester, secops, infrastructure, devops by default) are posted as PR comments. Configurable via `EVIDENCE_AGENTS` env var or `--evidence-agents` flag.
+- **Pipeline Order**: Architect → Designer → Developer → Tester → SecOps → Infrastructure → DevOps → Reviewer → PR (with evidence comments)
 
 ## When Modifying Agent Prompts
 
@@ -44,7 +46,7 @@ This repository contains a generic AI agent pipeline that turns PRDs into Pull R
 ## When Adding a New Agent
 
 1. Create `agents/<name>/prompt.md` following existing agent structure
-2. Add the agent name to the default `AGENTS` variable in `run-pipeline.sh`
+2. Add the agent name to the default `AGENTS` variable in `run-pipeline.sh` and `orchestrator.sh`
 3. Define its position in the pipeline sequence (which agents come before/after)
 4. Add corresponding Cursor skill in `skills/<name>/SKILL.md` if appropriate
 5. Update documentation (see below)
