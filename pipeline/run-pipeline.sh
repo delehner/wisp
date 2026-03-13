@@ -25,6 +25,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+source "$SCRIPT_DIR/lib/prd-parser.sh"
 source "$SCRIPT_DIR/lib/progress.sh"
 source "$SCRIPT_DIR/lib/git-utils.sh"
 source "$SCRIPT_DIR/lib/validation.sh"
@@ -161,9 +162,15 @@ REPO_WORKDIR="$WORK_DIR/$REPO_NAME"
 log "INFO" "Preparing repository at $REPO_WORKDIR..."
 clone_or_prepare_repo "$REPO_URL" "$REPO_WORKDIR" "$BASE_BRANCH"
 
-WORKING_BRANCH=$(parse_prd_working_branch "$PRD_FILE")
-FEATURE_BRANCH="${WORKING_BRANCH:-$(generate_branch_name "$PRD_FILE")}"
-create_feature_branch "$REPO_WORKDIR" "$FEATURE_BRANCH"
+if [ "$REPO_WAS_EMPTY" = true ]; then
+  log "INFO" "Empty repository — working directly on $BASE_BRANCH (no feature branch, no PR)"
+  FEATURE_BRANCH="$BASE_BRANCH"
+  SKIP_PR=true
+else
+  WORKING_BRANCH=$(parse_prd_working_branch "$PRD_FILE")
+  FEATURE_BRANCH="${WORKING_BRANCH:-$(generate_branch_name "$PRD_FILE")}"
+  create_feature_branch "$REPO_WORKDIR" "$FEATURE_BRANCH"
+fi
 
 log "INFO" "Working on branch: $FEATURE_BRANCH"
 
@@ -551,8 +558,14 @@ if [ "$SKIP_PR" = false ]; then
   # Post evidence comments on the PR
   post_pr_evidence "$REPO_WORKDIR" "$PR_URL" "$PRD_SLUG" "$EVIDENCE_AGENTS"
 else
-  log "INFO" "Skipping PR creation (--skip-pr flag)"
-  log "INFO" "Branch $FEATURE_BRANCH is ready at $REPO_WORKDIR"
+  if [ "$REPO_WAS_EMPTY" = true ]; then
+    log "INFO" "Pushing $BASE_BRANCH to origin (initial repo content, no PR needed)..."
+    cd "$REPO_WORKDIR" && git push -u origin "$BASE_BRANCH"
+    log "INFO" "Branch $BASE_BRANCH pushed successfully"
+  else
+    log "INFO" "Skipping PR creation (--skip-pr flag)"
+    log "INFO" "Branch $FEATURE_BRANCH is ready at $REPO_WORKDIR"
+  fi
 fi
 
 # --- Summary ---

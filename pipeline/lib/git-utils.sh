@@ -1,6 +1,10 @@
 #!/bin/bash
 # Git utilities for the pipeline.
 
+# Set by clone_or_prepare_repo when the remote has no branches (virgin repo).
+# Consumers should check this after calling clone_or_prepare_repo.
+REPO_WAS_EMPTY=false
+
 clone_or_prepare_repo() {
   local repo_url="$1"
   local workdir="$2"
@@ -51,6 +55,7 @@ _seed_empty_repo() {
   git push -u origin "$base_branch" 2>/dev/null || {
     log "WARN" "Could not push $base_branch to origin (will retry at PR time)"
   }
+  REPO_WAS_EMPTY=true
 }
 
 create_feature_branch() {

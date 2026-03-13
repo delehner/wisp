@@ -74,11 +74,13 @@ A manifest ties together PRDs, repositories, contexts, and execution order.
       "prds": [
         {
           "prd": "./prds/01-setup.md",
+          "agents": ["architect", "designer"],
           "repositories": [
             {
               "url": "https://github.com/org/repo",
               "branch": "main",
-              "context": "./contexts/repo.md"
+              "context": "./contexts/repo.md",
+              "agents": ["developer", "tester", "reviewer"]
             }
           ]
         }
@@ -93,6 +95,7 @@ Key concepts:
 - **PRDs** within an order run in parallel
 - Each **repository** has its own context file (`CLAUDE.md`), branch, and URL
 - Context files are injected as ephemeral `CLAUDE.md` — never committed to the target repo
+- **Agents** can be specified per-PRD and/or per-repo — they combine (PRD-level first, then repo-level). Omit both to use the global default
 
 See `templates/manifest.json` for the full template and `manifests/portfolio.json` for a real example.
 

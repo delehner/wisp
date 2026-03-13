@@ -8,26 +8,31 @@
       "prds": [
         {
           "prd": "./prds/01-example.md",
+          "agents": ["architect", "designer"],
           "repositories": [
             {
               "url": "https://github.com/org/repo-1",
               "branch": "main",
-              "context": "./contexts/repo-1.md"
+              "context": "./contexts/repo-1.md",
+              "agents": ["developer", "tester", "reviewer"]
             }
           ]
         },
         {
           "prd": "./prds/02-parallel-work.md",
+          "agents": ["architect"],
           "repositories": [
             {
               "url": "https://github.com/org/repo-2",
               "branch": "develop",
-              "context": "./contexts/repo-2.md"
+              "context": "./contexts/repo-2.md",
+              "agents": ["developer", "tester"]
             },
             {
               "url": "https://github.com/org/shared-lib",
               "branch": "main",
-              "context": "./contexts/shared-lib.md"
+              "context": "./contexts/shared-lib.md",
+              "agents": ["developer"]
             }
           ]
         }

@@ -75,11 +75,13 @@ flowchart LR
       "prds": [
         {
           "prd": "./prds/01-setup.md",
+          "agents": ["architect", "designer"],
           "repositories": [
             {
               "url": "https://github.com/org/repo",
               "branch": "main",
-              "context": "./contexts/repo.md"
+              "context": "./contexts/repo.md",
+              "agents": ["developer", "tester", "reviewer"]
             }
           ]
         }
@@ -93,6 +95,20 @@ flowchart LR
 - **PRDs within an order** execute in parallel
 - Each **repository** has its own context file, branch, and URL
 - **Context** is per-repo (injected as ephemeral `CLAUDE.md`, never committed)
+- **Agents** can be specified at the PRD level and/or the repository level (see below)
+
+### Per-Unit Agent Selection
+
+Agents can be configured at two levels in the manifest. They combine (not override):
+
+| Level | Key | Scope |
+|-------|-----|-------|
+| PRD-level `agents` | `orders[].prds[].agents` | Runs for every repository in that PRD |
+| Repo-level `agents` | `orders[].prds[].repositories[].agents` | Runs only for that specific repository |
+
+The final agent list for a work unit is: **PRD agents first, then repo agents** — matching the natural flow (design before implementation). If neither level specifies agents, the global `--agents` CLI flag (or built-in default) applies.
+
+**Example:** Given `"agents": ["architect"]` on the PRD and `"agents": ["developer", "tester"]` on a repo, that repo runs: architect, developer, tester.
 
 ## Orchestrator Lifecycle
 
@@ -127,7 +143,10 @@ flowchart TD
 ```mermaid
 flowchart TD
     Start([Start]) --> Clone[Clone repo\nor fetch latest]
-    Clone --> Branch[Create feature branch]
+    Clone --> EmptyCheck{Empty\nrepo?}
+    EmptyCheck -->|Yes| SeedMain["Seed main with\ninitial commit\n(work directly on main)"]
+    EmptyCheck -->|No| Branch[Create feature branch]
+    SeedMain --> InjectCtx
     Branch --> InjectCtx[Inject context file\nas ephemeral CLAUDE.md]
     InjectCtx --> CopyPRD[Copy PRD into\nrepo docs/]
     CopyPRD --> StartDC["🐳 Start Dev Container\n(devcontainer up)"]
@@ -148,10 +167,13 @@ flowchart TD
     end
 
     Loop --> StopDC["🐳 Stop Dev Container\n(docker stop)"]
-    StopDC --> CreatePR{--skip-pr?}
+    StopDC --> WasEmpty{Empty\nrepo?}
+    WasEmpty -->|Yes| PushMain["Push main to origin\n(no PR)"]
+    WasEmpty -->|No| CreatePR{--skip-pr?}
     CreatePR -->|No| PR["Push branch &\ngh pr create\n(3 retries)"]
     PR --> Evidence["Post evidence comments\n(agent reports → PR)"]
     CreatePR -->|Yes| Done
+    PushMain --> Done
     Evidence --> Done([Pipeline Complete])
 ```
 
@@ -168,6 +190,7 @@ flowchart TD
 - **PRD working branch**: The feature branch name is read from the PRD's `**Working Branch**` metadata field (e.g. `delehner/01-foundation`). If not declared, falls back to auto-generation from the PRD title.
 - **PR evidence comments**: After PR creation, agent reports (tester, secops, infrastructure, devops) are posted as PR comments. Configurable via `--evidence-agents` or `EVIDENCE_AGENTS` env var.
 - **Mandatory PR creation**: PR creation retries up to 3 times. If all attempts fail, the pipeline exits with an error. Use `--skip-pr` only for local testing.
+- **Empty repository handling**: When the target repo has no branches (virgin repo), the pipeline seeds `main` with an initial commit and works directly on it — no feature branch, no PR. The finished `main` is pushed to origin at the end. This avoids the impossible "PR to a branch that doesn't exist" scenario.
 
 ## Agent Responsibilities
 
@@ -260,7 +283,7 @@ flowchart LR
 | `--prd-dir <dir>` | Legacy: directory of PRD files | — |
 | `--repo <url>` | Override repo for all PRDs | From manifest |
 | `--branch <name>` | Override branch for all PRDs | From manifest |
-| `--agents <list>` | Comma-separated agent list | architect,designer,developer,tester,secops,infrastructure,devops,reviewer |
+| `--agents <list>` | Comma-separated agent list (global fallback; overridden by per-PRD/per-repo agents in manifest) | architect,designer,developer,tester,secops,infrastructure,devops,reviewer |
 | `--sequential` | Run work units one at a time | Parallel |
 | `--max-parallel <n>` | Max concurrent pipelines | 4 |
 | `--skip-pr` | Don't create PRs | false |

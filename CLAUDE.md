@@ -18,7 +18,7 @@ This repository contains a generic AI agent pipeline that turns PRDs into Pull R
 
 ## Key Concepts
 
-- **Manifest**: A JSON file that defines the full execution plan. Contains ordered batches ("orders") of PRDs, each PRD targeting one or more repos with per-repo context files and branches.
+- **Manifest**: A JSON file that defines the full execution plan. Contains ordered batches ("orders") of PRDs, each PRD targeting one or more repos with per-repo context files, branches, and optional agent lists.
 - **Orders**: Execute sequentially — order N finishes and PRs are merged before order N+1 starts.
 - **PRDs in an order**: Execute in parallel by default.
 - **Per-repo context**: Each repository has its own context file in `contexts/`. The context is injected as an ephemeral `CLAUDE.md` into the working directory and never committed.
@@ -26,6 +26,8 @@ This repository contains a generic AI agent pipeline that turns PRDs into Pull R
 - **Dev Containers**: Agents run inside isolated containers by default. The pipeline manages the container lifecycle automatically.
 - **Working Branch**: Each PRD declares a `**Working Branch**` in its metadata (e.g. `delehner/01-foundation`). The pipeline uses it as the feature branch name. Falls back to auto-generation if not specified.
 - **PR Evidence**: After PR creation, agent reports (tester, secops, infrastructure, devops by default) are posted as PR comments. Configurable via `EVIDENCE_AGENTS` env var or `--evidence-agents` flag.
+- **Per-unit agent selection**: Agents can be specified at the PRD level (`orders[].prds[].agents`) and/or repo level (`orders[].prds[].repositories[].agents`) in the manifest. They combine: PRD agents run first, then repo agents. If neither is specified, the global `--agents` flag (or built-in default) applies.
+- **Empty repo handling**: When the target repo has no branches (virgin repo), the pipeline seeds `main` with an initial commit and works directly on it — no feature branch, no PR. The finished `main` is pushed to origin at the end.
 - **Pipeline Order**: Architect → Designer → Developer → Tester → SecOps → Infrastructure → DevOps → Reviewer → PR (with evidence comments)
 
 ## When Modifying Agent Prompts

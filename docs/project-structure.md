@@ -47,7 +47,7 @@ flowchart TD
 ```mermaid
 flowchart LR
     subgraph User["User Input"]
-        Manifest["Manifest JSON\n(orders, PRDs, repos, contexts)"]
+        Manifest["Manifest JSON\n(orders, PRDs, repos, contexts, agents)"]
         Env[".env config"]
     end
 
@@ -108,7 +108,7 @@ flowchart LR
 | `pipeline/lib/validation.sh` | Environment, PRD, and devcontainer validation | Adding new validations |
 | `agents/_base-system.md` | Shared instructions for all agents | Changing universal agent behavior |
 | `agents/*/prompt.md` | Per-agent instructions and completion criteria | Modifying agent behavior |
-| `manifests/*.json` | Execution plans: orders, PRDs, repos, contexts | Adding projects or changing execution plans |
+| `manifests/*.json` | Execution plans: orders, PRDs, repos, contexts, per-unit agents | Adding projects or changing execution plans |
 | `contexts/*.md` | Per-repo context files (injected as ephemeral CLAUDE.md) | Repo conventions change, new repos added |
 | `templates/manifest.json` | Manifest template | Changing manifest schema |
 | `templates/prd.md` | PRD template for users | Changing required PRD sections |

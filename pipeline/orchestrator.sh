@@ -156,6 +156,7 @@ run_work_unit() {
   local context="$4"
   local label="$5"
   local index="$6"
+  local unit_agents="${7:-$AGENTS}"
 
   local prd_slug repo_name unit_log
   prd_slug=$(basename "$prd_file" .md)
@@ -174,7 +175,7 @@ run_work_unit() {
     --repo "$repo_url" \
     --branch "$branch" \
     --workdir "$WORK_DIR" \
-    --agents "$AGENTS" \
+    --agents "$unit_agents" \
     --model "$MODEL" \
     --max-iterations "$MAX_ITERATIONS" \
     $context_flag \
@@ -187,7 +188,7 @@ run_work_unit() {
 # =============================================================================
 # Execute a list of work units (parallel or sequential)
 # =============================================================================
-# Each unit is: "prd_path|repo_url|branch|context"
+# Each unit is: "prd_path|repo_url|branch|context|agents"
 # Each label is: human-readable description
 execute_work_units() {
   local -a units=()
@@ -216,14 +217,15 @@ execute_work_units() {
   if [ "$SEQUENTIAL" = true ]; then
     for i in "${!units[@]}"; do
       local index=$((i+1))
-      local prd_file repo_url branch context
+      local prd_file repo_url branch context unit_agents
       prd_file=$(echo "${units[$i]}" | cut -d'|' -f1)
       repo_url=$(echo "${units[$i]}" | cut -d'|' -f2)
       branch=$(echo "${units[$i]}" | cut -d'|' -f3)
       context=$(echo "${units[$i]}" | cut -d'|' -f4)
+      unit_agents=$(echo "${units[$i]}" | cut -d'|' -f5)
 
       set +e
-      run_work_unit "$prd_file" "$repo_url" "$branch" "$context" "${labels[$i]}" "$index"
+      run_work_unit "$prd_file" "$repo_url" "$branch" "$context" "${labels[$i]}" "$index" "$unit_agents"
       local exit_code=$?
       set -e
 
@@ -238,11 +240,12 @@ execute_work_units() {
   else
     for i in "${!units[@]}"; do
       local index=$((i+1))
-      local prd_file repo_url branch context
+      local prd_file repo_url branch context unit_agents
       prd_file=$(echo "${units[$i]}" | cut -d'|' -f1)
       repo_url=$(echo "${units[$i]}" | cut -d'|' -f2)
       branch=$(echo "${units[$i]}" | cut -d'|' -f3)
       context=$(echo "${units[$i]}" | cut -d'|' -f4)
+      unit_agents=$(echo "${units[$i]}" | cut -d'|' -f5)
 
       # Throttle
       while [ "$ACTIVE_JOBS" -ge "$MAX_PARALLEL" ]; do
@@ -269,7 +272,7 @@ execute_work_units() {
         sleep 1
       done
 
-      run_work_unit "$prd_file" "$repo_url" "$branch" "$context" "${labels[$i]}" "$index" &
+      run_work_unit "$prd_file" "$repo_url" "$branch" "$context" "${labels[$i]}" "$index" "$unit_agents" &
       PIDS[$i]=$!
       PID_LABELS[$i]="${labels[$i]}"
       ACTIVE_JOBS=$((ACTIVE_JOBS + 1))
@@ -398,11 +401,13 @@ if [ -n "$MANIFEST_FILE" ]; then
       fi
 
       NUM_REPOS=$(jq ".orders[$order_idx].prds[$prd_idx].repositories | length" "$MANIFEST_FILE")
+      PRD_AGENTS=$(jq -r ".orders[$order_idx].prds[$prd_idx].agents // [] | join(\",\")" "$MANIFEST_FILE")
 
       for ((repo_idx=0; repo_idx<NUM_REPOS; repo_idx++)); do
         REPO_URL=$(jq -r ".orders[$order_idx].prds[$prd_idx].repositories[$repo_idx].url" "$MANIFEST_FILE")
         BRANCH=$(jq -r ".orders[$order_idx].prds[$prd_idx].repositories[$repo_idx].branch // \"main\"" "$MANIFEST_FILE")
         CONTEXT_REL=$(jq -r ".orders[$order_idx].prds[$prd_idx].repositories[$repo_idx].context // \"\"" "$MANIFEST_FILE")
+        REPO_AGENTS=$(jq -r ".orders[$order_idx].prds[$prd_idx].repositories[$repo_idx].agents // [] | join(\",\")" "$MANIFEST_FILE")
 
         CONTEXT_ABS=""
         if [ -n "$CONTEXT_REL" ] && [ "$CONTEXT_REL" != "" ]; then
@@ -422,8 +427,19 @@ if [ -n "$MANIFEST_FILE" ]; then
           REPO_URL="$REPO_OVERRIDE"
         fi
 
+        # Combine PRD-level + repo-level agents; fall back to global default
+        if [ -n "$PRD_AGENTS" ] && [ -n "$REPO_AGENTS" ]; then
+          UNIT_AGENTS="${PRD_AGENTS},${REPO_AGENTS}"
+        elif [ -n "$PRD_AGENTS" ]; then
+          UNIT_AGENTS="$PRD_AGENTS"
+        elif [ -n "$REPO_AGENTS" ]; then
+          UNIT_AGENTS="$REPO_AGENTS"
+        else
+          UNIT_AGENTS="$AGENTS"
+        fi
+
         REPO_NAME=$(basename "$REPO_URL" .git)
-        UNITS+=("${PRD_ABS}|${REPO_URL}|${BRANCH}|${CONTEXT_ABS}")
+        UNITS+=("${PRD_ABS}|${REPO_URL}|${BRANCH}|${CONTEXT_ABS}|${UNIT_AGENTS}")
         LABELS+=("'$PRD_TITLE' → $REPO_NAME ($BRANCH)")
       done
     done
