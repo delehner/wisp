@@ -562,8 +562,8 @@ $COMMIT_INSTRUCTION
 CTXEOF
 )
 
-  local ctx_output_format="text"
-  local ctx_extra_flags=""
+  ctx_output_format="text"
+  ctx_extra_flags=""
   if [ "$VERBOSE_LOGS" = true ]; then
     ctx_output_format="stream-json"
     ctx_extra_flags="--verbose"
