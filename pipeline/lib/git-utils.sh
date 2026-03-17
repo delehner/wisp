@@ -88,6 +88,35 @@ generate_branch_name() {
   echo "agent/${prd_slug}-${date_stamp}"
 }
 
+rebase_onto_latest() {
+  local workdir="$1"
+  local target_branch="$2"
+
+  cd "$workdir" || exit 1
+  git fetch origin "$target_branch" 2>/dev/null || {
+    log "WARN" "Could not fetch origin/$target_branch — skipping rebase"
+    return 0
+  }
+
+  local current_branch
+  current_branch=$(git rev-parse --abbrev-ref HEAD)
+
+  if git merge-base --is-ancestor "origin/$target_branch" HEAD 2>/dev/null; then
+    log "INFO" "Branch $current_branch is already up to date with origin/$target_branch"
+    return 0
+  fi
+
+  log "INFO" "Rebasing $current_branch onto origin/$target_branch..."
+  if ! git rebase "origin/$target_branch" 2>/dev/null; then
+    log "WARN" "Rebase failed — aborting rebase (PR may show conflicts on GitHub)"
+    git rebase --abort 2>/dev/null || true
+    return 1
+  fi
+
+  log "INFO" "Rebase onto origin/$target_branch successful"
+  return 0
+}
+
 create_pull_request() {
   local workdir="$1"
   local base_branch="$2"

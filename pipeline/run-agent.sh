@@ -14,7 +14,9 @@ set -euo pipefail
 #     --prd <path-to-prd> \
 #     [--max-iterations <n>] \
 #     [--model <model-name>] \
-#     [--previous-agents <comma-separated>]
+#     [--previous-agents <comma-separated>] \
+#     [--verbose-logs] \
+#     [--interactive]
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PIPELINE_DIR="$SCRIPT_DIR"
@@ -45,6 +47,8 @@ MAX_ITERATIONS="${PIPELINE_MAX_ITERATIONS:-10}"
 MODEL="${CLAUDE_MODEL:-sonnet}"
 PREVIOUS_AGENTS=""
 ALLOWED_TOOLS="${CLAUDE_ALLOWED_TOOLS:-Edit,Write,Bash,Read,MultiEdit}"
+VERBOSE_LOGS="${VERBOSE_LOGS:-false}"
+INTERACTIVE="${INTERACTIVE:-false}"
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -55,12 +59,14 @@ while [[ $# -gt 0 ]]; do
     --model) MODEL="$2"; shift 2 ;;
     --previous-agents) PREVIOUS_AGENTS="$2"; shift 2 ;;
     --allowed-tools) ALLOWED_TOOLS="$2"; shift 2 ;;
+    --verbose-logs) VERBOSE_LOGS=true; shift ;;
+    --interactive) INTERACTIVE=true; shift ;;
     *) log "ERROR" "Unknown argument: $1"; exit 1 ;;
   esac
 done
 
 if [ -z "$AGENT" ] || [ -z "$WORKDIR" ] || [ -z "$PRD_FILE" ]; then
-  echo "Usage: $0 --agent <name> --workdir <path> --prd <path> [--max-iterations <n>] [--model <name>] [--previous-agents <a,b,c>]"
+  echo "Usage: $0 --agent <name> --workdir <path> --prd <path> [--max-iterations <n>] [--model <name>] [--previous-agents <a,b,c>] [--verbose-logs] [--interactive]"
   exit 1
 fi
 
@@ -178,16 +184,39 @@ for ((iteration=1; iteration<=MAX_ITERATIONS; iteration++)); do
 
   # Run Claude Code in headless mode
   log "INFO" "Running Claude Code (iteration $iteration)..."
+  mkdir -p "$LOG_DIR"
 
   set +e
-  claude -p "$(cat "$prompt_file")" \
-    --model "$MODEL" \
-    --allowedTools "$ALLOWED_TOOLS" \
-    --dangerously-skip-permissions \
-    --output-format text \
-    2>&1 | tee -a "$LOG_DIR/${AGENT}_iteration_${iteration}.log"
-  exit_code=$?
+  if [ "$VERBOSE_LOGS" = true ]; then
+    claude -p "$(cat "$prompt_file")" \
+      --model "$MODEL" \
+      --allowedTools "$ALLOWED_TOOLS" \
+      --dangerously-skip-permissions \
+      --output-format stream-json \
+      --verbose \
+      2>&1 | "$PIPELINE_DIR/lib/log-formatter.sh" \
+        --raw-log "$LOG_DIR/${AGENT}_iteration_${iteration}.jsonl" \
+      | tee -a "$LOG_DIR/${AGENT}_iteration_${iteration}.log"
+    exit_code=${PIPESTATUS[0]}
+  else
+    claude -p "$(cat "$prompt_file")" \
+      --model "$MODEL" \
+      --allowedTools "$ALLOWED_TOOLS" \
+      --dangerously-skip-permissions \
+      --output-format text \
+      2>&1 | tee -a "$LOG_DIR/${AGENT}_iteration_${iteration}.log"
+    exit_code=${PIPESTATUS[0]}
+  fi
   set -e
+
+  # Extract session ID from verbose logs for potential --resume usage
+  if [ "$VERBOSE_LOGS" = true ] && [ -f "$LOG_DIR/${AGENT}_iteration_${iteration}.jsonl" ]; then
+    session_id=$(head -5 "$LOG_DIR/${AGENT}_iteration_${iteration}.jsonl" | jq -r 'select(.session_id) | .session_id' 2>/dev/null | head -1)
+    if [ -n "$session_id" ] && [ "$session_id" != "null" ]; then
+      echo "$session_id" > "$LOG_DIR/${AGENT}_iteration_${iteration}.session"
+      log "INFO" "Session ID: $session_id (resume with: claude --resume $session_id)"
+    fi
+  fi
 
   rm -f "$prompt_file"
 
@@ -203,6 +232,31 @@ for ((iteration=1; iteration<=MAX_ITERATIONS; iteration++)); do
 
   if [ "$iteration" -eq "$MAX_ITERATIONS" ]; then
     log "WARN" "Agent $AGENT reached max iterations ($MAX_ITERATIONS) without completing"
+  fi
+
+  # Interactive pause: let the user review, modify PRD/progress, or skip
+  if [ "$INTERACTIVE" = true ] && [ "$iteration" -lt "$MAX_ITERATIONS" ] && [ -t 0 ]; then
+    echo "" >&2
+    echo "  [$AGENT] Iteration $iteration complete. Status: $(get_agent_status "$WORKDIR" "$AGENT")" >&2
+    echo "  Options:" >&2
+    echo "    Enter     = continue to next iteration" >&2
+    echo "    s + Enter = skip remaining iterations for this agent" >&2
+    echo "    q + Enter = abort pipeline" >&2
+    if [ "$VERBOSE_LOGS" = true ] && [ -f "$LOG_DIR/${AGENT}_iteration_${iteration}.session" ]; then
+      echo "    Resume this session interactively: claude --resume $(cat "$LOG_DIR/${AGENT}_iteration_${iteration}.session")" >&2
+    fi
+    echo "" >&2
+    read -r user_input
+    case "$user_input" in
+      s|S|skip)
+        log "INFO" "User skipped remaining iterations for agent $AGENT"
+        break
+        ;;
+      q|Q|quit|abort)
+        log "INFO" "User aborted pipeline during agent $AGENT"
+        exit 1
+        ;;
+    esac
   fi
 
   # Brief pause between iterations to avoid rate limiting

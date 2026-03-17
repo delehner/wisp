@@ -12,7 +12,7 @@ flowchart TD
     Root --> Agents["agents/\nAgent prompt definitions"]
     Root --> Manifests["manifests/\nExecution plans (orders + PRDs + repos)"]
     Root --> PRDs["prds/\nProduct Requirements Documents"]
-    Root --> Contexts["contexts/\nPer-repo context files"]
+    Root --> Contexts["contexts/\nPer-repo context skill directories"]
     Root --> Templates["templates/\nManifest, PRD & context templates"]
     Root --> Skills["skills/\nCursor-compatible skills"]
     Root --> DevC[".devcontainer/\nDev Container configs"]
@@ -22,7 +22,10 @@ flowchart TD
     Pipeline --> POrch["orchestrator.sh\n(manifest orchestrator)"]
     Pipeline --> PPipe["run-pipeline.sh\n(single PRD × repo + container)"]
     Pipeline --> PRun["run-agent.sh\n(Ralph Loop)"]
-    Pipeline --> PLib["lib/\nprogress.sh\ngit-utils.sh\nvalidation.sh\nprd-parser.sh"]
+    Pipeline --> PGen["generate-context.sh\n(context skill generator)"]
+    Pipeline --> PPrd["generate-prd.sh\n(PRD & manifest generator)"]
+    Pipeline --> PMon["monitor.sh\n(real-time log monitor)"]
+    Pipeline --> PLib["lib/\nprogress.sh\ngit-utils.sh\nvalidation.sh\nprd-parser.sh\ncontext.sh\nlog-formatter.sh"]
 
     Agents --> ABase["_base-system.md"]
     Agents --> AArch["architect/prompt.md"]
@@ -33,13 +36,16 @@ flowchart TD
     Agents --> AInfra["infrastructure/prompt.md"]
     Agents --> AOps["devops/prompt.md"]
     Agents --> ARev["reviewer/prompt.md"]
+    Agents --> ACtx["context-generator/prompt.md"]
+    Agents --> APrd["prd-generator/prompt.md"]
 
     DevC --> DCMain["devcontainer.json\n(for editing this repo)"]
     DevC --> DCAgent["agent/\n(for running agents headlessly)"]
 
     Templates --> TManifest["manifest.json"]
     Templates --> TPRD["prd.md"]
-    Templates --> TCtx["project-context.md"]
+    Templates --> TBrief["brief.md"]
+    Templates --> TCtx["project-context.md\ncontext-skill.md"]
 ```
 
 ## Component Relationships
@@ -47,6 +53,7 @@ flowchart TD
 ```mermaid
 flowchart LR
     subgraph User["User Input"]
+        Brief["Project Brief\n(what you want to build)"]
         Manifest["Manifest JSON\n(orders, PRDs, repos, contexts, agents)"]
         Env[".env config"]
     end
@@ -74,9 +81,10 @@ flowchart LR
         Artifacts["Architecture docs\nDesign specs\nTest reports"]
         PullReq["Pull Request"]
         Evidence["Evidence comments\n(agent reports on PR)"]
-        CtxUpdate["Updated context\n(synced to contexts/)"]
+        CtxUpdate["Updated context\n(synced to contexts/<repo>/)"]
     end
 
+    Brief -->|"generate-prd.sh"| Manifest
     Manifest --> Orch
     Env --> Orch
     Orch -->|"per PRD×repo"| Pipe
@@ -102,17 +110,24 @@ flowchart LR
 | `pipeline/orchestrator.sh` | Manifest orchestrator: orders, parallel PRDs, per-repo context | Changing execution model, adding manifest features |
 | `pipeline/run-pipeline.sh` | Single PRD × single repo: Dev Container lifecycle, agent sequence, PR, repo-root logging | Adding agents, changing container config, flow |
 | `pipeline/run-agent.sh` | Ralph Loop implementation, prompt assembly | Changing iteration logic or prompt structure |
+| `pipeline/generate-context.sh` | Context skill generator: analyzes repos and produces skill files | Changing context generation workflow |
+| `pipeline/generate-prd.sh` | PRD and manifest generator: reads a brief and repo contexts, produces ordered PRDs and a manifest | Changing PRD generation workflow |
 | `pipeline/lib/prd-parser.sh` | Parse PRD metadata: status, title, priority, working branch | Changing PRD metadata format |
 | `pipeline/lib/progress.sh` | Read/write `.agent-progress/` files | Changing progress format |
-| `pipeline/lib/git-utils.sh` | Clone, branch, PR creation, PR evidence posting | Changing git workflow |
+| `pipeline/lib/git-utils.sh` | Clone, branch, rebase, PR creation, PR evidence posting | Changing git workflow |
 | `pipeline/lib/validation.sh` | Environment, PRD, and devcontainer validation | Adding new validations |
+| `pipeline/lib/context.sh` | Context skill assembly (directory → single CLAUDE.md) | Changing context skill format or ordering |
+| `pipeline/lib/log-formatter.sh` | Format stream-json events into readable output (thinking, tools, results) | Changing log format or adding new event types |
+| `pipeline/monitor.sh` | Real-time log tailing with agent filtering and session listing | Changing monitoring workflow |
 | `agents/_base-system.md` | Shared instructions for all agents | Changing universal agent behavior |
 | `agents/*/prompt.md` | Per-agent instructions and completion criteria | Modifying agent behavior |
 | `manifests/*.json` | Execution plans: orders, PRDs, repos, contexts, per-unit agents | Adding projects or changing execution plans |
-| `contexts/*.md` | Per-repo context files (injected as ephemeral CLAUDE.md) | Repo conventions change, new repos added |
+| `contexts/<repo>/` | Per-repo context skill directories (assembled into ephemeral CLAUDE.md) | Repo conventions change, new repos added |
 | `templates/manifest.json` | Manifest template | Changing manifest schema |
 | `templates/prd.md` | PRD template for users | Changing required PRD sections |
-| `templates/project-context.md` | Project context template | Changing project setup workflow |
+| `templates/brief.md` | Project brief template (input for PRD generation) | Changing brief format |
+| `templates/project-context.md` | Legacy single-file context template | Changing project setup workflow |
+| `templates/context-skill.md` | Context skill template (directory-based contexts) | Changing context skill format |
 | `.devcontainer/devcontainer.json` | Dev Container for editing this repo (VS Code/Cursor) | Changing IDE dev environment |
 | `.devcontainer/agent/*` | Dev Container for running agents headlessly | Changing agent sandbox |
 | `.mcp.json` | MCP server connections (GitHub, Notion, Figma) | Adding/removing integrations |

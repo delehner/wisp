@@ -66,6 +66,8 @@ MAX_ITERATIONS="${PIPELINE_MAX_ITERATIONS:-10}"
 SEQUENTIAL=false
 MAX_PARALLEL="${PIPELINE_MAX_PARALLEL:-4}"
 EVIDENCE_AGENTS="${EVIDENCE_AGENTS:-tester,secops,infrastructure,devops}"
+VERBOSE_LOGS="${VERBOSE_LOGS:-false}"
+INTERACTIVE="${INTERACTIVE:-false}"
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -87,6 +89,8 @@ while [[ $# -gt 0 ]]; do
     --sequential) SEQUENTIAL=true; shift ;;
     --max-parallel) MAX_PARALLEL="$2"; shift 2 ;;
     --evidence-agents) EVIDENCE_AGENTS="$2"; shift 2 ;;
+    --verbose-logs) VERBOSE_LOGS=true; shift ;;
+    --interactive) INTERACTIVE=true; shift ;;
     -h|--help)
       cat <<'HELP'
 Usage: orchestrator.sh [options]
@@ -100,7 +104,7 @@ Legacy mode (single PRD):
   --prd <path>              PRD file (can be repeated for multiple PRDs)
   --prd-dir <dir>           Directory containing PRD .md files
   --repo <url>              Target repository URL
-  --context <path>          Project context file (injected as ephemeral CLAUDE.md)
+  --context <path>          Project context (file or skill directory, injected as ephemeral CLAUDE.md)
   --branch <name>           Base branch (default: main)
 
 Pipeline options:
@@ -117,6 +121,10 @@ Execution:
   --sequential              Run work units one at a time (default: parallel)
   --max-parallel <n>        Max concurrent pipelines (default: 4)
   --workdir <path>          Working directory for cloned repos
+
+Monitoring & interaction:
+  --verbose-logs            Detailed agent logging (thinking, tool calls, results)
+  --interactive             Pause between agents and iterations for review
 
   -h, --help                Show this help
 HELP
@@ -140,6 +148,8 @@ build_extra_flags() {
   [ "$SKIP_PR" = true ] && flags+=" --skip-pr"
   [ "$NO_CONTEXT_UPDATE" = true ] && flags+=" --no-context-update"
   [ "$NO_DEVCONTAINER" = true ] && flags+=" --no-devcontainer"
+  [ "$VERBOSE_LOGS" = true ] && flags+=" --verbose-logs"
+  [ "$INTERACTIVE" = true ] && flags+=" --interactive"
   flags+=" --evidence-agents $EVIDENCE_AGENTS"
   echo "$flags"
 }
@@ -157,6 +167,7 @@ run_work_unit() {
   local label="$5"
   local index="$6"
   local unit_agents="${7:-$AGENTS}"
+  local stack_on="${8:-}"
 
   local prd_slug repo_name unit_log
   prd_slug=$(basename "$prd_file" .md)
@@ -170,6 +181,11 @@ run_work_unit() {
     context_flag="--context $context"
   fi
 
+  local stack_flag=""
+  if [ -n "$stack_on" ]; then
+    stack_flag="--stack-on $stack_on"
+  fi
+
   "$SCRIPT_DIR/run-pipeline.sh" \
     --prd "$prd_file" \
     --repo "$repo_url" \
@@ -179,6 +195,7 @@ run_work_unit() {
     --model "$MODEL" \
     --max-iterations "$MAX_ITERATIONS" \
     $context_flag \
+    $stack_flag \
     $EXTRA_FLAGS \
     2>&1 | tee "$unit_log"
 
@@ -188,7 +205,8 @@ run_work_unit() {
 # =============================================================================
 # Execute a list of work units (parallel or sequential)
 # =============================================================================
-# Each unit is: "prd_path|repo_url|branch|context|agents"
+# Each unit is: "prd_path|repo_url|branch|context|agents|stack_on"
+# Fields 5 (agents) and 6 (stack_on) are optional.
 # Each label is: human-readable description
 execute_work_units() {
   local -a units=()
@@ -217,15 +235,16 @@ execute_work_units() {
   if [ "$SEQUENTIAL" = true ]; then
     for i in "${!units[@]}"; do
       local index=$((i+1))
-      local prd_file repo_url branch context unit_agents
+      local prd_file repo_url branch context unit_agents stack_on
       prd_file=$(echo "${units[$i]}" | cut -d'|' -f1)
       repo_url=$(echo "${units[$i]}" | cut -d'|' -f2)
       branch=$(echo "${units[$i]}" | cut -d'|' -f3)
       context=$(echo "${units[$i]}" | cut -d'|' -f4)
       unit_agents=$(echo "${units[$i]}" | cut -d'|' -f5)
+      stack_on=$(echo "${units[$i]}" | cut -d'|' -f6)
 
       set +e
-      run_work_unit "$prd_file" "$repo_url" "$branch" "$context" "${labels[$i]}" "$index" "$unit_agents"
+      run_work_unit "$prd_file" "$repo_url" "$branch" "$context" "${labels[$i]}" "$index" "$unit_agents" "$stack_on"
       local exit_code=$?
       set -e
 
@@ -240,12 +259,13 @@ execute_work_units() {
   else
     for i in "${!units[@]}"; do
       local index=$((i+1))
-      local prd_file repo_url branch context unit_agents
+      local prd_file repo_url branch context unit_agents stack_on
       prd_file=$(echo "${units[$i]}" | cut -d'|' -f1)
       repo_url=$(echo "${units[$i]}" | cut -d'|' -f2)
       branch=$(echo "${units[$i]}" | cut -d'|' -f3)
       context=$(echo "${units[$i]}" | cut -d'|' -f4)
       unit_agents=$(echo "${units[$i]}" | cut -d'|' -f5)
+      stack_on=$(echo "${units[$i]}" | cut -d'|' -f6)
 
       # Throttle
       while [ "$ACTIVE_JOBS" -ge "$MAX_PARALLEL" ]; do
@@ -272,7 +292,7 @@ execute_work_units() {
         sleep 1
       done
 
-      run_work_unit "$prd_file" "$repo_url" "$branch" "$context" "${labels[$i]}" "$index" "$unit_agents" &
+      run_work_unit "$prd_file" "$repo_url" "$branch" "$context" "${labels[$i]}" "$index" "$unit_agents" "$stack_on" &
       PIDS[$i]=$!
       PID_LABELS[$i]="${labels[$i]}"
       ACTIVE_JOBS=$((ACTIVE_JOBS + 1))
@@ -315,6 +335,138 @@ execute_work_units() {
   log "INFO" "  Succeeded: $success_count | Failed: $fail_count"
 
   [ "$fail_count" -eq 0 ]
+}
+
+# =============================================================================
+# Execute work units with same-repo stacking (wave-based)
+# =============================================================================
+# When multiple units target the same repo, they are serialized into waves.
+# Wave 1 runs the first unit per repo (parallel). Wave 2+ stacks subsequent
+# units on the previous wave's feature branches. Different repos still run
+# in parallel across waves.
+execute_order_with_stacking() {
+  local -a all_units=()
+  local -a all_labels=()
+
+  local reading_units=true
+  for arg in "$@"; do
+    if [ "$arg" = "--" ]; then
+      reading_units=false
+      continue
+    fi
+    if [ "$reading_units" = true ]; then
+      all_units+=("$arg")
+    else
+      all_labels+=("$arg")
+    fi
+  done
+
+  # Check if any repo appears more than once
+  local needs_stacking=false
+  local i j
+  for ((i=0; i<${#all_units[@]}; i++)); do
+    local repo_i
+    repo_i=$(echo "${all_units[$i]}" | cut -d'|' -f2)
+    for ((j=i+1; j<${#all_units[@]}; j++)); do
+      local repo_j
+      repo_j=$(echo "${all_units[$j]}" | cut -d'|' -f2)
+      if [ "$repo_i" = "$repo_j" ]; then
+        needs_stacking=true
+        break 2
+      fi
+    done
+  done
+
+  if [ "$needs_stacking" = false ]; then
+    execute_work_units "${all_units[@]}" "--" "${all_labels[@]}"
+    return $?
+  fi
+
+  log "INFO" "Same-repo PRDs detected — enabling stacked branch execution"
+
+  # Track which units have been dispatched
+  local -a assigned=()
+  for i in "${!all_units[@]}"; do
+    assigned[$i]=0
+  done
+
+  local wave=0
+  local overall_fail=0
+
+  while true; do
+    local -a wave_units=()
+    local -a wave_labels=()
+    local -a wave_repos_seen=()
+
+    for i in "${!all_units[@]}"; do
+      if [ "${assigned[$i]}" = "1" ]; then
+        continue
+      fi
+
+      local repo_url
+      repo_url=$(echo "${all_units[$i]}" | cut -d'|' -f2)
+
+      # Skip if this repo already has a unit in this wave
+      local repo_in_wave=false
+      if [ ${#wave_repos_seen[@]} -gt 0 ]; then
+        for wr in "${wave_repos_seen[@]}"; do
+          if [ "$wr" = "$repo_url" ]; then
+            repo_in_wave=true
+            break
+          fi
+        done
+      fi
+
+      if [ "$repo_in_wave" = true ]; then
+        continue
+      fi
+
+      local unit="${all_units[$i]}"
+
+      # For waves after the first, read the previous feature branch and stack on it
+      if [ $wave -gt 0 ]; then
+        local repo_name
+        repo_name=$(basename "$repo_url" .git)
+        local marker="$WORK_DIR/$repo_name/.pipeline/feature-branch"
+        if [ -f "$marker" ]; then
+          local prev_branch
+          prev_branch=$(cat "$marker")
+          unit="${unit}|${prev_branch}"
+          log "INFO" "Stacking on previous branch: $prev_branch (repo: $repo_name)"
+        else
+          log "WARN" "No feature-branch marker for $repo_name — branching from base (no stacking)"
+        fi
+      fi
+
+      wave_units+=("$unit")
+      wave_labels+=("${all_labels[$i]}")
+      wave_repos_seen+=("$repo_url")
+      assigned[$i]=1
+    done
+
+    if [ ${#wave_units[@]} -eq 0 ]; then
+      break
+    fi
+
+    local wave_num=$((wave + 1))
+    if [ $wave -gt 0 ]; then
+      log "INFO" ""
+      log "INFO" "--- Stacking wave $wave_num ---"
+    fi
+
+    set +e
+    execute_work_units "${wave_units[@]}" "--" "${wave_labels[@]}"
+    local wave_result=$?
+    set -e
+
+    if [ $wave_result -ne 0 ]; then
+      overall_fail=$((overall_fail + 1))
+    fi
+
+    wave=$((wave + 1))
+  done
+
+  [ "$overall_fail" -eq 0 ]
 }
 
 # =============================================================================
@@ -412,11 +564,13 @@ if [ -n "$MANIFEST_FILE" ]; then
         CONTEXT_ABS=""
         if [ -n "$CONTEXT_REL" ] && [ "$CONTEXT_REL" != "" ]; then
           CONTEXT_ABS="$MANIFEST_BASE/$CONTEXT_REL"
-          if [ ! -f "$CONTEXT_ABS" ]; then
-            log "WARN" "Context file not found: $CONTEXT_ABS (from manifest: $CONTEXT_REL)"
-            CONTEXT_ABS=""
-          else
+          if [ -d "$CONTEXT_ABS" ]; then
             CONTEXT_ABS=$(realpath "$CONTEXT_ABS")
+          elif [ -f "$CONTEXT_ABS" ]; then
+            CONTEXT_ABS=$(realpath "$CONTEXT_ABS")
+          else
+            log "WARN" "Context not found: $CONTEXT_ABS (from manifest: $CONTEXT_REL)"
+            CONTEXT_ABS=""
           fi
         fi
 
@@ -454,9 +608,9 @@ if [ -n "$MANIFEST_FILE" ]; then
       log "INFO" "  [$((i+1))] ${LABELS[$i]}"
     done
 
-    # Execute this order's work units
+    # Execute this order's work units (with same-repo stacking when needed)
     set +e
-    execute_work_units "${UNITS[@]}" "--" "${LABELS[@]}"
+    execute_order_with_stacking "${UNITS[@]}" "--" "${LABELS[@]}"
     order_result=$?
     set -e
 
@@ -579,7 +733,7 @@ done
 log "INFO" ""
 
 set +e
-execute_work_units "${UNITS[@]}" "--" "${LABELS[@]}"
+execute_order_with_stacking "${UNITS[@]}" "--" "${LABELS[@]}"
 result=$?
 set -e
 

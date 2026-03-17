@@ -13,7 +13,7 @@
             {
               "url": "https://github.com/org/repo-1",
               "branch": "main",
-              "context": "./contexts/repo-1.md",
+              "context": "./contexts/repo-1",
               "agents": ["developer", "tester", "reviewer"]
             }
           ]
@@ -25,13 +25,13 @@
             {
               "url": "https://github.com/org/repo-2",
               "branch": "develop",
-              "context": "./contexts/repo-2.md",
+              "context": "./contexts/repo-2",
               "agents": ["developer", "tester"]
             },
             {
               "url": "https://github.com/org/shared-lib",
               "branch": "main",
-              "context": "./contexts/shared-lib.md",
+              "context": "./contexts/shared-lib",
               "agents": ["developer"]
             }
           ]
@@ -48,7 +48,7 @@
             {
               "url": "https://github.com/org/repo-1",
               "branch": "main",
-              "context": "./contexts/repo-1.md"
+              "context": "./contexts/repo-1"
             }
           ]
         }

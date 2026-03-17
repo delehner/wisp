@@ -21,6 +21,9 @@ Thumbs.db
 # Node (if any tooling is added)
 node_modules/
 
+# Briefs
+briefs/
+
 # PRDs
 prds/
 

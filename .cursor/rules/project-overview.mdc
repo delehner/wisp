@@ -12,9 +12,11 @@ AI agent pipeline that turns PRDs into Pull Requests using Claude Code, Ralph Lo
 - `pipeline/orchestrator.sh` — Batch dispatcher: N PRDs × N repos, parallel execution
 - `pipeline/run-pipeline.sh` — Single PRD × single repo: agent sequence, git, PR
 - `pipeline/run-agent.sh` — Ralph Loop wrapper for one agent
+- `pipeline/generate-context.sh` — Context skill generator: analyzes repos, produces context skills
+- `pipeline/generate-prd.sh` — PRD and manifest generator: reads a brief + repo contexts, produces PRDs and a manifest
 - `pipeline/lib/` — Shared utilities (prd-parser, progress, git-utils, validation)
 - `agents/` — Agent prompt markdown files (`_base-system.md` + per-agent `prompt.md`)
-- `templates/` — PRD (multi-repo) and project context templates
+- `templates/` — PRD, brief, manifest, and context templates
 - `skills/` — Cursor-compatible agent skills (SKILL.md format)
 - `.devcontainer/` — Dev Container config (Dockerfile, firewall, post-create hooks)
 - `config/` — Claude Code settings templates
@@ -23,10 +25,11 @@ AI agent pipeline that turns PRDs into Pull Requests using Claude Code, Ralph Lo
 ## Pipeline Flow
 
 ```
+Brief → generate-prd.sh → PRDs + Manifest
 N PRDs → orchestrator.sh → N×M work units → run-pipeline.sh → [Architect → Designer → Developer → Tester → SecOps → Infrastructure → DevOps → Reviewer] → PRs
 ```
 
-Each PRD defines target repos in a `## Target Repositories` table. The orchestrator dispatches one `run-pipeline.sh` per PRD×repo pair (parallel by default, max 4). Each agent runs in a Ralph Loop with filesystem-based progress tracking via `.agent-progress/*.md`.
+PRDs can be written manually or generated from a project brief using `generate-prd.sh`. The orchestrator dispatches one `run-pipeline.sh` per PRD×repo pair (parallel by default, max 4). Each agent runs in a Ralph Loop with filesystem-based progress tracking via `.agent-progress/*.md`.
 
 ## Key Files
 
@@ -34,4 +37,6 @@ Each PRD defines target repos in a `## Target Repositories` table. The orchestra
 - `pipeline/run-agent.sh` — Ralph Loop implementation (builds prompt, runs `claude -p`, checks completion)
 - `pipeline/run-pipeline.sh` — sequences agents, manages git branches, creates PRs
 - `pipeline/orchestrator.sh` — batch dispatcher, parses PRD metadata, parallel execution
+- `pipeline/generate-prd.sh` — PRD and manifest generator from project briefs
+- `pipeline/generate-context.sh` — context skill generator from repo analysis
 - `pipeline/lib/prd-parser.sh` — extracts repos, status, title from PRD markdown

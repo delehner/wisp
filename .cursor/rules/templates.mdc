@@ -1,5 +1,5 @@
 ---
-description: Conventions for PRD and project context templates
+description: Conventions for PRD, brief, and project context templates
 globs: templates/**/*.md
 alwaysApply: false
 ---
@@ -13,7 +13,27 @@ alwaysApply: false
 - The "Scope Classification" booleans (Has UI, Has API, etc.) drive which agents are relevant
 - Use `[placeholder]` syntax for fields the user fills in
 
+## Brief Template (`templates/brief.md`)
+
+Project briefs are freeform descriptions of what you want to build. `pipeline/generate-prd.sh` opens this template in the user's `$EDITOR` when run without `--brief`, letting them describe their project interactively (like `git commit`).
+
+- Keep the template concise — it's pre-filled in the editor for the user to modify
+- Target repos can be specified in the brief or via CLI `--repo` flags
+- The `--brief <file>` flag skips the editor for non-interactive / CI use
+
+## Context Skill Template (`templates/context-skill.md`)
+
+Context skills are focused markdown files stored per-repo in `contexts/<repo-name>/`. The pipeline assembles them into a single `CLAUDE.md` at runtime.
+
+- Each skill covers one topic (overview, architecture, conventions, testing, etc.)
+- Keep each skill under 150 lines — shorter context is followed more reliably
+- Include optional YAML frontmatter with `name` and `description` for Cursor compatibility
+- Skills are assembled in a canonical order (overview → architecture → conventions → ... → custom)
+- Generate skills automatically with `pipeline/generate-context.sh`
+
 ## Project Context Template (`templates/project-context.md`)
+
+Legacy single-file format. Still supported by the pipeline for backward compatibility.
 
 This template is dual-compatible:
 - **Claude Code**: copy as `CLAUDE.md` in the target repo root

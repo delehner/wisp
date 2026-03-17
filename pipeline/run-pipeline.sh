@@ -29,6 +29,7 @@ source "$SCRIPT_DIR/lib/prd-parser.sh"
 source "$SCRIPT_DIR/lib/progress.sh"
 source "$SCRIPT_DIR/lib/git-utils.sh"
 source "$SCRIPT_DIR/lib/validation.sh"
+source "$SCRIPT_DIR/lib/context.sh"
 
 # --- Load .env if present ---
 if [ -f "$SCRIPT_DIR/../.env" ]; then
@@ -66,8 +67,11 @@ MODEL="${CLAUDE_MODEL:-sonnet}"
 MAX_ITERATIONS="${PIPELINE_MAX_ITERATIONS:-10}"
 USE_DEVCONTAINER="${USE_DEVCONTAINER:-true}"
 EVIDENCE_AGENTS="${EVIDENCE_AGENTS:-tester,secops,infrastructure,devops}"
+STACK_ON=""
 PIPELINE_GIT_NAME=""
 PIPELINE_GIT_EMAIL=""
+VERBOSE_LOGS="${VERBOSE_LOGS:-false}"
+INTERACTIVE="${INTERACTIVE:-false}"
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -77,12 +81,15 @@ while [[ $# -gt 0 ]]; do
     --branch) BASE_BRANCH="$2"; shift 2 ;;
     --workdir) WORK_DIR="$2"; shift 2 ;;
     --agents) AGENTS="$2"; shift 2 ;;
+    --stack-on) STACK_ON="$2"; shift 2 ;;
     --skip-pr) SKIP_PR=true; shift ;;
     --no-context-update) UPDATE_PROJECT_CONTEXT=false; shift ;;
     --no-devcontainer) USE_DEVCONTAINER=false; shift ;;
     --model) MODEL="$2"; shift 2 ;;
     --max-iterations) MAX_ITERATIONS="$2"; shift 2 ;;
     --evidence-agents) EVIDENCE_AGENTS="$2"; shift 2 ;;
+    --verbose-logs) VERBOSE_LOGS=true; shift ;;
+    --interactive) INTERACTIVE=true; shift ;;
     -h|--help)
       cat <<'HELP'
 Usage: run-pipeline.sh --prd <path> --repo <url> [options]
@@ -90,10 +97,12 @@ Usage: run-pipeline.sh --prd <path> --repo <url> [options]
 Options:
   --prd <path>           Path to PRD file (required)
   --repo <url>           GitHub repository URL (required)
-  --context <path>       Project context file injected as CLAUDE.md (ephemeral, never committed)
+  --context <path>       Project context (file or skill directory) injected as CLAUDE.md (ephemeral, never committed)
   --branch <name>        Base branch (default: main)
   --workdir <path>       Working directory for cloned repo
   --agents <list>        Comma-separated agent list (default: architect,designer,developer,tester,secops,infrastructure,devops,reviewer)
+  --stack-on <branch>    Stack this branch on top of another feature branch (for same-repo PRDs).
+                            Creates the feature branch from <branch> tip and targets the PR at it.
   --skip-pr              Don't create a PR at the end
   --no-context-update    Don't update CLAUDE.md after agents finish
   --no-devcontainer      Run agents directly on host instead of inside a Dev Container
@@ -101,6 +110,8 @@ Options:
   --max-iterations <n>   Max iterations per agent (default: 10)
   --evidence-agents <list>  Comma-separated agents whose reports are posted as PR comments
                             (default: tester,secops,infrastructure,devops)
+  --verbose-logs            Enable detailed logging (thinking, tool use, results via stream-json)
+  --interactive             Pause between agents and iterations for review and course correction
 HELP
       exit 0
       ;;
@@ -123,10 +134,15 @@ log "INFO" "========================================="
 log "INFO" "PRD:            $PRD_FILE"
 log "INFO" "Repo:           $REPO_URL"
 log "INFO" "Branch:         $BASE_BRANCH"
+if [ -n "$STACK_ON" ]; then
+  log "INFO" "Stack on:       $STACK_ON"
+fi
 log "INFO" "Agents:         $AGENTS"
 log "INFO" "Model:          $MODEL"
 log "INFO" "Max Iterations: $MAX_ITERATIONS"
 log "INFO" "Dev Container:  $USE_DEVCONTAINER"
+log "INFO" "Verbose Logs:   $VERBOSE_LOGS"
+log "INFO" "Interactive:    $INTERACTIVE"
 log "INFO" "========================================="
 
 validate_environment || exit 1
@@ -167,10 +183,27 @@ if [ "$REPO_WAS_EMPTY" = true ]; then
   FEATURE_BRANCH="$BASE_BRANCH"
   SKIP_PR=true
 else
+  # When stacking, branch off the stack-on branch instead of the base branch
+  if [ -n "$STACK_ON" ]; then
+    cd "$REPO_WORKDIR" || exit 1
+    git fetch origin "$STACK_ON" 2>/dev/null || true
+    if git show-ref --verify --quiet "refs/remotes/origin/$STACK_ON"; then
+      git checkout "$STACK_ON" 2>/dev/null || git checkout -b "$STACK_ON" "origin/$STACK_ON"
+      git pull origin "$STACK_ON" 2>/dev/null || true
+      log "INFO" "Stacking: branching from $STACK_ON"
+    else
+      log "WARN" "Stack-on branch $STACK_ON not found on remote — falling back to $BASE_BRANCH"
+      STACK_ON=""
+    fi
+  fi
+
   WORKING_BRANCH=$(parse_prd_working_branch "$PRD_FILE")
   FEATURE_BRANCH="${WORKING_BRANCH:-$(generate_branch_name "$PRD_FILE")}"
   create_feature_branch "$REPO_WORKDIR" "$FEATURE_BRANCH"
 fi
+
+# PR targets the stack-on branch when stacking, otherwise the base branch
+PR_TARGET="${STACK_ON:-$BASE_BRANCH}"
 
 log "INFO" "Working on branch: $FEATURE_BRANCH"
 
@@ -186,17 +219,25 @@ if ! grep -q '^logs/' "$REPO_WORKDIR/.git/info/exclude" 2>/dev/null; then
   echo "logs/" >> "$REPO_WORKDIR/.git/info/exclude"
 fi
 
-# --- Inject Context File (ephemeral, never committed) ---
+# --- Inject Context (ephemeral, never committed) ---
+# Supports both single-file and directory-based contexts.
+# Directory contexts: each .md skill file is concatenated into CLAUDE.md in a defined order.
 if [ -n "$CONTEXT_FILE" ]; then
   CONTEXT_FILE=$(realpath "$CONTEXT_FILE")
-  if [ -f "$CONTEXT_FILE" ]; then
+  if [ -d "$CONTEXT_FILE" ]; then
+    log "INFO" "Injecting context directory: $CONTEXT_FILE → CLAUDE.md (ephemeral)"
+    assemble_context_skills "$CONTEXT_FILE" "$REPO_WORKDIR/CLAUDE.md"
+    if ! grep -q '^CLAUDE.md$' "$REPO_WORKDIR/.git/info/exclude" 2>/dev/null; then
+      echo "CLAUDE.md" >> "$REPO_WORKDIR/.git/info/exclude"
+    fi
+  elif [ -f "$CONTEXT_FILE" ]; then
     log "INFO" "Injecting context file: $CONTEXT_FILE → CLAUDE.md (ephemeral)"
     cp "$CONTEXT_FILE" "$REPO_WORKDIR/CLAUDE.md"
     if ! grep -q '^CLAUDE.md$' "$REPO_WORKDIR/.git/info/exclude" 2>/dev/null; then
       echo "CLAUDE.md" >> "$REPO_WORKDIR/.git/info/exclude"
     fi
   else
-    log "WARN" "Context file not found: $CONTEXT_FILE (continuing without it)"
+    log "WARN" "Context not found: $CONTEXT_FILE (continuing without it)"
   fi
 fi
 
@@ -381,6 +422,11 @@ for agent in "${AGENT_LIST[@]}"; do
     continue
   fi
 
+  # Build optional flags for run-agent.sh
+  agent_extra_flags=""
+  [ "$VERBOSE_LOGS" = true ] && agent_extra_flags+=" --verbose-logs"
+  [ "$INTERACTIVE" = true ] && agent_extra_flags+=" --interactive"
+
   # Run the agent via Ralph Loop
   set +e
   if [ "$USE_DEVCONTAINER" = true ]; then
@@ -391,7 +437,8 @@ for agent in "${AGENT_LIST[@]}"; do
         --prd "$CONTAINER_WORKSPACE/.pipeline/prd.md" \
         --max-iterations "$MAX_ITERATIONS" \
         --model "$agent_model" \
-        --previous-agents "$PREVIOUS_AGENTS"
+        --previous-agents "$PREVIOUS_AGENTS" \
+        $agent_extra_flags
   else
     "$SCRIPT_DIR/run-agent.sh" \
       --agent "$agent" \
@@ -399,7 +446,8 @@ for agent in "${AGENT_LIST[@]}"; do
       --prd "$PRD_FILE" \
       --max-iterations "$MAX_ITERATIONS" \
       --model "$agent_model" \
-      --previous-agents "$PREVIOUS_AGENTS"
+      --previous-agents "$PREVIOUS_AGENTS" \
+      $agent_extra_flags
   fi
   agent_exit=$?
   set -e
@@ -436,6 +484,46 @@ for agent in "${AGENT_LIST[@]}"; do
   PREVIOUS_AGENTS="${PREVIOUS_AGENTS:+$PREVIOUS_AGENTS,}$agent"
 
   log "INFO" "Agent $agent finished."
+
+  # Interactive pause between agents
+  if [ "$INTERACTIVE" = true ] && [ -t 0 ]; then
+    # Check if there are more agents remaining
+    remaining_agents=false
+    found_current=false
+    for next_agent in "${AGENT_LIST[@]}"; do
+      next_agent=$(echo "$next_agent" | xargs)
+      if [ "$found_current" = true ]; then
+        if ! is_agent_completed "$REPO_WORKDIR" "$next_agent"; then
+          remaining_agents=true
+          break
+        fi
+      fi
+      if [ "$next_agent" = "$agent" ]; then
+        found_current=true
+      fi
+    done
+
+    if [ "$remaining_agents" = true ]; then
+      echo "" >&2
+      echo "  Agent '$agent' complete. Next agents remaining." >&2
+      echo "  Options:" >&2
+      echo "    Enter     = continue to next agent" >&2
+      echo "    s + Enter = skip remaining agents" >&2
+      echo "    q + Enter = abort pipeline" >&2
+      echo "" >&2
+      read -r user_input
+      case "$user_input" in
+        s|S|skip)
+          log "INFO" "User skipped remaining agents after $agent"
+          break
+          ;;
+        q|Q|quit|abort)
+          log "INFO" "User aborted pipeline after agent $agent"
+          exit 1
+          ;;
+      esac
+    fi
+  fi
 done
 
 # =============================================================================
@@ -474,25 +562,58 @@ $COMMIT_INSTRUCTION
 CTXEOF
 )
 
+  local ctx_output_format="text"
+  local ctx_extra_flags=""
+  if [ "$VERBOSE_LOGS" = true ]; then
+    ctx_output_format="stream-json"
+    ctx_extra_flags="--verbose"
+  fi
+
   set +e
   if [ "$USE_DEVCONTAINER" = true ]; then
     # Write prompt to a file accessible inside the container
     echo "$CONTEXT_PROMPT" > "$REPO_WORKDIR/.pipeline/.context-prompt.tmp"
-    exec_in_environment \
-      bash "$CONTAINER_WORKSPACE/.pipeline/run-claude.sh" \
-        "$CONTAINER_WORKSPACE/.pipeline/.context-prompt.tmp" \
+    if [ "$VERBOSE_LOGS" = true ]; then
+      exec_in_environment \
+        bash "$CONTAINER_WORKSPACE/.pipeline/run-claude.sh" \
+          "$CONTAINER_WORKSPACE/.pipeline/.context-prompt.tmp" \
+          --model "$MODEL" \
+          --allowedTools "Edit,Write,Bash,Read,MultiEdit" \
+          --dangerously-skip-permissions \
+          --output-format "$ctx_output_format" \
+          $ctx_extra_flags \
+        2>&1 | "$SCRIPT_DIR/lib/log-formatter.sh" \
+          --raw-log "$LOG_DIR/context_update.jsonl" \
+        | tee -a "$LOG_DIR/context_update.log"
+    else
+      exec_in_environment \
+        bash "$CONTAINER_WORKSPACE/.pipeline/run-claude.sh" \
+          "$CONTAINER_WORKSPACE/.pipeline/.context-prompt.tmp" \
+          --model "$MODEL" \
+          --allowedTools "Edit,Write,Bash,Read,MultiEdit" \
+          --dangerously-skip-permissions \
+          --output-format text \
+        2>&1 | tee -a "$LOG_DIR/context_update.log"
+    fi
+  else
+    if [ "$VERBOSE_LOGS" = true ]; then
+      claude -p "$CONTEXT_PROMPT" \
+        --model "$MODEL" \
+        --allowedTools "Edit,Write,Bash,Read,MultiEdit" \
+        --dangerously-skip-permissions \
+        --output-format "$ctx_output_format" \
+        $ctx_extra_flags \
+        2>&1 | "$SCRIPT_DIR/lib/log-formatter.sh" \
+          --raw-log "$LOG_DIR/context_update.jsonl" \
+        | tee -a "$LOG_DIR/context_update.log"
+    else
+      claude -p "$CONTEXT_PROMPT" \
         --model "$MODEL" \
         --allowedTools "Edit,Write,Bash,Read,MultiEdit" \
         --dangerously-skip-permissions \
         --output-format text \
-      2>&1 | tee -a "$LOG_DIR/context_update.log"
-  else
-    claude -p "$CONTEXT_PROMPT" \
-      --model "$MODEL" \
-      --allowedTools "Edit,Write,Bash,Read,MultiEdit" \
-      --dangerously-skip-permissions \
-      --output-format text \
-      2>&1 | tee -a "$LOG_DIR/context_update.log"
+        2>&1 | tee -a "$LOG_DIR/context_update.log"
+    fi
   fi
   context_exit=$?
   set -e
@@ -500,8 +621,12 @@ CTXEOF
   if [ $context_exit -eq 0 ]; then
     log "INFO" "Project context updated successfully"
     if [ "$CONTEXT_IS_EPHEMERAL" = true ] && [ -n "$CONTEXT_FILE" ] && [ -f "$REPO_WORKDIR/CLAUDE.md" ]; then
-      cp "$REPO_WORKDIR/CLAUDE.md" "$CONTEXT_FILE"
-      log "INFO" "Updated context synced back to: $CONTEXT_FILE"
+      if [ -d "$CONTEXT_FILE" ]; then
+        log "INFO" "Context is directory-based — skipping sync-back (re-run generate-context.sh to update skills)"
+      else
+        cp "$REPO_WORKDIR/CLAUDE.md" "$CONTEXT_FILE"
+        log "INFO" "Updated context synced back to: $CONTEXT_FILE"
+      fi
     fi
   else
     log "WARN" "Failed to update project context (non-blocking)"
@@ -518,14 +643,24 @@ if [ "$USE_DEVCONTAINER" = true ] && [ -n "$CONTAINER_ID" ]; then
 fi
 
 # =============================================================================
-# Create Pull Request (runs on host — uses host git and gh auth)
+# Rebase & Create Pull Request (runs on host — uses host git and gh auth)
 # =============================================================================
+
+# Write feature branch marker so the orchestrator can read it for stacking
+mkdir -p "$REPO_WORKDIR/.pipeline"
+echo "$FEATURE_BRANCH" > "$REPO_WORKDIR/.pipeline/feature-branch"
+
 PR_URL=""
 if [ "$SKIP_PR" = false ]; then
   log "INFO" ""
   log "INFO" "========================================="
-  log "INFO" "  Creating Pull Request"
+  log "INFO" "  Rebasing & Creating Pull Request"
   log "INFO" "========================================="
+
+  # Rebase onto latest target to reduce conflicts
+  rebase_onto_latest "$REPO_WORKDIR" "$PR_TARGET" || {
+    log "WARN" "Rebase onto $PR_TARGET had conflicts — PR may require manual resolution"
+  }
 
   if ! command -v gh &> /dev/null; then
     log "ERROR" "GitHub CLI (gh) is required for PR creation. Install with: brew install gh"
@@ -534,13 +669,16 @@ if [ "$SKIP_PR" = false ]; then
 
   for attempt in 1 2 3; do
     set +e
-    PR_URL=$(create_pull_request "$REPO_WORKDIR" "$BASE_BRANCH" "$PRD_SLUG")
+    PR_URL=$(create_pull_request "$REPO_WORKDIR" "$PR_TARGET" "$PRD_SLUG")
     pr_exit=$?
     set -e
 
     if [ $pr_exit -eq 0 ] && [ -n "$PR_URL" ]; then
       log "INFO" "Pull Request created successfully!"
       log "INFO" "PR URL: $PR_URL"
+      if [ -n "$STACK_ON" ]; then
+        log "INFO" "PR targets stacked branch: $STACK_ON"
+      fi
       break
     fi
 

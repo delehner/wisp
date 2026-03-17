@@ -8,7 +8,7 @@ A generic, extensible AI agent pipeline that turns PRDs into Pull Requests using
 Manifest → Orders (sequential) → PRDs (parallel) → Repos (per-repo context) → PRs
 ```
 
-A **manifest** JSON defines the execution plan: a sequence of **orders**, each containing **PRDs** that run in parallel. Each PRD targets one or more **repositories**, each with its own branch and context file. Every PRD x repo combination runs as an independent pipeline inside a Dev Container, with each agent operating in a Ralph Loop.
+A **manifest** JSON defines the execution plan: a sequence of **orders**, each containing **PRDs** that run in parallel. Each PRD targets one or more **repositories**, each with its own branch and context skills. Every PRD x repo combination runs as an independent pipeline inside a Dev Container, with each agent operating in a Ralph Loop.
 
 ### Agent Roles
 
@@ -79,7 +79,7 @@ A manifest ties together PRDs, repositories, contexts, and execution order.
             {
               "url": "https://github.com/org/repo",
               "branch": "main",
-              "context": "./contexts/repo.md",
+              "context": "./contexts/repo",
               "agents": ["developer", "tester", "reviewer"]
             }
           ]
@@ -92,9 +92,9 @@ A manifest ties together PRDs, repositories, contexts, and execution order.
 
 Key concepts:
 - **Orders** run sequentially (merge PRs from order 1 before order 2 starts)
-- **PRDs** within an order run in parallel
-- Each **repository** has its own context file (`CLAUDE.md`), branch, and URL
-- Context files are injected as ephemeral `CLAUDE.md` — never committed to the target repo
+- **PRDs** within an order run in parallel. When multiple PRDs target the same repo, they are automatically serialized with **stacked branches** to prevent merge conflicts
+- Each **repository** has its own context directory (or file), branch, and URL
+- Context skills are assembled into ephemeral `CLAUDE.md` — never committed to the target repo
 - **Agents** can be specified per-PRD and/or per-repo — they combine (PRD-level first, then repo-level). Omit both to use the global default
 
 See `templates/manifest.json` for the full template and `manifests/portfolio.json` for a real example.
@@ -115,7 +115,28 @@ See `templates/manifest.json` for the full template and `manifests/portfolio.jso
 ./pipeline/run-pipeline.sh \
   --prd ./prds/my-feature.md \
   --repo https://github.com/org/repo \
-  --context ./contexts/repo.md
+  --context ./contexts/repo
+```
+
+### Monitoring & Interaction
+
+```bash
+# Verbose logs: see agent thinking, tool calls, and results in real-time
+./pipeline/orchestrator.sh --manifest ./manifests/my-project.json --verbose-logs
+
+# Interactive mode: pause between agents and iterations for review
+./pipeline/orchestrator.sh --manifest ./manifests/my-project.json --interactive
+
+# Both: full visibility + control
+./pipeline/orchestrator.sh --manifest ./manifests/my-project.json --verbose-logs --interactive
+
+# Monitor logs from another terminal while the pipeline runs
+./pipeline/monitor.sh                           # all logs
+./pipeline/monitor.sh --agent developer         # specific agent
+./pipeline/monitor.sh --sessions                # list resumable sessions
+
+# Resume an agent session interactively (from session ID)
+claude --resume <session-id>
 ```
 
 ### 5. Dev Containers (Default)
@@ -135,11 +156,16 @@ coding-agents/
 │   ├── orchestrator.sh          # Manifest orchestrator: orders → PRDs → repos → PRs
 │   ├── run-pipeline.sh          # Single PRD × single repo pipeline
 │   ├── run-agent.sh             # Ralph Loop wrapper for a single agent
+│   ├── generate-context.sh      # Context skill generator (analyzes repos)
+│   ├── generate-prd.sh          # PRD and manifest generator (from project briefs)
+│   ├── monitor.sh               # Real-time log monitor (tail, filter, session list)
 │   └── lib/
 │       ├── prd-parser.sh        # Parse PRD metadata (status, title)
-│       ├── git-utils.sh         # Branch management and PR creation
+│       ├── git-utils.sh         # Branch management, rebase, and PR creation
 │       ├── progress.sh          # Progress tracking between iterations
-│       └── validation.sh        # Completion criteria checks
+│       ├── validation.sh        # Completion criteria checks
+│       ├── context.sh           # Context skill assembly
+│       └── log-formatter.sh     # Stream-json → human-readable log formatter
 ├── agents/
 │   ├── _base-system.md          # Shared base instructions for all agents
 │   ├── architect/prompt.md
@@ -149,15 +175,20 @@ coding-agents/
 │   ├── secops/prompt.md
 │   ├── infrastructure/prompt.md
 │   ├── devops/prompt.md
-│   └── reviewer/prompt.md
+│   ├── reviewer/prompt.md
+│   ├── context-generator/prompt.md
+│   └── prd-generator/prompt.md
 ├── manifests/                   # Manifest JSON files (orders + PRDs + repos + contexts)
 │   └── portfolio.json
 ├── prds/                        # Product Requirements Documents
-├── contexts/                    # Per-repo context files (injected as ephemeral CLAUDE.md)
+├── contexts/                    # Per-repo context skill directories
+│   └── <repo-name>/            # Skills: overview.md, architecture.md, conventions.md, ...
 ├── templates/
 │   ├── manifest.json            # Manifest template
 │   ├── prd.md                   # PRD template
-│   └── project-context.md       # Project context template
+│   ├── brief.md                 # Project brief template (input for PRD generation)
+│   ├── project-context.md       # Legacy single-file context template
+│   └── context-skill.md         # Context skill template (directory-based)
 ├── skills/                      # Cursor-compatible agent skills
 ├── .devcontainer/
 │   ├── devcontainer.json        # Dev Container for editing this repo
@@ -179,20 +210,34 @@ coding-agents/
 
 ### For Personal Projects
 
-1. Create a context file in `contexts/` using `templates/project-context.md`
-2. Write PRDs using `templates/prd.md`
-3. Create a manifest in `manifests/` using `templates/manifest.json` — wire PRDs to repos and contexts
-4. Run: `./pipeline/orchestrator.sh --manifest ./manifests/my-project.json`
+1. Generate context skills for your repo: `./pipeline/generate-context.sh --repo <path-or-url> --output ./contexts/my-repo`
+2. Review and refine the generated skills in `contexts/my-repo/`
+3. Generate PRDs and a manifest — the script opens your editor so you can describe what you want to build:
+   ```bash
+   ./pipeline/generate-prd.sh \
+     --output ./prds/my-app \
+     --manifest ./manifests/my-app.json \
+     --repo https://github.com/org/my-repo --context ./contexts/my-repo
+   ```
+4. Review the generated PRDs and manifest, then run: `./pipeline/orchestrator.sh --manifest ./manifests/my-app.json`
+
+> You can also pass `--brief <file>` to skip the editor, or write PRDs manually using `templates/prd.md`.
 
 ### For Company Projects
 
-Context files are injected as ephemeral `CLAUDE.md` that **never gets committed** to target repos.
+Context skills are injected as ephemeral `CLAUDE.md` that **never gets committed** to target repos.
 
-1. Create context files in `contexts/` for each repo (e.g., `contexts/frontend.md`, `contexts/backend.md`)
-2. Write PRDs — each PRD can target multiple repos (frontend + backend + shared library)
-3. Create a manifest — each repo entry points to its own context file
-4. Connect Jira/Notion MCPs for ticket tracking
-5. Context files auto-update after each pipeline run
+1. Generate context skills for each repo: `./pipeline/generate-context.sh --repo <url> --output ./contexts/my-repo`
+2. Review and customize the skills — add company-specific conventions, security policies, etc.
+3. Generate PRDs and manifest — the script opens your editor to describe the work:
+   ```bash
+   ./pipeline/generate-prd.sh \
+     --output ./prds/platform \
+     --manifest ./manifests/platform.json \
+     --repo https://github.com/org/api --context ./contexts/api \
+     --repo https://github.com/org/web --context ./contexts/web
+   ```
+4. Review, adjust, and run. Connect Jira/Notion MCPs for ticket tracking
 
 ### Adding New Agents
 
