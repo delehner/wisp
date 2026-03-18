@@ -4,8 +4,9 @@ set -euo pipefail
 # =============================================================================
 # run-agent.sh — Ralph Loop wrapper for a single agent
 # =============================================================================
-# Runs a Claude Code agent in a Ralph Loop: iteratively re-prompts with fresh
-# context until the agent marks itself COMPLETED or max iterations are reached.
+# Runs an AI agent (Claude Code or Gemini CLI) in a Ralph Loop: iteratively
+# re-prompts with fresh context until the agent marks itself COMPLETED or max
+# iterations are reached. Provider selected via AI_PROVIDER env var.
 #
 # Usage:
 #   ./pipeline/run-agent.sh \
@@ -22,6 +23,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PIPELINE_DIR="$SCRIPT_DIR"
 
 source "$PIPELINE_DIR/lib/progress.sh"
+source "$PIPELINE_DIR/lib/provider.sh"
 source "$PIPELINE_DIR/lib/validation.sh"
 
 # --- Logging ---
@@ -44,9 +46,9 @@ AGENT=""
 WORKDIR=""
 PRD_FILE=""
 MAX_ITERATIONS="${PIPELINE_MAX_ITERATIONS:-10}"
-MODEL="${CLAUDE_MODEL:-sonnet}"
+MODEL="$(provider_default_model)"
 PREVIOUS_AGENTS=""
-ALLOWED_TOOLS="${CLAUDE_ALLOWED_TOOLS:-Edit,Write,Bash,Read,MultiEdit}"
+ALLOWED_TOOLS="$(provider_default_allowed_tools)"
 VERBOSE_LOGS="${VERBOSE_LOGS:-false}"
 INTERACTIVE="${INTERACTIVE:-false}"
 
@@ -142,10 +144,12 @@ build_prompt() {
     done
   fi
 
-  # Project-level CLAUDE.md (if it exists in the target repo)
-  if [ -f "$WORKDIR/CLAUDE.md" ]; then
-    prompt+="# Project Instructions (CLAUDE.md)\n\n"
-    prompt+="$(cat "$WORKDIR/CLAUDE.md")\n\n"
+  # Project-level context file (CLAUDE.md or GEMINI.md, depending on provider)
+  local ctx_file
+  ctx_file=$(provider_context_filename)
+  if [ -f "$WORKDIR/$ctx_file" ]; then
+    prompt+="# Project Instructions ($ctx_file)\n\n"
+    prompt+="$(cat "$WORKDIR/$ctx_file")\n\n"
   fi
 
   # Iteration context
@@ -182,28 +186,20 @@ for ((iteration=1; iteration<=MAX_ITERATIONS; iteration++)); do
   prompt_file=$(mktemp)
   echo -e "$prompt" > "$prompt_file"
 
-  # Run Claude Code in headless mode
-  log "INFO" "Running Claude Code (iteration $iteration)..."
+  # Run AI agent in headless mode
+  log "INFO" "Running $(provider_cli) (iteration $iteration)..."
   mkdir -p "$LOG_DIR"
 
   set +e
   if [ "$VERBOSE_LOGS" = true ]; then
-    claude -p "$(cat "$prompt_file")" \
-      --model "$MODEL" \
-      --allowedTools "$ALLOWED_TOOLS" \
-      --dangerously-skip-permissions \
-      --output-format stream-json \
-      --verbose \
+    provider_run "$prompt_file" "$MODEL" "$ALLOWED_TOOLS" "stream-json" true \
       2>&1 | "$PIPELINE_DIR/lib/log-formatter.sh" \
+        --provider "$AI_PROVIDER" \
         --raw-log "$LOG_DIR/${AGENT}_iteration_${iteration}.jsonl" \
       | tee -a "$LOG_DIR/${AGENT}_iteration_${iteration}.log"
     exit_code=${PIPESTATUS[0]}
   else
-    claude -p "$(cat "$prompt_file")" \
-      --model "$MODEL" \
-      --allowedTools "$ALLOWED_TOOLS" \
-      --dangerously-skip-permissions \
-      --output-format text \
+    provider_run "$prompt_file" "$MODEL" "$ALLOWED_TOOLS" "text" false \
       2>&1 | tee -a "$LOG_DIR/${AGENT}_iteration_${iteration}.log"
     exit_code=${PIPESTATUS[0]}
   fi
@@ -211,17 +207,17 @@ for ((iteration=1; iteration<=MAX_ITERATIONS; iteration++)); do
 
   # Extract session ID from verbose logs for potential --resume usage
   if [ "$VERBOSE_LOGS" = true ] && [ -f "$LOG_DIR/${AGENT}_iteration_${iteration}.jsonl" ]; then
-    session_id=$(head -5 "$LOG_DIR/${AGENT}_iteration_${iteration}.jsonl" | jq -r 'select(.session_id) | .session_id' 2>/dev/null | head -1)
+    session_id=$(provider_extract_session_id "$LOG_DIR/${AGENT}_iteration_${iteration}.jsonl")
     if [ -n "$session_id" ] && [ "$session_id" != "null" ]; then
       echo "$session_id" > "$LOG_DIR/${AGENT}_iteration_${iteration}.session"
-      log "INFO" "Session ID: $session_id (resume with: claude --resume $session_id)"
+      log "INFO" "Session ID: $session_id (resume with: $(provider_resume_hint "$session_id"))"
     fi
   fi
 
   rm -f "$prompt_file"
 
   if [ $exit_code -ne 0 ]; then
-    log "WARN" "Claude Code exited with code $exit_code on iteration $iteration"
+    log "WARN" "$(provider_cli) exited with code $exit_code on iteration $iteration"
   fi
 
   # Check completion after this iteration
@@ -243,7 +239,7 @@ for ((iteration=1; iteration<=MAX_ITERATIONS; iteration++)); do
     echo "    s + Enter = skip remaining iterations for this agent" >&2
     echo "    q + Enter = abort pipeline" >&2
     if [ "$VERBOSE_LOGS" = true ] && [ -f "$LOG_DIR/${AGENT}_iteration_${iteration}.session" ]; then
-      echo "    Resume this session interactively: claude --resume $(cat "$LOG_DIR/${AGENT}_iteration_${iteration}.session")" >&2
+      echo "    Resume this session interactively: $(provider_resume_hint "$(cat "$LOG_DIR/${AGENT}_iteration_${iteration}.session")")" >&2
     fi
     echo "" >&2
     read -r user_input

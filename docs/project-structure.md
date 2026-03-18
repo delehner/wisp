@@ -27,7 +27,7 @@ flowchart TD
     Pipeline --> PGen["generate-context.sh\n(context skill generator)"]
     Pipeline --> PPrd["generate-prd.sh\n(PRD & manifest generator)"]
     Pipeline --> PMon["monitor.sh\n(real-time log monitor)"]
-    Pipeline --> PLib["lib/\nprogress.sh\ngit-utils.sh\nvalidation.sh\nprd-parser.sh\ncontext.sh\nlog-formatter.sh"]
+    Pipeline --> PLib["lib/\nprogress.sh\ngit-utils.sh\nvalidation.sh\nprd-parser.sh\nprovider.sh\ncontext.sh\nlog-formatter.sh"]
 
     Agents --> ABase["_base-system.md"]
     Agents --> AArch["architect/prompt.md"]
@@ -84,7 +84,7 @@ flowchart LR
     subgraph Infra["Infrastructure"]
         DC[".devcontainer/agent/\n(headless container)"]
         MCP[".mcp.json"]
-        Claude["Claude Code CLI"]
+        AI["AI CLI\n(Claude Code or Gemini)"]
     end
 
     subgraph Output["Pipeline Output"]
@@ -105,11 +105,11 @@ flowchart LR
     Runner --> Libs
     Runner -->|builds prompt from| Base
     Runner -->|builds prompt from| Prompts
-    Runner -->|invokes| Claude
-    Claude -->|uses| MCP
-    DC -->|sandbox for| Claude
-    Claude --> Branch
-    Claude --> Artifacts
+    Runner -->|invokes| AI
+    AI -->|uses| MCP
+    DC -->|sandbox for| AI
+    AI --> Branch
+    AI --> Artifacts
     Pipe --> PullReq
     PullReq --> Evidence
     Pipe --> CtxUpdate
@@ -128,22 +128,23 @@ flowchart LR
 | `pipeline/generate-context.sh` | Context skill generator: analyzes repos and produces skill files | Changing context generation workflow |
 | `pipeline/generate-prd.sh` | PRD and manifest generator: prompts for a description, uses repo contexts to produce ordered PRDs and a manifest | Changing PRD generation workflow |
 | `pipeline/lib/prd-parser.sh` | Parse PRD metadata: status, title, priority, working branch | Changing PRD metadata format |
+| `pipeline/lib/provider.sh` | AI provider abstraction: Claude Code vs Gemini CLI, CLI flags, auth, context filename (CLAUDE.md/GEMINI.md) | Adding providers, changing CLI invocation |
 | `pipeline/lib/progress.sh` | Read/write `.agent-progress/` files | Changing progress format |
 | `pipeline/lib/git-utils.sh` | Clone, branch, rebase, PR creation, PR evidence posting | Changing git workflow |
 | `pipeline/lib/validation.sh` | Environment, PRD, and devcontainer validation | Adding new validations |
-| `pipeline/lib/context.sh` | Context skill assembly (directory → single CLAUDE.md) | Changing context skill format or ordering |
+| `pipeline/lib/context.sh` | Context skill assembly (directory → single CLAUDE.md or GEMINI.md per provider) | Changing context skill format or ordering |
 | `pipeline/lib/log-formatter.sh` | Format stream-json events into readable output (thinking, tools, results) | Changing log format or adding new event types |
 | `pipeline/monitor.sh` | Real-time log tailing with agent filtering and session listing | Changing monitoring workflow |
 | `agents/_base-system.md` | Shared instructions for all agents | Changing universal agent behavior |
 | `agents/*/prompt.md` | Per-agent instructions and completion criteria | Modifying agent behavior |
 | `manifests/*.json` | Execution plans: orders, PRDs, repos, contexts, per-unit agents | Adding projects or changing execution plans |
-| `contexts/<repo>/` | Per-repo context skill directories (assembled into ephemeral CLAUDE.md) | Repo conventions change, new repos added |
+| `contexts/<repo>/` | Per-repo context skill directories (assembled into ephemeral CLAUDE.md or GEMINI.md per provider) | Repo conventions change, new repos added |
 | `templates/manifest.json` | Manifest template | Changing manifest schema |
 | `templates/prd.md` | PRD template for users | Changing required PRD sections |
 | `templates/project-context.md` | Legacy single-file context template | Changing project setup workflow |
 | `templates/context-skill.md` | Context skill template (directory-based contexts) | Changing context skill format |
 | `.devcontainer/devcontainer.json` | Dev Container for editing this repo (VS Code/Cursor) | Changing IDE dev environment |
-| `.devcontainer/agent/*` | Dev Container for running agents headlessly | Changing agent sandbox |
+| `.devcontainer/agent/*` | Dev Container for running agents headlessly (installs both Claude Code and Gemini CLI) | Changing agent sandbox |
 | `.mcp.json` | MCP server connections (GitHub, Notion, Figma, Slack) | Adding/removing integrations |
 | `.env.example` | Environment variable documentation | Adding new config options |
 | `config/settings.json` | Claude Code settings template | Changing default model or permissions |

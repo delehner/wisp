@@ -2,7 +2,8 @@
 # =============================================================================
 # context.sh — Context skill assembly utilities
 # =============================================================================
-# Assembles directory-based context skills into a single CLAUDE.md file.
+# Assembles directory-based context skills into a single context file
+# (CLAUDE.md or GEMINI.md depending on the AI provider).
 # Supports both single-file and directory-based contexts.
 
 # Defines the canonical ordering for context skill files.

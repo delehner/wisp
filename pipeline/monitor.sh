@@ -16,6 +16,11 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Load provider for resume hints
+if [ -f "$SCRIPT_DIR/lib/provider.sh" ]; then
+  source "$SCRIPT_DIR/lib/provider.sh"
+fi
+
 LOG_DIR="${LOG_DIR:-./logs}"
 AGENT_FILTER=""
 RAW_MODE=false
@@ -41,7 +46,8 @@ Examples:
   ./pipeline/monitor.sh                              # tail all active logs
   ./pipeline/monitor.sh --agent developer            # watch developer only
   ./pipeline/monitor.sh --sessions                   # list resumable sessions
-  claude --resume <session-id>                       # resume a session interactively
+  claude --resume <session-id>                       # resume a Claude session
+  gemini --resume <session-id>                       # resume a Gemini session
 
 HELP
       exit 0
@@ -58,7 +64,9 @@ fi
 
 # --- List sessions mode ---
 if [ "$LIST_SESSIONS" = true ]; then
-  echo "Available session IDs (for: claude --resume <id>):"
+  local cli_name
+  cli_name=$(provider_cli 2>/dev/null || echo "claude")
+  echo "Available session IDs (for: $cli_name --resume <id>):"
   echo ""
 
   found=false
@@ -71,7 +79,7 @@ if [ "$LIST_SESSIONS" = true ]; then
     echo "  $local_name"
     echo "    Session: $session_id"
     echo "    Time:    $timestamp"
-    echo "    Resume:  claude --resume $session_id"
+    echo "    Resume:  $(provider_resume_hint "$session_id" 2>/dev/null || echo "$cli_name --resume $session_id")"
     echo ""
   done
 

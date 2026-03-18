@@ -24,6 +24,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 source "$SCRIPT_DIR/lib/prd-parser.sh"
+source "$SCRIPT_DIR/lib/provider.sh"
 source "$SCRIPT_DIR/lib/validation.sh"
 
 # --- Load .env if present ---
@@ -61,7 +62,7 @@ SKIP_PR=false
 NO_CONTEXT_UPDATE=false
 NO_DEVCONTAINER=false
 AUTO_CONTINUE=false
-MODEL="${CLAUDE_MODEL:-sonnet}"
+MODEL="$(provider_default_model)"
 MAX_ITERATIONS="${PIPELINE_MAX_ITERATIONS:-10}"
 SEQUENTIAL=false
 MAX_PARALLEL="${PIPELINE_MAX_PARALLEL:-4}"
@@ -104,15 +105,15 @@ Legacy mode (single PRD):
   --prd <path>              PRD file (can be repeated for multiple PRDs)
   --prd-dir <dir>           Directory containing PRD .md files
   --repo <url>              Target repository URL
-  --context <path>          Project context (file or skill directory, injected as ephemeral CLAUDE.md)
+  --context <path>          Project context (file or skill directory, injected as ephemeral context)
   --branch <name>           Base branch (default: main)
 
 Pipeline options:
   --agents <list>           Comma-separated agent list (default: architect,designer,migration,developer,accessibility,tester,performance,secops,dependency,infrastructure,devops,rollback,documentation,reviewer)
   --skip-pr                 Don't create PRs at the end
-  --no-context-update       Don't update CLAUDE.md after agents finish
+  --no-context-update       Don't update project context after agents finish
   --no-devcontainer         Run agents on host instead of inside Dev Containers
-  --model <name>            Claude model (default: sonnet)
+  --model <name>            AI model (default depends on AI_PROVIDER)
   --max-iterations <n>      Per-agent iteration cap (default: 10)
   --evidence-agents <list>  Agents whose reports are posted as PR comments
                             (default: tester,performance,secops,dependency,infrastructure,devops)

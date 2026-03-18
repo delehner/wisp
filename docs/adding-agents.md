@@ -62,6 +62,7 @@ Rules:
 - Don't duplicate content from `_base-system.md`
 - Completion criteria must be testable checkboxes
 - Specify which prior agents' output this agent reads
+- Prompts are provider-agnostic — they work with both Claude Code and Gemini CLI
 
 ### 2. Register in the Pipeline
 
@@ -120,7 +121,7 @@ Template content
 Update the following files to reflect the new agent:
 - `docs/pipeline-overview.md` — add to flow diagrams
 - `README.md` — add to the agent roles table
-- `CLAUDE.md` — mention if it affects project structure
+- `CLAUDE.md` — mention if it affects project structure or conventions
 
 ## Example: Adding a Compliance Agent
 

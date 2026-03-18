@@ -23,6 +23,9 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PIPELINE_DIR="$ROOT_DIR/pipeline"
 LOG_DIR="${LOG_DIR:-$ROOT_DIR/logs}"
 
+# Load provider abstraction
+source "$PIPELINE_DIR/lib/provider.sh"
+
 # --- Colors ---
 if [ -t 1 ]; then
   C_RESET='\033[0m'
@@ -62,7 +65,8 @@ Enforced defaults:
   --verbose-logs is always enabled (formatted output with thinking, tool calls, results)
   --no-devcontainer is blocked (agents always run inside Dev Containers)
 
-Extra options (for orchestrate and pipeline):
+Extra options:
+  --provider <claude|gemini>    AI provider to use (default: claude, or AI_PROVIDER env var)
   --follow <agent>              Focus output on a specific agent (e.g., --follow developer)
 
 Examples:
@@ -77,6 +81,9 @@ Examples:
 
   # Run the full pipeline from a manifest
   ca orchestrate --manifest ./manifests/my-app.json
+
+  # Run with Gemini instead of Claude
+  ca orchestrate --manifest ./manifests/my-app.json --provider gemini
 
   # Run with interactive mode (pause between agents)
   ca orchestrate --manifest ./manifests/my-app.json --interactive
@@ -120,16 +127,19 @@ filter_args() {
 }
 
 # =============================================================================
-# Extract and remove --follow from args (ca-specific flag)
-# Stores result in REMAINING_ARGS array and FOLLOW_AGENT variable.
+# Extract and remove --follow and --provider from args (ca-specific flags)
+# Stores result in REMAINING_ARGS array, FOLLOW_AGENT and provider vars.
 # =============================================================================
-extract_follow() {
+extract_ca_flags() {
   FOLLOW_AGENT=""
   REMAINING_ARGS=()
 
   while [[ $# -gt 0 ]]; do
     if [ "$1" = "--follow" ] && [ $# -ge 2 ]; then
       FOLLOW_AGENT="$2"
+      shift 2
+    elif [ "$1" = "--provider" ] && [ $# -ge 2 ]; then
+      export AI_PROVIDER="$2"
       shift 2
     else
       REMAINING_ARGS+=("$1")
@@ -191,7 +201,7 @@ cleanup_log_watcher() {
 # Subcommand: orchestrate
 # =============================================================================
 cmd_orchestrate() {
-  extract_follow "$@"
+  extract_ca_flags "$@"
   filter_args true "${REMAINING_ARGS[@]}"
 
   if [ -n "$FOLLOW_AGENT" ]; then
@@ -207,7 +217,7 @@ cmd_orchestrate() {
 # Subcommand: pipeline
 # =============================================================================
 cmd_pipeline() {
-  extract_follow "$@"
+  extract_ca_flags "$@"
   filter_args true "${REMAINING_ARGS[@]}"
 
   if [ -n "$FOLLOW_AGENT" ]; then
@@ -223,7 +233,8 @@ cmd_pipeline() {
 # Subcommand: run (single agent)
 # =============================================================================
 cmd_run() {
-  filter_args true "$@"
+  extract_ca_flags "$@"
+  filter_args true "${REMAINING_ARGS[@]}"
   exec "$PIPELINE_DIR/run-agent.sh" "${FILTERED_ARGS[@]}"
 }
 
@@ -231,7 +242,8 @@ cmd_run() {
 # Subcommand: generate prd
 # =============================================================================
 cmd_generate_prd() {
-  filter_args true "$@"
+  extract_ca_flags "$@"
+  filter_args true "${REMAINING_ARGS[@]}"
   exec "$PIPELINE_DIR/generate-prd.sh" "${FILTERED_ARGS[@]}"
 }
 
@@ -239,9 +251,10 @@ cmd_generate_prd() {
 # Subcommand: generate context
 # =============================================================================
 cmd_generate_context() {
+  extract_ca_flags "$@"
   # generate-context.sh uses --quiet as the inverse of verbose; default is already verbose
   local filtered=()
-  for arg in "$@"; do
+  for arg in "${REMAINING_ARGS[@]}"; do
     if [ "$arg" = "--quiet" ]; then
       log "WARN" "Ignoring --quiet — ca always shows formatted output"
       continue
@@ -266,7 +279,7 @@ cmd_logs() {
   if [ $# -eq 0 ]; then
     echo "Usage: ca logs <file.jsonl> [--truncate <n>]"
     echo ""
-    echo "Re-formats a raw Claude Code .jsonl log file through log-formatter.sh"
+    echo "Re-formats a raw .jsonl log file through log-formatter.sh"
     echo "for readable, color-coded output."
     echo ""
     echo "Examples:"

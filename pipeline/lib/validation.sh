@@ -1,5 +1,6 @@
 #!/bin/bash
 # Validation utilities for the pipeline.
+# Requires provider.sh to be sourced first (for provider_validate_cli, provider_api_key_var).
 
 validate_prd() {
   local prd_file="$1"
@@ -32,8 +33,7 @@ validate_prd() {
 validate_environment() {
   local errors=0
 
-  if ! command -v claude &> /dev/null; then
-    log "ERROR" "Claude Code CLI is not installed. Install with: npm install -g @anthropic-ai/claude-code"
+  if ! provider_validate_cli; then
     errors=$((errors + 1))
   fi
 
@@ -46,8 +46,13 @@ validate_environment() {
     log "WARN" "GitHub CLI (gh) is not installed. PR creation will be skipped."
   fi
 
-  if [ -z "$ANTHROPIC_API_KEY" ]; then
-    log "INFO" "ANTHROPIC_API_KEY is not set — will use Claude Max subscription auth"
+  local key_var
+  key_var=$(provider_api_key_var)
+  if [ -z "${!key_var:-}" ]; then
+    case "$AI_PROVIDER" in
+      claude) log "INFO" "ANTHROPIC_API_KEY is not set — will use Claude Max subscription auth" ;;
+      gemini) log "INFO" "GEMINI_API_KEY is not set — will use Google account auth" ;;
+    esac
   fi
 
   return "$errors"

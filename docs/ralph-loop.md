@@ -1,6 +1,6 @@
 # Ralph Loop Mechanism
 
-A Ralph Loop wraps Claude Code in an iterative execution cycle. Each iteration gets a fresh context window, with progress persisted to the filesystem between iterations. This overcomes context window limits and allows self-correction.
+A Ralph Loop wraps an AI agent (Claude Code or Gemini CLI) in an iterative execution cycle. Each iteration gets a fresh context window, with progress persisted to the filesystem between iterations. This overcomes context window limits and allows self-correction. The pipeline's provider abstraction (`pipeline/lib/provider.sh`) handles CLI-specific flags, auth, and output formats for each provider.
 
 ## How It Works
 
@@ -13,8 +13,8 @@ flowchart TD
         LoopStart{Already\ncompleted?} -->|Yes| Done
         LoopStart -->|No| Build[Build prompt:\nbase system +\nagent prompt +\nPRD +\nprevious agents +\nown progress +\niteration context]
         Build --> TempFile[Write prompt\nto temp file]
-        TempFile --> Claude["claude -p prompt\n--model opus-4-6\n--dangerously-skip-permissions"]
-        Claude --> CheckStatus{Progress file\nstatus = COMPLETED?}
+        TempFile --> AI["AI CLI (claude/gemini)\nprovider.sh invokes with\nmodel + provider-specific flags"]
+        AI --> CheckStatus{Progress file\nstatus = COMPLETED?}
         CheckStatus -->|Yes| Done
         CheckStatus -->|No| MaxCheck{Max iterations\nreached?}
         MaxCheck -->|No| Sleep[Sleep 2s\nrate limit] --> LoopStart
@@ -28,7 +28,7 @@ flowchart TD
 ## Why Ralph Loops Work
 
 ### Fresh Context Per Iteration
-Each `claude -p` call starts a new Claude Code session with a full 200K token context window. No stale context accumulates.
+Each iteration invokes the AI CLI (e.g. `claude -p` or `gemini -p`) via `provider.sh`, starting a new session with a full context window. No stale context accumulates.
 
 ### Filesystem as Memory
 Progress, decisions, and artifacts are written to `.agent-progress/<agent>.md` and `docs/architecture/`. Each iteration reads this file to understand what's already been done.
@@ -53,7 +53,7 @@ flowchart TD
         L5["5. Own Progress from Prior Iterations\n(.agent-progress/current-agent.md)"]
         L6["6. Architecture Doc\n(if exists, for non-architect agents)"]
         L7["7. Design Doc\n(if exists, for developer/tester/reviewer)"]
-        L8["8. Project CLAUDE.md\n(if exists in target repo)"]
+        L8["8. Project context file\n(CLAUDE.md or GEMINI.md,\nif exists in target repo)"]
         L9["9. Iteration Context\n(iteration N of M, working directory)"]
 
         L1 --- L2 --- L3 --- L4 --- L5 --- L6 --- L7 --- L8 --- L9
@@ -83,6 +83,20 @@ flowchart LR
 
     A -->|overrides| B -->|overrides| C -->|overrides| D
 ```
+
+## Session Resume
+
+To resume an agent session interactively (e.g. after a pipeline pause or for debugging):
+
+```bash
+# Claude Code
+claude --resume <session-id>
+
+# Gemini CLI
+gemini --resume <session-id>
+```
+
+Session IDs are shown in pipeline output and can be listed with `ca monitor --sessions`.
 
 ## Cost Implications
 

@@ -6,8 +6,8 @@ Everything you need to run the Coding Agents pipeline.
 
 | Tool | Purpose | Install |
 |------|---------|---------|
-| **Claude Code CLI** | AI engine that powers every agent | `npm install -g @anthropic-ai/claude-code` |
-| **Node.js >= 18** | Runtime for Claude Code CLI | [nodejs.org](https://nodejs.org) or `brew install node` |
+| **AI CLI** (one of) | AI engine that powers every agent | Claude Code: `npm install -g @anthropic-ai/claude-code` — or — Gemini CLI: `npm install -g @google/gemini-cli` |
+| **Node.js >= 18** | Runtime for AI CLIs | [nodejs.org](https://nodejs.org) or `brew install node` |
 | **Git** | Repository cloning, branching, committing | `brew install git` (macOS ships with it) |
 | **Bash** | Pipeline scripts (macOS built-in `/bin/bash` 3.2+ works fine) | Pre-installed on macOS and Linux |
 | **Docker Desktop** | Dev Containers run agents in isolated containers | [docker.com](https://www.docker.com/products/docker-desktop/) |
@@ -27,12 +27,21 @@ Everything you need to run the Coding Agents pipeline.
 
 ## Authentication
 
-You need **one** of the following for Claude Code:
+You need **one** AI provider configured:
+
+### Claude Code
 
 | Method | Who it's for | Setup |
 |--------|-------------|-------|
 | **Claude Max subscription** | Individual users ($100-200/month flat rate) | Run `claude` once to login via browser. Leave `ANTHROPIC_API_KEY` blank. For Dev Containers, set `CLAUDE_CODE_OAUTH_TOKEN` in `.env` (generate with `claude setup-token`) if browser login does not propagate. |
 | **Anthropic API key** | Pay-per-token or organization usage | Get a key at [console.anthropic.com](https://console.anthropic.com), set `ANTHROPIC_API_KEY` in `.env`. |
+
+### Gemini CLI (Alternative)
+
+| Method | Setup |
+|--------|-------|
+| **Browser login** | Run `gemini auth login` to authenticate via browser |
+| **API key** | Set `GEMINI_API_KEY` in `.env` |
 
 For GitHub access you need **one** of:
 
@@ -62,11 +71,13 @@ These are external services the agents can connect to. None are required.
 brew install node git gh jq
 brew install --cask docker          # Docker Desktop
 
-# CLI tools
+# CLI tools (install at least one AI CLI)
 npm install -g @anthropic-ai/claude-code @devcontainers/cli
+# Or use Gemini: npm install -g @google/gemini-cli
 
-# Auth
-claude                              # login with Max subscription
+# Auth (for your chosen AI provider)
+claude                              # Claude: login with Max subscription
+# Or: gemini auth login             # Gemini: browser login
 gh auth login                       # login to GitHub
 
 # Install the ca CLI
@@ -79,8 +90,8 @@ curl -fsSL https://raw.githubusercontent.com/delehner/coding-agents/main/scripts
 # Required
 node --version          # >= 18
 git --version           # any recent version
-claude --version        # any version
-docker --version        # any version
+claude --version        # Claude Code (or gemini --version for Gemini CLI)
+docker --version       # any version
 devcontainer --version  # any version
 gh --version            # any version
 ca help                 # verify ca is installed
@@ -102,7 +113,7 @@ orchestrator.sh
        ├─ devcontainer up ──→ Container starts
        │                      │
        ├─ devcontainer exec ──→ run-agent.sh (architect)
-       │                        └─ claude -p (sandboxed)
+       │                        └─ claude/gemini -p (sandboxed)
        ├─ devcontainer exec ──→ run-agent.sh (designer)
        ├─ devcontainer exec ──→ run-agent.sh (developer)
        ├─ devcontainer exec ──→ run-agent.sh (tester)
@@ -115,12 +126,9 @@ orchestrator.sh
        └─ gh pr create        
 ```
 
-The container mounts your Claude auth (`~/.claude`), GitHub auth (`~/.config/gh`),
-and the target repository. Pipeline scripts and agent prompts are copied into
-the workspace so they're accessible inside the container.
+The container mounts your AI provider auth (`~/.claude` for Claude, `~/.config/gemini` for Gemini), GitHub auth (`~/.config/gh`), and the target repository. Pipeline scripts and agent prompts are copied into the workspace so they're accessible inside the container.
 
-If Claude Max browser login is not detected inside the container, prefer
-`CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`) for container runs.
+If Claude Max browser login is not detected inside the container, prefer `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`) for container runs. For Gemini, use `GEMINI_API_KEY` in `.env` for reliable container auth.
 
 Agent commits use your host Git identity. Ensure `git config --global user.name`
 and `git config --global user.email` are set on the host before running the pipeline.

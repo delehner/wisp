@@ -28,6 +28,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/lib/prd-parser.sh"
 source "$SCRIPT_DIR/lib/progress.sh"
 source "$SCRIPT_DIR/lib/git-utils.sh"
+source "$SCRIPT_DIR/lib/provider.sh"
 source "$SCRIPT_DIR/lib/validation.sh"
 source "$SCRIPT_DIR/lib/context.sh"
 
@@ -63,7 +64,7 @@ BASE_BRANCH="${DEFAULT_BASE_BRANCH:-main}"
 WORK_DIR="${PIPELINE_WORK_DIR:-/tmp/coding-agents-work}"
 AGENTS="architect,designer,migration,developer,accessibility,tester,performance,secops,dependency,infrastructure,devops,rollback,documentation,reviewer"
 SKIP_PR=false
-MODEL="${CLAUDE_MODEL:-sonnet}"
+MODEL="$(provider_default_model)"
 MAX_ITERATIONS="${PIPELINE_MAX_ITERATIONS:-10}"
 USE_DEVCONTAINER="${USE_DEVCONTAINER:-true}"
 EVIDENCE_AGENTS="${EVIDENCE_AGENTS:-tester,performance,secops,dependency,infrastructure,devops}"
@@ -97,16 +98,16 @@ Usage: run-pipeline.sh --prd <path> --repo <url> [options]
 Options:
   --prd <path>           Path to PRD file (required)
   --repo <url>           GitHub repository URL (required)
-  --context <path>       Project context (file or skill directory) injected as CLAUDE.md (ephemeral, never committed)
+  --context <path>       Project context (file or skill directory) injected as CLAUDE.md/GEMINI.md (ephemeral, never committed)
   --branch <name>        Base branch (default: main)
   --workdir <path>       Working directory for cloned repo
   --agents <list>        Comma-separated agent list (default: architect,designer,migration,developer,accessibility,tester,performance,secops,dependency,infrastructure,devops,rollback,documentation,reviewer)
   --stack-on <branch>    Stack this branch on top of another feature branch (for same-repo PRDs).
                             Creates the feature branch from <branch> tip and targets the PR at it.
   --skip-pr              Don't create a PR at the end
-  --no-context-update    Don't update CLAUDE.md after agents finish
+  --no-context-update    Don't update project context after agents finish
   --no-devcontainer      Run agents directly on host instead of inside a Dev Container
-  --model <name>         Claude model to use (default: sonnet)
+  --model <name>         AI model to use (default depends on AI_PROVIDER)
   --max-iterations <n>   Max iterations per agent (default: 10)
   --evidence-agents <list>  Comma-separated agents whose reports are posted as PR comments
                             (default: tester,performance,secops,dependency,infrastructure,devops)
@@ -221,20 +222,21 @@ fi
 
 # --- Inject Context (ephemeral, never committed) ---
 # Supports both single-file and directory-based contexts.
-# Directory contexts: each .md skill file is concatenated into CLAUDE.md in a defined order.
+# Written to CLAUDE.md or GEMINI.md depending on the AI provider.
+CTX_FILENAME=$(provider_context_filename)
 if [ -n "$CONTEXT_FILE" ]; then
   CONTEXT_FILE=$(realpath "$CONTEXT_FILE")
   if [ -d "$CONTEXT_FILE" ]; then
-    log "INFO" "Injecting context directory: $CONTEXT_FILE → CLAUDE.md (ephemeral)"
-    assemble_context_skills "$CONTEXT_FILE" "$REPO_WORKDIR/CLAUDE.md"
-    if ! grep -q '^CLAUDE.md$' "$REPO_WORKDIR/.git/info/exclude" 2>/dev/null; then
-      echo "CLAUDE.md" >> "$REPO_WORKDIR/.git/info/exclude"
+    log "INFO" "Injecting context directory: $CONTEXT_FILE → $CTX_FILENAME (ephemeral)"
+    assemble_context_skills "$CONTEXT_FILE" "$REPO_WORKDIR/$CTX_FILENAME"
+    if ! grep -q "^${CTX_FILENAME}$" "$REPO_WORKDIR/.git/info/exclude" 2>/dev/null; then
+      echo "$CTX_FILENAME" >> "$REPO_WORKDIR/.git/info/exclude"
     fi
   elif [ -f "$CONTEXT_FILE" ]; then
-    log "INFO" "Injecting context file: $CONTEXT_FILE → CLAUDE.md (ephemeral)"
-    cp "$CONTEXT_FILE" "$REPO_WORKDIR/CLAUDE.md"
-    if ! grep -q '^CLAUDE.md$' "$REPO_WORKDIR/.git/info/exclude" 2>/dev/null; then
-      echo "CLAUDE.md" >> "$REPO_WORKDIR/.git/info/exclude"
+    log "INFO" "Injecting context file: $CONTEXT_FILE → $CTX_FILENAME (ephemeral)"
+    cp "$CONTEXT_FILE" "$REPO_WORKDIR/$CTX_FILENAME"
+    if ! grep -q "^${CTX_FILENAME}$" "$REPO_WORKDIR/.git/info/exclude" 2>/dev/null; then
+      echo "$CTX_FILENAME" >> "$REPO_WORKDIR/.git/info/exclude"
     fi
   else
     log "WARN" "Context not found: $CONTEXT_FILE (continuing without it)"
@@ -278,13 +280,17 @@ if [ "$USE_DEVCONTAINER" = true ]; then
   cp -r "$SCRIPT_DIR/../agents" "$PIPELINE_STAGING/agents"
   cp "$PRD_FILE" "$PIPELINE_STAGING/prd.md"
 
-  # Helper script for running claude -p from a prompt file inside the container
-  cat > "$PIPELINE_STAGING/run-claude.sh" << 'HELPER'
+  # Helper script for running the AI CLI from a prompt file inside the container
+  cat > "$PIPELINE_STAGING/run-ai.sh" << 'HELPER'
 #!/bin/bash
 PROMPT_FILE="$1"; shift
-claude -p "$(cat "$PROMPT_FILE")" "$@"
+CLI="${AI_PROVIDER:-claude}"
+case "$CLI" in
+  gemini) gemini -p "$(cat "$PROMPT_FILE")" "$@" ;;
+  *)      claude -p "$(cat "$PROMPT_FILE")" "$@" ;;
+esac
 HELPER
-  chmod +x "$PIPELINE_STAGING/run-claude.sh"
+  chmod +x "$PIPELINE_STAGING/run-ai.sh"
 
   # Exclude from git
   if ! grep -q '^\.pipeline/' "$REPO_WORKDIR/.git/info/exclude" 2>/dev/null; then
@@ -333,6 +339,7 @@ exec_in_environment() {
     if [ -n "$CONTAINER_WORKSPACE" ]; then
       remote_env_args+=(--remote-env "LOG_DIR=$CONTAINER_WORKSPACE/.pipeline/logs")
     fi
+    remote_env_args+=(--remote-env "AI_PROVIDER=$AI_PROVIDER")
 
     devcontainer exec \
       --workspace-folder "$REPO_WORKDIR" \
@@ -344,22 +351,48 @@ exec_in_environment() {
   fi
 }
 
-validate_claude_auth() {
+validate_provider_auth() {
   if [ "$USE_DEVCONTAINER" = true ]; then
-    if [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
-      log "INFO" "CLAUDE_CODE_OAUTH_TOKEN detected in pipeline environment (length: ${#CLAUDE_CODE_OAUTH_TOKEN})"
-    else
-      log "INFO" "CLAUDE_CODE_OAUTH_TOKEN is not set in pipeline environment"
-    fi
+    local cli
+    cli=$(provider_cli)
+
+    case "$AI_PROVIDER" in
+      claude)
+        if [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
+          log "INFO" "CLAUDE_CODE_OAUTH_TOKEN detected in pipeline environment (length: ${#CLAUDE_CODE_OAUTH_TOKEN})"
+        else
+          log "INFO" "CLAUDE_CODE_OAUTH_TOKEN is not set in pipeline environment"
+        fi
+        ;;
+      gemini)
+        if [ -n "${GEMINI_API_KEY:-}" ]; then
+          log "INFO" "GEMINI_API_KEY detected in pipeline environment"
+        elif [ -n "${GOOGLE_API_KEY:-}" ]; then
+          log "INFO" "GOOGLE_API_KEY detected in pipeline environment"
+        else
+          log "INFO" "No Gemini API key set in pipeline environment — using Google account auth"
+        fi
+        ;;
+    esac
 
     set +e
-    auth_status_output=$(exec_in_environment bash -lc "claude auth status 2>&1")
+    auth_status_output=$(exec_in_environment bash -lc "$(provider_auth_check_cmd) 2>&1")
     local auth_exit=$?
     set -e
 
-    if [ $auth_exit -eq 0 ] && echo "$auth_status_output" | grep -q '"loggedIn":[[:space:]]*true'; then
-      log "INFO" "Claude auth preflight succeeded inside Dev Container"
-      return 0
+    if [ $auth_exit -eq 0 ]; then
+      case "$AI_PROVIDER" in
+        claude)
+          if echo "$auth_status_output" | grep -q '"loggedIn":[[:space:]]*true'; then
+            log "INFO" "$cli auth preflight succeeded inside Dev Container"
+            return 0
+          fi
+          ;;
+        gemini)
+          log "INFO" "$cli auth preflight succeeded inside Dev Container"
+          return 0
+          ;;
+      esac
     fi
 
     if [ -n "$auth_status_output" ]; then
@@ -370,15 +403,25 @@ validate_claude_auth() {
     fi
 
     if [ $auth_exit -ne 0 ]; then
-      log "ERROR" "Claude auth status command failed inside Dev Container (exit: $auth_exit)"
+      log "ERROR" "$cli auth status command failed inside Dev Container (exit: $auth_exit)"
     else
-      log "ERROR" "Claude Code is not authenticated inside the Dev Container."
+      log "ERROR" "$cli is not authenticated inside the Dev Container."
     fi
 
-    log "ERROR" "Fix one of the following, then rerun:"
-    log "ERROR" "  1) Set ANTHROPIC_API_KEY in .env so container auth uses API key"
-    log "ERROR" "  2) Set CLAUDE_CODE_OAUTH_TOKEN in .env (generate with: claude setup-token)"
-    log "ERROR" "  3) Run with --no-devcontainer to use host Claude auth directly"
+    case "$AI_PROVIDER" in
+      claude)
+        log "ERROR" "Fix one of the following, then rerun:"
+        log "ERROR" "  1) Set ANTHROPIC_API_KEY in .env so container auth uses API key"
+        log "ERROR" "  2) Set CLAUDE_CODE_OAUTH_TOKEN in .env (generate with: claude setup-token)"
+        log "ERROR" "  3) Run with --no-devcontainer to use host Claude auth directly"
+        ;;
+      gemini)
+        log "ERROR" "Fix one of the following, then rerun:"
+        log "ERROR" "  1) Set GEMINI_API_KEY in .env"
+        log "ERROR" "  2) Set GOOGLE_API_KEY in .env"
+        log "ERROR" "  3) Run with --no-devcontainer to use host Gemini auth directly"
+        ;;
+    esac
     return 1
   fi
 
@@ -388,7 +431,7 @@ validate_claude_auth() {
 # =============================================================================
 # Run Agents
 # =============================================================================
-validate_claude_auth || exit 1
+validate_provider_auth || exit 1
 
 IFS=',' read -ra AGENT_LIST <<< "$AGENTS"
 PREVIOUS_AGENTS=""
@@ -470,7 +513,7 @@ for agent in "${AGENT_LIST[@]}"; do
 
   # Safety net: remove runtime artifacts if an agent accidentally committed them
   runtime_dirty=false
-  for runtime_path in .agent-progress logs .pipeline CLAUDE.md; do
+  for runtime_path in .agent-progress logs .pipeline CLAUDE.md GEMINI.md; do
     if git -C "$REPO_WORKDIR" ls-files --error-unmatch "$runtime_path" &>/dev/null; then
       git -C "$REPO_WORKDIR" rm -r --cached "$runtime_path" &>/dev/null || true
       runtime_dirty=true
@@ -530,27 +573,27 @@ done
 # Update Project Context
 # =============================================================================
 UPDATE_CONTEXT="${UPDATE_PROJECT_CONTEXT:-true}"
-if [ "$UPDATE_CONTEXT" = "true" ] && [ -f "$REPO_WORKDIR/CLAUDE.md" ]; then
+if [ "$UPDATE_CONTEXT" = "true" ] && [ -f "$REPO_WORKDIR/$CTX_FILENAME" ]; then
   log "INFO" ""
   log "INFO" "========================================="
-  log "INFO" "  Updating Project Context (CLAUDE.md)"
+  log "INFO" "  Updating Project Context ($CTX_FILENAME)"
   log "INFO" "========================================="
 
   CONTEXT_IS_EPHEMERAL=false
-  if grep -q '^CLAUDE.md$' "$REPO_WORKDIR/.git/info/exclude" 2>/dev/null; then
+  if grep -q "^${CTX_FILENAME}$" "$REPO_WORKDIR/.git/info/exclude" 2>/dev/null; then
     CONTEXT_IS_EPHEMERAL=true
   fi
 
   if [ "$CONTEXT_IS_EPHEMERAL" = true ]; then
-    COMMIT_INSTRUCTION="After updating CLAUDE.md, do NOT commit it — it is an ephemeral file managed outside this repo."
+    COMMIT_INSTRUCTION="After updating $CTX_FILENAME, do NOT commit it — it is an ephemeral file managed outside this repo."
   else
     COMMIT_INSTRUCTION="After updating, commit with message: \"docs: update project context after pipeline run\""
   fi
 
   CONTEXT_PROMPT=$(cat <<CTXEOF
-You are updating the project context file (CLAUDE.md) to reflect changes made by a development pipeline.
+You are updating the project context file ($CTX_FILENAME) to reflect changes made by a development pipeline.
 
-Read the current CLAUDE.md, then review the code that was just added or modified. Update CLAUDE.md to accurately describe:
+Read the current $CTX_FILENAME, then review the code that was just added or modified. Update $CTX_FILENAME to accurately describe:
 - Any new directories, files, or patterns that were introduced
 - Any new dependencies that were added
 - Any new conventions established by the code
@@ -562,69 +605,66 @@ $COMMIT_INSTRUCTION
 CTXEOF
 )
 
-  ctx_output_format="text"
-  ctx_extra_flags=""
-  if [ "$VERBOSE_LOGS" = true ]; then
-    ctx_output_format="stream-json"
-    ctx_extra_flags="--verbose"
-  fi
+  # Write prompt to temp file (consistent with provider_run interface)
+  ctx_prompt_file=$(mktemp)
+  echo "$CONTEXT_PROMPT" > "$ctx_prompt_file"
 
   set +e
   if [ "$USE_DEVCONTAINER" = true ]; then
-    # Write prompt to a file accessible inside the container
-    echo "$CONTEXT_PROMPT" > "$REPO_WORKDIR/.pipeline/.context-prompt.tmp"
+    cp "$ctx_prompt_file" "$REPO_WORKDIR/.pipeline/.context-prompt.tmp"
+    rm -f "$ctx_prompt_file"
+
+    # Build provider-specific flags for the container helper
+    local container_cli_args=()
+    case "$AI_PROVIDER" in
+      gemini)
+        container_cli_args=(--model "$MODEL" --yolo --output-format)
+        ;;
+      *)
+        container_cli_args=(--model "$MODEL" --allowedTools "Edit,Write,Bash,Read,MultiEdit" --dangerously-skip-permissions --output-format)
+        ;;
+    esac
+
     if [ "$VERBOSE_LOGS" = true ]; then
       exec_in_environment \
-        bash "$CONTAINER_WORKSPACE/.pipeline/run-claude.sh" \
+        bash "$CONTAINER_WORKSPACE/.pipeline/run-ai.sh" \
           "$CONTAINER_WORKSPACE/.pipeline/.context-prompt.tmp" \
-          --model "$MODEL" \
-          --allowedTools "Edit,Write,Bash,Read,MultiEdit" \
-          --dangerously-skip-permissions \
-          --output-format "$ctx_output_format" \
-          $ctx_extra_flags \
+          "${container_cli_args[@]}" stream-json \
+          $([ "$AI_PROVIDER" = "claude" ] && echo "--verbose") \
         2>&1 | "$SCRIPT_DIR/lib/log-formatter.sh" \
+          --provider "$AI_PROVIDER" \
           --raw-log "$LOG_DIR/context_update.jsonl" \
         | tee -a "$LOG_DIR/context_update.log"
     else
       exec_in_environment \
-        bash "$CONTAINER_WORKSPACE/.pipeline/run-claude.sh" \
+        bash "$CONTAINER_WORKSPACE/.pipeline/run-ai.sh" \
           "$CONTAINER_WORKSPACE/.pipeline/.context-prompt.tmp" \
-          --model "$MODEL" \
-          --allowedTools "Edit,Write,Bash,Read,MultiEdit" \
-          --dangerously-skip-permissions \
-          --output-format text \
+          "${container_cli_args[@]}" text \
         2>&1 | tee -a "$LOG_DIR/context_update.log"
     fi
   else
     if [ "$VERBOSE_LOGS" = true ]; then
-      claude -p "$CONTEXT_PROMPT" \
-        --model "$MODEL" \
-        --allowedTools "Edit,Write,Bash,Read,MultiEdit" \
-        --dangerously-skip-permissions \
-        --output-format "$ctx_output_format" \
-        $ctx_extra_flags \
+      provider_run "$ctx_prompt_file" "$MODEL" "Edit,Write,Bash,Read,MultiEdit" "stream-json" true \
         2>&1 | "$SCRIPT_DIR/lib/log-formatter.sh" \
+          --provider "$AI_PROVIDER" \
           --raw-log "$LOG_DIR/context_update.jsonl" \
         | tee -a "$LOG_DIR/context_update.log"
     else
-      claude -p "$CONTEXT_PROMPT" \
-        --model "$MODEL" \
-        --allowedTools "Edit,Write,Bash,Read,MultiEdit" \
-        --dangerously-skip-permissions \
-        --output-format text \
+      provider_run "$ctx_prompt_file" "$MODEL" "Edit,Write,Bash,Read,MultiEdit" "text" false \
         2>&1 | tee -a "$LOG_DIR/context_update.log"
     fi
+    rm -f "$ctx_prompt_file"
   fi
   context_exit=$?
   set -e
 
   if [ $context_exit -eq 0 ]; then
     log "INFO" "Project context updated successfully"
-    if [ "$CONTEXT_IS_EPHEMERAL" = true ] && [ -n "$CONTEXT_FILE" ] && [ -f "$REPO_WORKDIR/CLAUDE.md" ]; then
+    if [ "$CONTEXT_IS_EPHEMERAL" = true ] && [ -n "$CONTEXT_FILE" ] && [ -f "$REPO_WORKDIR/$CTX_FILENAME" ]; then
       if [ -d "$CONTEXT_FILE" ]; then
         log "INFO" "Context is directory-based — skipping sync-back (re-run generate-context.sh to update skills)"
       else
-        cp "$REPO_WORKDIR/CLAUDE.md" "$CONTEXT_FILE"
+        cp "$REPO_WORKDIR/$CTX_FILENAME" "$CONTEXT_FILE"
         log "INFO" "Updated context synced back to: $CONTEXT_FILE"
       fi
     fi

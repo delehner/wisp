@@ -1,6 +1,6 @@
 # Coding Agents Pipeline
 
-A generic, extensible AI agent pipeline that turns PRDs into Pull Requests using Claude Code with Ralph Loops and Dev Containers.
+A generic, extensible AI agent pipeline that turns PRDs into Pull Requests using AI coding agents (Claude Code or Gemini CLI) with Ralph Loops and Dev Containers.
 
 ## How It Works
 
@@ -102,12 +102,14 @@ ln -sf "$(pwd)/ca" /usr/local/bin/ca
 
 ### Prerequisites
 
-- [Claude Code CLI](https://docs.claude.com/en/docs/claude-code) — `npm install -g @anthropic-ai/claude-code`
+- **AI CLI** (at least one):
+  - [Claude Code CLI](https://docs.claude.com/en/docs/claude-code) — `npm install -g @anthropic-ai/claude-code`
+  - [Gemini CLI](https://github.com/google-gemini/gemini-cli) — `npm install -g @google/gemini-cli`
 - [Docker Desktop](https://www.docker.com/) + [Dev Containers CLI](https://github.com/devcontainers/cli) — `npm install -g @devcontainers/cli`
 - [GitHub CLI](https://cli.github.com/) — `brew install gh && gh auth login`
 - **jq** — `brew install jq` (required for manifest parsing)
-- **Claude Max subscription** or an **Anthropic API key**
-- For Dev Container runs with Claude Max: generate `CLAUDE_CODE_OAUTH_TOKEN` via `claude setup-token` and set it in `.env` if browser login is not detected in containers
+- **Claude**: Claude Max subscription or an Anthropic API key. For Dev Container runs with Claude Max: generate `CLAUDE_CODE_OAUTH_TOKEN` via `claude setup-token` and set it in `.env`
+- **Gemini**: Google AI API key (from aistudio.google.com) or Google account auth (`gemini auth login`). For Dev Container runs, set `GEMINI_API_KEY` in `.env`
 
 > See **[docs/prerequisites.md](docs/prerequisites.md)** for the full setup guide.
 
@@ -182,7 +184,7 @@ Key concepts:
 - **Orders** run sequentially — merge PRs from order N before order N+1 starts
 - **PRDs** within an order run in parallel (up to `--max-parallel`, default 4). When multiple PRDs target the same repo, they are automatically serialized into **waves** with **stacked branches** to prevent merge conflicts. Each subsequent PRD branches from the previous one's feature branch, and PRs target the previous branch, forming a merge chain
 - Each **repository** has its own context directory (or file), branch, and URL
-- **Context skills** are assembled into an ephemeral `CLAUDE.md` in the working directory — never committed to the target repo
+- **Context skills** are assembled into an ephemeral context file (`CLAUDE.md` or `GEMINI.md`) in the working directory — never committed to the target repo
 - **Agents** can be specified per-PRD and/or per-repo — they combine (PRD-level first, then repo-level). Omit both to use the global default
 - **Working Branch** — each PRD declares a `**Working Branch**` in its metadata (e.g. `delehner/01-foundation`). The pipeline uses it as the feature branch name, falling back to auto-generation if not specified
 - **Rebase before PR** — before creating a PR, the pipeline rebases the feature branch onto the latest target branch to reduce conflicts from cross-order drift or external changes
@@ -234,7 +236,8 @@ ca run --agent developer --workdir ./my-repo --prd ./prds/my-feature.md
 | `--order <n>` | `orchestrate` | Run only a specific order |
 | `--auto` | `orchestrate` | Skip confirmation prompts between orders |
 | `--evidence-agents <list>` | `orchestrate`, `pipeline` | Agents whose reports are posted as PR comments |
-| `--model <name>` | `orchestrate`, `pipeline`, `run` | Override the Claude model |
+| `--provider <name>` | all | AI provider: `claude` (default) or `gemini` |
+| `--model <name>` | `orchestrate`, `pipeline`, `run` | Override the AI model |
 | `--max-iterations <n>` | `orchestrate`, `pipeline`, `run` | Cap Ralph Loop iterations |
 | `--workdir <path>` | `pipeline`, `run` | Working directory for cloned repos |
 
@@ -258,7 +261,8 @@ ca logs ./logs/developer_iteration_1.jsonl
 ca logs ./logs/developer_iteration_1.jsonl --truncate 1000
 
 # Resume an agent session interactively (from session ID)
-claude --resume <session-id>
+claude --resume <session-id>    # Claude
+gemini --resume <session-id>    # Gemini
 ```
 
 ### 5. Dev Containers (Default)
@@ -286,6 +290,7 @@ coding-agents/
 │       ├── progress.sh          # Progress tracking between iterations
 │       ├── validation.sh        # Completion criteria checks
 │       ├── context.sh           # Context skill assembly
+│       ├── provider.sh          # AI provider abstraction (Claude / Gemini)
 │       └── log-formatter.sh     # Stream-json → human-readable log formatter
 ├── agents/
 │   ├── _base-system.md          # Shared base instructions for all agents
@@ -326,7 +331,7 @@ coding-agents/
 │   └── init-firewall.sh
 ├── docs/                        # Documentation with diagrams
 ├── config/
-│   └── settings.json            # Claude Code settings template
+│   └── settings.json            # Claude Code / Gemini CLI settings templates
 ├── .mcp.json                    # MCP server configuration
 ├── .env.example                 # Environment variables template
 ├── CLAUDE.md                    # Instructions for this repo
@@ -356,7 +361,7 @@ coding-agents/
 
 ### For Company Projects
 
-Context skills are injected as ephemeral `CLAUDE.md` that **never gets committed** to target repos.
+Context skills are injected as an ephemeral context file (`CLAUDE.md` or `GEMINI.md`) that **never gets committed** to target repos.
 
 1. Generate context skills for each repo: `ca generate context --repo <url> --output ./contexts/my-repo`
 2. Review and customize the skills — add company-specific conventions, security policies, etc.
@@ -382,17 +387,20 @@ Copy `.env.example` to `.env` and customize. Key variables:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `AI_PROVIDER` | `claude` | AI provider: `claude` or `gemini` |
 | `ANTHROPIC_API_KEY` | _(blank)_ | API key for pay-per-token. Leave blank for Claude Max |
 | `CLAUDE_CODE_OAUTH_TOKEN` | _(blank)_ | OAuth token for headless/container runs (`claude setup-token`) |
-| `CLAUDE_MODEL` | `sonnet` | Default model for all agents |
-| `<AGENT>_MODEL` | _(falls back to `CLAUDE_MODEL`)_ | Per-agent model override (e.g. `REVIEWER_MODEL=opus`) |
+| `GEMINI_API_KEY` | _(blank)_ | Google AI API key for Gemini CLI. Leave blank for Google account auth |
+| `CLAUDE_MODEL` | `sonnet` | Default model (Claude provider) |
+| `GEMINI_MODEL` | `gemini-2.5-pro` | Default model (Gemini provider) |
+| `<AGENT>_MODEL` | _(falls back to provider default)_ | Per-agent model override (e.g. `REVIEWER_MODEL=opus`) |
 | `PIPELINE_MAX_ITERATIONS` | `10` | Max Ralph Loop iterations per agent |
 | `<AGENT>_MAX_ITERATIONS` | _(falls back to global)_ | Per-agent iteration cap (e.g. `DEVELOPER_MAX_ITERATIONS=20`) |
 | `PIPELINE_MAX_PARALLEL` | `4` | Max concurrent PRD×repo pipelines |
 | `DEFAULT_BASE_BRANCH` | `main` | Default base branch for PRs |
 | `PIPELINE_CLEANUP` | `false` | Clean up working directory after PR creation |
 | `EVIDENCE_AGENTS` | `tester,performance,secops,dependency,infrastructure,devops` | Agents whose reports are posted as PR comments |
-| `UPDATE_PROJECT_CONTEXT` | `true` | Auto-update `CLAUDE.md` in target repo after agents |
+| `UPDATE_PROJECT_CONTEXT` | `true` | Auto-update project context in target repo after agents |
 | `LOG_DIR` | `./logs` | Directory for log files |
 | `INTERACTIVE` | `false` | Pause between agents/iterations for review |
 
@@ -414,7 +422,7 @@ See **[docs/mcp-integrations.md](docs/mcp-integrations.md)** for detailed setup,
 
 ## Cost Considerations
 
-Ralph Loops consume API tokens per iteration. With a **Claude Max subscription**, usage is unlimited (subject to rate limits). With **API keys**, typical costs per agent per PRD:
+Ralph Loops consume API tokens per iteration. With a **Claude Max subscription** or **Gemini free tier**, usage is unlimited (subject to rate limits). With **API keys**, typical costs per agent per PRD (Claude, estimates):
 
 | Agent | Iterations (avg) | Est. Cost (API) |
 |-------|------------------|-----------------|

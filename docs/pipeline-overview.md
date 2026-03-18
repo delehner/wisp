@@ -1,6 +1,6 @@
 # Pipeline Overview
 
-The Coding Agents Pipeline transforms PRDs into Pull Requests by running specialized AI agents in sequence inside Dev Containers. A **manifest** JSON defines the execution plan: sequential **orders**, each containing **PRDs** that run in parallel, each targeting **repositories** with their own context and branch.
+The Coding Agents Pipeline transforms PRDs into Pull Requests by running specialized AI agents in sequence inside Dev Containers. It supports **Claude Code** and **Gemini CLI** as AI providers (select via `AI_PROVIDER` env var or `ca --provider <name>`). A **manifest** JSON defines the execution plan: sequential **orders**, each containing **PRDs** that run in parallel, each targeting **repositories** with their own context and branch.
 
 ## End-to-End Flow
 
@@ -91,11 +91,11 @@ flowchart LR
 
 | Script | Scope | Responsibility |
 |--------|-------|---------------|
-| `ca` | All operations | Unified CLI: wraps all scripts, enforces verbose logs + dev containers |
+| `ca` | All operations | Unified CLI: wraps all scripts, enforces verbose logs + dev containers, `--provider` for AI selection |
 | `generate-prd.sh` | Description → PRDs + manifest | Prompt for a project description, decompose into ordered PRDs and a pipeline manifest |
 | `orchestrator.sh` | Manifest → orders → PRDs → repos | Parse manifest, execute orders sequentially, dispatch PRDs in parallel, pause between orders |
 | `run-pipeline.sh` | 1 PRD × 1 repo | Clone repo, start Dev Container, inject context, run agents, stop container, create PR |
-| `run-agent.sh` | 1 agent | Ralph Loop: build prompt, run Claude Code, check completion |
+| `run-agent.sh` | 1 agent | Ralph Loop: build prompt, run AI agent (Claude Code or Gemini CLI via provider.sh), check completion |
 
 ## Manifest Structure
 
@@ -127,7 +127,7 @@ flowchart LR
 - **Orders** execute sequentially — merge PRs from order N before order N+1 starts
 - **PRDs within an order** execute in parallel. When multiple PRDs target the same repo, they are automatically serialized into **stacking waves** (see below)
 - Each **repository** has its own context file, branch, and URL
-- **Context** is per-repo — either a directory of skill files (recommended) or a single file. Assembled into ephemeral `CLAUDE.md` at runtime, never committed
+- **Context** is per-repo — either a directory of skill files (recommended) or a single file. Assembled into ephemeral `CLAUDE.md` (Claude) or `GEMINI.md` (Gemini) at runtime, never committed
 - **Agents** can be specified at the PRD level and/or the repository level (see below)
 
 ### Per-Unit Agent Selection
@@ -183,10 +183,10 @@ flowchart TD
     EmptyCheck -->|Yes| SeedMain["Seed main with\ninitial commit\n(work directly on main)"]
     EmptyCheck -->|No| Branch[Create feature branch]
     SeedMain --> InjectCtx
-    Branch --> InjectCtx[Inject context file\nas ephemeral CLAUDE.md]
+    Branch --> InjectCtx[Inject context file\nas ephemeral CLAUDE.md / GEMINI.md]
     InjectCtx --> CopyPRD[Copy PRD into\nrepo docs/]
     CopyPRD --> StartDC["🐳 Start Dev Container\n(devcontainer up)"]
-    StartDC --> AuthCheck{"Claude auth\navailable?"}
+    StartDC --> AuthCheck{"AI provider\nauth available?"}
     AuthCheck -->|No| Fail([Pipeline Failed])
     AuthCheck -->|Yes| Loop
 
@@ -223,8 +223,8 @@ flowchart TD
 - Agent commit identity is propagated from host git config (`user.name` / `user.email`) into container execution.
 - Agent runtime logs inside containers are written under `.pipeline/logs` (excluded from git), not the target repo `logs/`.
 - Per-agent progress files are cleared at the start of each PRD run to avoid cross-PRD completion leakage.
-- Agent model is resolved per step: `<AGENT_NAME>_MODEL` override first, then `CLAUDE_MODEL`.
-- **Runtime artifact protection**: `.agent-progress/`, `logs/`, `.pipeline/`, and `CLAUDE.md` are excluded from git via `.git/info/exclude`. After each agent finishes, the pipeline scrubs these paths from the git index in case an agent committed them accidentally.
+- Agent model is resolved per step: `<AGENT_NAME>_MODEL` override first, then provider-specific default (`CLAUDE_MODEL` or `GEMINI_MODEL`).
+- **Runtime artifact protection**: `.agent-progress/`, `logs/`, `.pipeline/`, and the ephemeral context file (`CLAUDE.md` or `GEMINI.md`) are excluded from git via `.git/info/exclude`. After each agent finishes, the pipeline scrubs these paths from the git index in case an agent committed them accidentally.
 - **PRD working branch**: The feature branch name is read from the PRD's `**Working Branch**` metadata field (e.g. `delehner/01-foundation`). If not declared, falls back to auto-generation from the PRD title.
 - **PR evidence comments**: After PR creation, agent reports (tester, performance, secops, dependency, infrastructure, devops) are posted as PR comments. Configurable via `--evidence-agents` or `EVIDENCE_AGENTS` env var.
 - **Mandatory PR creation**: PR creation retries up to 3 times. If all attempts fail, the pipeline exits with an error. Use `--skip-pr` only for local testing.
@@ -338,7 +338,7 @@ flowchart LR
         Progress[".agent-progress/\n├── architect.md\n├── designer.md\n├── migration.md\n├── developer.md\n├── accessibility.md\n├── tester.md\n├── performance.md\n├── secops.md\n├── dependency.md\n├── infrastructure.md\n├── devops.md\n├── rollback.md\n├── documentation.md\n└── reviewer.md"]
         Docs["docs/architecture/prd-slug/\n├── architecture.md\n├── design.md\n├── migration-plan.md\n├── accessibility-report.md\n├── test-report.md\n├── performance-report.md\n├── security-report.md\n├── dependency-report.md\n├── infrastructure.md\n├── devops.md\n├── rollback-plan.md\n├── documentation-summary.md\n└── pr-description.md"]
         Code["src/\n└── (implemented code)"]
-        Context["CLAUDE.md\n(ephemeral, assembled from\ncontexts/<repo>/ skills)"]
+        Context["CLAUDE.md / GEMINI.md\n(ephemeral, assembled from\ncontexts/<repo>/ skills)"]
     end
 
     A1[Architect] -->|writes| Progress
@@ -369,6 +369,9 @@ ca generate prd \
 
 # Run a full manifest
 ca orchestrate --manifest ./manifests/my-project.json
+
+# Use Gemini CLI instead of Claude Code
+ca orchestrate --manifest ./manifests/my-project.json --provider gemini
 
 # Interactive mode (pause between agents/iterations)
 ca orchestrate --manifest ./manifests/my-project.json --interactive
@@ -414,7 +417,7 @@ The underlying scripts can still be called directly for advanced use cases (e.g.
 | `--branch <name>` | Base branch for the preceding `--repo` | main |
 | `--name <text>` | Project name for the manifest | From output dir name |
 | `--author <slug>` | Author slug for PRD metadata and branch names | From git config |
-| `--model <name>` | Claude model | sonnet |
+| `--model <name>` | AI model (default depends on provider: sonnet for Claude, gemini-2.5-pro for Gemini) | Provider default |
 | `--max-iterations <n>` | Max Ralph Loop iterations | 5 |
 | `--quiet` | Suppress detailed streaming (text-only output) | Verbose (stream-json) |
 | `--interactive` | Pause between iterations for review and course correction | false |
@@ -424,6 +427,7 @@ The underlying scripts can still be called directly for advanced use cases (e.g.
 | Option | Description | Default |
 |--------|-------------|---------|
 | `--manifest <path>` | Manifest JSON file | — |
+| `--provider <name>` | AI provider: `claude` or `gemini` (also via `AI_PROVIDER` env var) | claude |
 | `--order <n>` | Run only the nth order (1-based) | All orders |
 | `--auto` | Skip confirmation prompts between orders | Interactive |
 | `--prd <path>` | Legacy: PRD file (repeatable) | — |
@@ -435,8 +439,8 @@ The underlying scripts can still be called directly for advanced use cases (e.g.
 | `--max-parallel <n>` | Max concurrent pipelines | 4 |
 | `--skip-pr` | Don't create PRs | false |
 | `--no-devcontainer` | Run on host instead of in containers | false |
-| `--no-context-update` | Don't update CLAUDE.md after agents | false |
-| `--model <name>` | Default Claude model | sonnet |
+| `--no-context-update` | Don't update context file (CLAUDE.md/GEMINI.md) after agents | false |
+| `--model <name>` | Default AI model (provider-specific: sonnet for Claude, gemini-2.5-pro for Gemini) | Provider default |
 | `--max-iterations <n>` | Per-agent iteration cap | 10 |
 | `--evidence-agents <list>` | Agents whose reports are posted as PR comments | tester,performance,secops,dependency,infrastructure,devops |
 | `--verbose-logs` | Enable detailed logging (thinking, tool calls, results) | false |
@@ -458,12 +462,14 @@ The underlying scripts can still be called directly for advanced use cases (e.g.
 | `ca monitor --agent <name>` | Tail logs for a specific agent |
 | `ca monitor --sessions` | List available session IDs for resumption |
 | `ca logs <file.jsonl>` | Re-format a raw .jsonl log file for reading |
-| `claude --resume <session-id>` | Resume an agent session interactively |
+| `claude --resume <session-id>` | Resume a Claude agent session interactively |
+| `gemini --resume <session-id>` | Resume a Gemini agent session interactively |
 
 ### ca CLI Options
 
 | Option | Applies to | Description |
 |--------|-----------|-------------|
 | `--follow <agent>` | `orchestrate`, `pipeline` | Focus output on a specific agent |
+| `--provider <name>` | All commands | AI provider: `claude` (default) or `gemini` |
 
-The `ca` CLI always injects `--verbose-logs` and blocks `--no-devcontainer`. All other flags are passed through to the underlying scripts.
+The `ca` CLI always injects `--verbose-logs` and blocks `--no-devcontainer`. All other flags are passed through to the underlying scripts. Provider can also be set via `AI_PROVIDER` env var.

@@ -2,6 +2,8 @@
 
 The pipeline connects to external services via MCP (Model Context Protocol) servers. These give agents the ability to interact with GitHub, Notion, Figma, and other tools during execution.
 
+**Provider support**: MCP servers work with **Claude Code** natively. **Gemini CLI** has its own tool and extension system; MCP config in `.mcp.json` is used when running with Claude. When using `--provider gemini`, MCP integrations may not be available depending on Gemini's tool support.
+
 ## Configured Servers
 
 ```mermaid

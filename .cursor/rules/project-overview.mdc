@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Coding Agents Pipeline
 
-AI agent pipeline that turns PRDs into Pull Requests using Claude Code, Ralph Loops, and Dev Containers.
+AI agent pipeline that turns PRDs into Pull Requests using AI coding agents (Claude Code or Gemini CLI), Ralph Loops, and Dev Containers.
 
 ## Structure
 
@@ -17,12 +17,12 @@ AI agent pipeline that turns PRDs into Pull Requests using Claude Code, Ralph Lo
 - `pipeline/run-agent.sh` — Ralph Loop wrapper for one agent
 - `pipeline/generate-context.sh` — Context skill generator: analyzes repos, produces context skills
 - `pipeline/generate-prd.sh` — PRD and manifest generator: prompts for a description, uses repo contexts to produce PRDs and a manifest
-- `pipeline/lib/` — Shared utilities (prd-parser, progress, git-utils, validation)
+- `pipeline/lib/` — Shared utilities (prd-parser, progress, git-utils, validation, provider)
 - `agents/` — Agent prompt markdown files (`_base-system.md` + per-agent `prompt.md`)
 - `templates/` — PRD, manifest, and context templates
 - `skills/` — Cursor-compatible agent skills (SKILL.md format)
 - `.devcontainer/` — Dev Container config (Dockerfile, firewall, post-create hooks)
-- `config/` — Claude Code settings templates
+- `config/` — AI CLI settings templates
 - `.mcp.json` — MCP server configuration (GitHub, Notion, Figma, Slack)
 
 ## Pipeline Flow
@@ -38,7 +38,8 @@ PRDs can be written manually or generated interactively using `generate-prd.sh`.
 
 - `ca` — unified CLI entry point (always verbose logs, always dev containers, `--follow` agent filtering)
 - `agents/_base-system.md` — shared instructions inherited by ALL agents
-- `pipeline/run-agent.sh` — Ralph Loop implementation (builds prompt, runs `claude -p`, checks completion)
+- `pipeline/run-agent.sh` — Ralph Loop implementation (builds prompt, runs AI CLI, checks completion)
+- `pipeline/lib/provider.sh` — AI provider abstraction (Claude Code / Gemini CLI)
 - `pipeline/run-pipeline.sh` — sequences agents, manages git branches, creates PRs
 - `pipeline/orchestrator.sh` — batch dispatcher, parses PRD metadata, parallel execution
 - `pipeline/generate-prd.sh` — PRD and manifest generator (interactive prompt)

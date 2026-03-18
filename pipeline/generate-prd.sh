@@ -25,6 +25,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+source "$SCRIPT_DIR/lib/provider.sh"
 source "$SCRIPT_DIR/lib/validation.sh"
 source "$SCRIPT_DIR/lib/progress.sh"
 source "$SCRIPT_DIR/lib/context.sh"
@@ -54,9 +55,9 @@ OUTPUT_DIR=""
 MANIFEST_PATH=""
 PROJECT_NAME=""
 AUTHOR=""
-MODEL="${CLAUDE_MODEL:-sonnet}"
+MODEL="$(provider_default_model)"
 MAX_ITERATIONS="${PIPELINE_MAX_ITERATIONS:-5}"
-ALLOWED_TOOLS="${CLAUDE_ALLOWED_TOOLS:-Edit,Write,Bash,Read,MultiEdit}"
+ALLOWED_TOOLS="$(provider_default_allowed_tools)"
 QUIET=false
 INTERACTIVE="${INTERACTIVE:-false}"
 
@@ -120,7 +121,7 @@ Options:
   --name <text>           Project name (default: derived from output dir name)
   --author <slug>         Author slug for PRD metadata and branch names
                           (default: from git config user.name)
-  --model <name>          Claude model to use (default: sonnet)
+  --model <name>          AI model to use (default depends on AI_PROVIDER)
   --max-iterations <n>    Max Ralph Loop iterations (default: 5)
   --quiet                 Suppress detailed streaming output (use text mode)
   --interactive           Pause between iterations for review and course correction
@@ -262,8 +263,7 @@ for i in "${!REPO_CONTEXTS[@]}"; do
 done
 
 # --- Validate ---
-if ! command -v claude &> /dev/null; then
-  log "ERROR" "Claude Code CLI is required. Install from: https://docs.anthropic.com/en/docs/claude-code"
+if ! provider_validate_cli; then
   exit 1
 fi
 
@@ -403,25 +403,17 @@ for ((iteration=1; iteration<=MAX_ITERATIONS; iteration++)); do
   prompt_file=$(mktemp)
   echo -e "$prompt" > "$prompt_file"
 
-  log "INFO" "Running Claude Code (iteration $iteration)..."
+  log "INFO" "Running $(provider_cli) (iteration $iteration)..."
 
   set +e
   if [ "$QUIET" = true ]; then
-    claude -p "$(cat "$prompt_file")" \
-      --model "$MODEL" \
-      --allowedTools "$ALLOWED_TOOLS" \
-      --dangerously-skip-permissions \
-      --output-format text \
+    provider_run "$prompt_file" "$MODEL" "$ALLOWED_TOOLS" "text" false \
       2>&1 | tee -a "$LOG_DIR/prd_generator_iteration_${iteration}.log"
     exit_code=${PIPESTATUS[0]}
   else
-    claude -p "$(cat "$prompt_file")" \
-      --model "$MODEL" \
-      --allowedTools "$ALLOWED_TOOLS" \
-      --dangerously-skip-permissions \
-      --output-format stream-json \
-      --verbose \
+    provider_run "$prompt_file" "$MODEL" "$ALLOWED_TOOLS" "stream-json" true \
       2>&1 | "$LOG_FORMATTER" \
+        --provider "$AI_PROVIDER" \
         --raw-log "$LOG_DIR/prd_generator_iteration_${iteration}.jsonl" \
       | tee -a "$LOG_DIR/prd_generator_iteration_${iteration}.log"
     exit_code=${PIPESTATUS[0]}
@@ -430,17 +422,17 @@ for ((iteration=1; iteration<=MAX_ITERATIONS; iteration++)); do
 
   # Extract session ID from verbose logs for potential --resume usage
   if [ "$QUIET" != true ] && [ -f "$LOG_DIR/prd_generator_iteration_${iteration}.jsonl" ]; then
-    session_id=$(head -5 "$LOG_DIR/prd_generator_iteration_${iteration}.jsonl" | jq -r 'select(.session_id) | .session_id' 2>/dev/null | head -1)
+    session_id=$(provider_extract_session_id "$LOG_DIR/prd_generator_iteration_${iteration}.jsonl")
     if [ -n "$session_id" ] && [ "$session_id" != "null" ]; then
       echo "$session_id" > "$LOG_DIR/prd_generator_iteration_${iteration}.session"
-      log "INFO" "Session ID: $session_id (resume with: claude --resume $session_id)"
+      log "INFO" "Session ID: $session_id (resume with: $(provider_resume_hint "$session_id"))"
     fi
   fi
 
   rm -f "$prompt_file"
 
   if [ $exit_code -ne 0 ]; then
-    log "WARN" "Claude Code exited with code $exit_code on iteration $iteration"
+    log "WARN" "$(provider_cli) exited with code $exit_code on iteration $iteration"
   fi
 
   if is_agent_completed "$ROOT_DIR" "prd-generator"; then
@@ -461,7 +453,7 @@ for ((iteration=1; iteration<=MAX_ITERATIONS; iteration++)); do
     echo "    s + Enter = skip remaining iterations" >&2
     echo "    q + Enter = abort" >&2
     if [ "$QUIET" != true ] && [ -f "$LOG_DIR/prd_generator_iteration_${iteration}.session" ]; then
-      echo "    Resume this session interactively: claude --resume $(cat "$LOG_DIR/prd_generator_iteration_${iteration}.session")" >&2
+      echo "    Resume this session interactively: $(provider_resume_hint "$(cat "$LOG_DIR/prd_generator_iteration_${iteration}.session")")" >&2
     fi
     echo "" >&2
     read -r user_input

@@ -9,15 +9,19 @@
       "version": "22"
     }
   },
-  "postCreateCommand": "npm install -g @anthropic-ai/claude-code@latest",
+  "postCreateCommand": "npm install -g @anthropic-ai/claude-code@latest @google/gemini-cli@latest",
   "containerEnv": {
     "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
     "CLAUDE_CODE_OAUTH_TOKEN": "${localEnv:CLAUDE_CODE_OAUTH_TOKEN}",
-    "GITHUB_TOKEN": "${localEnv:GITHUB_TOKEN}"
+    "GEMINI_API_KEY": "${localEnv:GEMINI_API_KEY}",
+    "GOOGLE_API_KEY": "${localEnv:GOOGLE_API_KEY}",
+    "GITHUB_TOKEN": "${localEnv:GITHUB_TOKEN}",
+    "AI_PROVIDER": "${localEnv:AI_PROVIDER}"
   },
   "mounts": [
     "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached",
     "source=${localEnv:HOME}/.claude.json,target=/home/vscode/.claude.json,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.gemini,target=/home/vscode/.gemini,type=bind,consistency=cached",
     "source=${localEnv:HOME}/.config/gh,target=/home/vscode/.config/gh,type=bind,consistency=cached"
   ],
   "remoteUser": "vscode"

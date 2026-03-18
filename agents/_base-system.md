@@ -42,7 +42,7 @@ When you have fully completed all work for this PRD, change the status to `COMPL
 Before starting work, always read:
 1. The PRD file (provided in your prompt)
 2. `.agent-progress/` directory for output from previous agents
-3. Any project-level `CLAUDE.md` or context files in the repo
+3. Any project-level context file (`CLAUDE.md` or `GEMINI.md`) in the repo
 4. Existing code and tests relevant to your task
 
 ## Git Conventions
@@ -55,7 +55,7 @@ Before starting work, always read:
   - `.agent-progress/` (progress tracking files)
   - `logs/` (pipeline log output)
   - `.pipeline/` (pipeline staging directory)
-  - `CLAUDE.md` (ephemeral project context injected by the pipeline)
+  - `CLAUDE.md` / `GEMINI.md` (ephemeral project context injected by the pipeline)
 - When staging changes, prefer explicit file paths (`git add src/...`) over broad commands (`git add .`). If you use `git add .`, always run `git status` first and verify no runtime files are staged.
 
 ## Quality Standards
