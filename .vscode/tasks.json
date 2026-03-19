@@ -1,0 +1,65 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "cargo build",
+      "type": "shell",
+      "command": "cargo build",
+      "group": "build",
+      "problemMatcher": "$rustc",
+      "presentation": {
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "cargo build (release)",
+      "type": "shell",
+      "command": "cargo build --release",
+      "group": "build",
+      "problemMatcher": "$rustc",
+      "presentation": {
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "cargo test",
+      "type": "shell",
+      "command": "cargo test",
+      "group": "test",
+      "problemMatcher": "$rustc",
+      "presentation": {
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "cargo clippy",
+      "type": "shell",
+      "command": "cargo clippy -- -D warnings",
+      "group": "build",
+      "problemMatcher": "$rustc",
+      "presentation": {
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "cargo fmt",
+      "type": "shell",
+      "command": "cargo fmt",
+      "group": "build",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "wisp run (example)",
+      "type": "shell",
+      "command": "wisp run --agent developer --workdir /tmp/wisp-test",
+      "group": "none",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always"
+      }
+    }
+  ]
+}

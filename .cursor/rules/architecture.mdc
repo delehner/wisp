@@ -1,0 +1,109 @@
+---
+description: Module boundaries, Provider trait, Ralph Loop, and data flow for the Wisp pipeline
+globs: src/**/*.rs
+alwaysApply: false
+---
+
+# Wisp Architecture — Module Boundaries & Key Abstractions
+
+> This rule covers module-level responsibilities, the Provider trait, the Ralph Loop, and pipeline data flow.
+> For Rust conventions, see `rust-conventions.mdc`. For agent prompt format, see `agent-prompts.mdc`. For project overview, see `project-overview.mdc`.
+
+## Module Ownership
+
+| File | Responsibility |
+|---|---|
+| `src/main.rs` | CLI dispatch, top-level subcommands (`generate`, `install`) |
+| `src/cli.rs` | Clap derive structs — all flags and subcommand shapes live here |
+| `src/config.rs` | `.env` loading, per-agent model/iteration overrides via `dotenvy` |
+| `src/utils.rs` | `exec_streaming()`, `exec_capture()`, `command_exists()`, `slugify()` |
+| `src/manifest/mod.rs` | `Manifest`, `Order`, `PrdEntry`, `Repository` — JSON deserialization |
+| `src/prd/mod.rs` | `Prd` struct, markdown metadata extraction (title, slug, fields) |
+| `src/provider/mod.rs` | `Provider` trait, `RunOutcome`, `RunOpts`, `create_provider()` factory |
+| `src/provider/claude.rs` | Claude Code CLI arg builder, session ID extraction from JSONL |
+| `src/provider/gemini.rs` | Gemini CLI arg builder, session ID extraction from JSONL |
+| `src/pipeline/mod.rs` | `DEFAULT_AGENTS`, `NON_BLOCKING_AGENTS`, `is_blocking()` |
+| `src/pipeline/orchestrator.rs` | Manifest dispatch, wave stacking, bounded parallel execution |
+| `src/pipeline/runner.rs` | Single PRD × repo pipeline (clone → agents → PR) |
+| `src/pipeline/agent.rs` | Ralph Loop: prompt assembly, iteration, completion detection |
+| `src/pipeline/devcontainer.rs` | Dev Container lifecycle with RAII `Drop` impl |
+| `src/git/mod.rs` | `clone_or_prepare()`, `create_feature_branch()`, `rebase_onto_latest()` |
+| `src/git/pr.rs` | `gh pr create`, evidence comment posting |
+| `src/context/mod.rs` | Skill assembly in canonical order, YAML frontmatter stripping |
+| `src/logging/mod.rs` | Tracing subscriber init |
+| `src/logging/formatter.rs` | JSONL → human-readable output (Claude + Gemini event types) |
+| `src/logging/monitor.rs` | Real-time log tailing via `notify` crate |
+
+## Provider Trait
+
+Defined in `src/provider/mod.rs`. Abstracts over Claude Code and Gemini CLIs:
+
+```rust
+trait Provider {
+    fn cli_name(&self) -> &str;
+    fn validate_cli(&self) -> anyhow::Result<()>;
+    fn build_run_args(&self, opts: &RunOpts) -> Vec<String>;
+    fn extract_session_id(&self, line: &str) -> Option<String>;
+    fn resume_hint(&self, session_id: &str) -> String;
+}
+```
+
+- `create_provider(kind: ProviderKind) -> Box<dyn Provider>` is the factory
+- To add a provider: implement the trait in `src/provider/<name>.rs`, add a variant to `ProviderKind` in `src/cli.rs`, register in `create_provider()`
+- Claude args include `--dangerously-skip-permissions --output-format stream-json --verbose`
+- Gemini args include `--yolo --output-format stream-json`
+
+## Ralph Loop (`src/pipeline/agent.rs`)
+
+Iterative execution loop for a single agent against a single repo:
+
+1. Check `.agent-progress/<agent>.md` for `## Status: COMPLETED` — skip if present
+2. Assemble prompt in strict order:
+   - Base system (`agents/_base-system.md`)
+   - Agent prompt (`agents/<name>/prompt.md`)
+   - PRD content
+   - Previous agents' progress files
+   - Own progress file (from last iteration)
+   - Architecture doc (`docs/architecture/<prd-slug>/architecture.md`)
+   - Design doc (`docs/architecture/<prd-slug>/design.md`)
+   - Project context (`CLAUDE.md` or `GEMINI.md`)
+   - Iteration metadata (current iteration, max iterations)
+3. Run `Provider::build_run_args()` → spawn CLI → stream stdout to JSONL log
+4. Extract session ID from first JSONL lines; persist for resumption
+5. Re-check completion status after each iteration
+6. Sleep 2s between iterations; return `AgentOutcome`
+
+**Completion detection**: presence of `## Status: COMPLETED` in `.agent-progress/<agent>.md`.
+
+**Session resumption**: Claude uses `--resume <session_id>`; Gemini uses the same flag. Session ID is extracted from the first 5–10 JSONL lines and persisted to disk.
+
+## Pipeline Data Flow
+
+```
+manifest.json
+  → Orchestrator: parse orders, detect same-repo conflicts, split into waves
+    → Runner (per PRD × repo):
+        1. clone_or_prepare()        — clone or fetch latest from remote
+        2. create_feature_branch()   — agent/<slug>-YYYYMMDD branch
+        3. assemble_skills()         — write CLAUDE.md / GEMINI.md from context dir
+        4. DevContainer::start()     — optional; RAII drop warns if not stopped
+        5. AgentRunner::run() × N    — Ralph Loop for each agent in sequence
+        6. rebase_onto_latest()      — rebase feature branch onto base; fail on conflict
+        7. create_pull_request()     — gh pr create
+        8. post_pr_evidence()        — gh pr comment for evidence agents
+```
+
+## Wave Stacking
+
+Multiple PRDs targeting the same repo within an `Order` are serialized:
+- Wave 1: PRD-A branches from `main`
+- Wave 2: PRD-B branches from PRD-A's feature branch
+- Implemented in `src/pipeline/orchestrator.rs` using branch name chaining
+
+## Key Invariants
+
+- **Never use `std::process::Command` directly.** Always use `exec_streaming()` or `exec_capture()` from `src/utils.rs`.
+- **Never use `println!`.** Always use `tracing::info!`, `tracing::warn!`, `tracing::error!`.
+- **Always call `DevContainer::stop()` explicitly** in the happy path. The `Drop` impl only warns — it does not clean up.
+- **Agent progress files are filesystem memory.** They persist across iterations and are read by subsequent agents. Never delete them during a run.
+- **`rebase_onto_latest()` fails loudly on conflict.** Do not catch the error; let the pipeline fail so humans can resolve.

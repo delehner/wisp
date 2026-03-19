@@ -1,0 +1,50 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "wisp orchestrate",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/target/debug/wisp",
+      "args": ["orchestrate", "--manifest", "${workspaceFolder}/manifests/sample.json"],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "cargo build",
+      "sourceLanguages": ["rust"]
+    },
+    {
+      "name": "wisp run (configurable)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/target/debug/wisp",
+      "args": [
+        "run",
+        "--agent", "${input:agentName}",
+        "--workdir", "${input:workdir}",
+        "--prd", "${input:prdPath}"
+      ],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "cargo build",
+      "sourceLanguages": ["rust"]
+    }
+  ],
+  "inputs": [
+    {
+      "id": "agentName",
+      "type": "promptString",
+      "description": "Agent name (e.g. developer, architect, tester)",
+      "default": "developer"
+    },
+    {
+      "id": "workdir",
+      "type": "promptString",
+      "description": "Working directory for the agent run",
+      "default": "/tmp/wisp-test"
+    },
+    {
+      "id": "prdPath",
+      "type": "promptString",
+      "description": "Path to the PRD markdown file",
+      "default": "${workspaceFolder}/templates/prd.md"
+    }
+  ]
+}

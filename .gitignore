@@ -22,7 +22,6 @@ logs/
 Thumbs.db
 
 # IDE
-.vscode/settings.json
 .idea/
 
 # Node (devcontainer tooling)

@@ -1,0 +1,58 @@
+{
+  "name": "wisp",
+  "displayName": "Wisp",
+  "description": "Run Wisp AI pipelines directly from your IDE",
+  "version": "0.1.0",
+  "publisher": "delehner",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:wisp.*",
+    "workspaceContains:**/manifests/*.json",
+    "workspaceContains:**/prds/**/*.md"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "wisp.showVersion",
+        "title": "Wisp: Show Version"
+      }
+    ],
+    "configuration": {
+      "title": "Wisp",
+      "properties": {
+        "wisp.binaryPath": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "Path to the wisp binary. Leave empty to use PATH. This setting cannot be overridden by workspace settings to prevent workspace-level binary hijacking."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "lint": "eslint src --ext ts",
+    "package": "vsce package",
+    "test": "node --experimental-vm-modules node_modules/.bin/jest"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "@vscode/vsce": "^2.24.0",
+    "esbuild": "^0.25.0",
+    "eslint": "^8.57.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.0",
+    "typescript": "^5.3.0"
+  }
+}

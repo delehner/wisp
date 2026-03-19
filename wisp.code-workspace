@@ -1,0 +1,23 @@
+{
+  "folders": [
+    { "path": "." }
+  ],
+  "settings": {
+    "rust-analyzer.check.command": "clippy",
+    "rust-analyzer.check.extraArgs": ["-D", "warnings"],
+    "editor.formatOnSave": true,
+    "[rust]": {
+      "editor.defaultFormatter": "rust-lang.rust-analyzer"
+    }
+  },
+  "extensions": {
+    "recommendations": [
+      "rust-lang.rust-analyzer",
+      "tamasfe.even-better-toml",
+      "vadimcn.vscode-lldb",
+      "fill-labs.dependi",
+      "serayuzgur.crates",
+      "GitHub.vscode-pull-request-github"
+    ]
+  }
+}

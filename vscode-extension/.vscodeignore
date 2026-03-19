@@ -1,0 +1,8 @@
+src/
+node_modules/
+.eslint*
+tsconfig.json
+esbuild.js
+jest.config.*
+**/*.test.ts
+**/*.test.js
