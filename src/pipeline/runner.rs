@@ -67,10 +67,14 @@ pub async fn run(
 
         if let Some(stack_on) = &run_config.stack_on {
             info!(stack_on = %stack_on, "checking out stack-on branch");
-            git::create_feature_branch(&workdir, stack_on).await?;
+            git::create_feature_branch(&workdir, stack_on, None).await?;
         }
 
-        git::create_feature_branch(&workdir, &branch).await?;
+        let start_point = run_config
+            .stack_on
+            .clone()
+            .unwrap_or_else(|| format!("origin/{}", run_config.base_branch));
+        git::create_feature_branch(&workdir, &branch, Some(&start_point)).await?;
         branch
     };
 

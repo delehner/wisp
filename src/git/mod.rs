@@ -73,8 +73,12 @@ async fn seed_empty_repo(workdir: &Path, base_branch: &str, _repo_url: &str) -> 
     Ok(())
 }
 
-/// Create or checkout a feature branch.
-pub async fn create_feature_branch(workdir: &Path, branch_name: &str) -> Result<()> {
+/// Create or checkout a feature branch from an explicit start point.
+pub async fn create_feature_branch(
+    workdir: &Path,
+    branch_name: &str,
+    start_point: Option<&str>,
+) -> Result<()> {
     let (code, _, _) = exec_capture(
         "git",
         &["rev-parse", "--verify", branch_name],
@@ -86,8 +90,17 @@ pub async fn create_feature_branch(workdir: &Path, branch_name: &str) -> Result<
         info!(branch = %branch_name, "checking out existing branch");
         exec_capture("git", &["checkout", branch_name], Some(workdir)).await?;
     } else {
-        info!(branch = %branch_name, "creating new branch");
-        exec_capture("git", &["checkout", "-b", branch_name], Some(workdir)).await?;
+        info!(branch = %branch_name, start = ?start_point, "creating new branch");
+        if let Some(start) = start_point {
+            exec_capture(
+                "git",
+                &["checkout", "-b", branch_name, start],
+                Some(workdir),
+            )
+            .await?;
+        } else {
+            exec_capture("git", &["checkout", "-b", branch_name], Some(workdir)).await?;
+        }
     }
     Ok(())
 }
