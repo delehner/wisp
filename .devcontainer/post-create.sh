@@ -11,10 +11,6 @@ else
   npm install -g @anthropic-ai/claude-code@latest
 fi
 
-# Make pipeline scripts executable
-chmod +x /workspaces/coding-agents/pipeline/*.sh 2>/dev/null || true
-chmod +x /workspaces/coding-agents/pipeline/lib/*.sh 2>/dev/null || true
-
 # Configure git defaults if not set
 git config --global init.defaultBranch main 2>/dev/null || true
 git config --global pull.rebase false 2>/dev/null || true

@@ -7,22 +7,41 @@ Everything you need to run the Coding Agents pipeline.
 | Tool | Purpose | Install |
 |------|---------|---------|
 | **AI CLI** (one of) | AI engine that powers every agent | Claude Code: `npm install -g @anthropic-ai/claude-code` — or — Gemini CLI: `npm install -g @google/gemini-cli` |
-| **Node.js >= 18** | Runtime for AI CLIs | [nodejs.org](https://nodejs.org) or `brew install node` |
 | **Git** | Repository cloning, branching, committing | `brew install git` (macOS ships with it) |
-| **Bash** | Pipeline scripts (macOS built-in `/bin/bash` 3.2+ works fine) | Pre-installed on macOS and Linux |
 | **Docker Desktop** | Dev Containers run agents in isolated containers | [docker.com](https://www.docker.com/products/docker-desktop/) |
 | **Dev Containers CLI** | Starts and manages agent containers programmatically | `npm install -g @devcontainers/cli` |
 | **GitHub CLI (`gh`)** | PR creation, repo management | `brew install gh` |
 
 > Docker and the Dev Containers CLI are required because agents always run inside
 > containers. The `ca` CLI enforces this; `--no-devcontainer` is only available
-> when calling pipeline scripts directly for debugging.
+> when calling the pipeline directly for debugging.
+
+## Installing the `ca` CLI
+
+The `ca` binary is a single static executable. Choose one of:
+
+| Method | Use case | Command |
+|--------|----------|---------|
+| **curl \| bash** | Quick install, pre-built binary | `curl -fsSL https://raw.githubusercontent.com/delehner/coding-agents/main/scripts/install.sh \| bash` |
+| **Homebrew** | macOS/Linux package manager | `brew install ca` (when available) |
+| **Cargo** | Build from source | `cargo install ca` |
+
+The curl installer downloads a pre-built binary for your platform from GitHub Releases. No `jq`, `node`, or other runtime dependencies are required — `ca` is self-contained.
+
+### Optional: Build from Source
+
+If you want to modify the pipeline or build from source:
+
+| Tool | Purpose | Install |
+|------|---------|---------|
+| **Rust toolchain** | Compile `ca` from source | [rustup.rs](https://rustup.rs) |
+
+Then run `cargo build --release` in the repo root, or `cargo install ca` to install globally.
 
 ## Recommended
 
 | Tool | Purpose | Install |
 |------|---------|---------|
-| **jq** | JSON parsing in pipeline scripts | `brew install jq` |
 | **Homebrew** | Package manager for macOS (installs everything above) | `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"` |
 
 ## Authentication
@@ -68,7 +87,7 @@ These are external services the agents can connect to. None are required.
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 # Core tools
-brew install node git gh jq
+brew install git gh
 brew install --cask docker          # Docker Desktop
 
 # CLI tools (install at least one AI CLI)
@@ -80,7 +99,7 @@ claude                              # Claude: login with Max subscription
 # Or: gemini auth login             # Gemini: browser login
 gh auth login                       # login to GitHub
 
-# Install the ca CLI
+# Install the ca CLI (pre-built binary)
 curl -fsSL https://raw.githubusercontent.com/delehner/coding-agents/main/scripts/install.sh | bash
 ```
 
@@ -88,11 +107,10 @@ curl -fsSL https://raw.githubusercontent.com/delehner/coding-agents/main/scripts
 
 ```bash
 # Required
-node --version          # >= 18
 git --version           # any recent version
 claude --version        # Claude Code (or gemini --version for Gemini CLI)
-docker --version       # any version
-devcontainer --version  # any version
+docker --version        # any version
+devcontainer --version   # any version
 gh --version            # any version
 ca help                 # verify ca is installed
 
@@ -102,31 +120,31 @@ docker info > /dev/null 2>&1 && echo "Docker is running" || echo "Start Docker D
 
 ## How Dev Containers Work in the Pipeline
 
-When you run the pipeline, each PRD x repo combination gets its own Dev Container:
+When you run the pipeline, each PRD × repo combination gets its own Dev Container:
 
 ```
 Host                          Container
 ─────────────────────────────────────────────
-orchestrator.sh               
-  └─ run-pipeline.sh          
-       ├─ git clone           
+ca orchestrate
+  └─ ca run (per PRD×repo)
+       ├─ git clone
        ├─ devcontainer up ──→ Container starts
        │                      │
-       ├─ devcontainer exec ──→ run-agent.sh (architect)
-       │                        └─ claude/gemini -p (sandboxed)
-       ├─ devcontainer exec ──→ run-agent.sh (designer)
-       ├─ devcontainer exec ──→ run-agent.sh (developer)
-       ├─ devcontainer exec ──→ run-agent.sh (tester)
-       ├─ devcontainer exec ──→ run-agent.sh (secops)
-       ├─ devcontainer exec ──→ run-agent.sh (infrastructure)
-       ├─ devcontainer exec ──→ run-agent.sh (devops)
-       ├─ devcontainer exec ──→ run-agent.sh (reviewer)
+       ├─ devcontainer exec ──→ architect
+       │                        └─ claude/gemini (sandboxed)
+       ├─ devcontainer exec ──→ designer
+       ├─ devcontainer exec ──→ developer
+       ├─ devcontainer exec ──→ tester
+       ├─ devcontainer exec ──→ secops
+       ├─ devcontainer exec ──→ infrastructure
+       ├─ devcontainer exec ──→ devops
+       ├─ devcontainer exec ──→ reviewer
        │                      │
        ├─ docker stop ───────→ Container removed
-       └─ gh pr create        
+       └─ gh pr create
 ```
 
-The container mounts your AI provider auth (`~/.claude` for Claude, `~/.config/gemini` for Gemini), GitHub auth (`~/.config/gh`), and the target repository. Pipeline scripts and agent prompts are copied into the workspace so they're accessible inside the container.
+The container mounts your AI provider auth (`~/.claude` for Claude, `~/.config/gemini` for Gemini), GitHub auth (`~/.config/gh`), and the target repository. Pipeline code and agent prompts are copied into the workspace so they're accessible inside the container.
 
 If Claude Max browser login is not detected inside the container, prefer `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`) for container runs. For Gemini, use `GEMINI_API_KEY` in `.env` for reliable container auth.
 

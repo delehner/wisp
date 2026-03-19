@@ -1,24 +1,24 @@
 # Ralph Loop Mechanism
 
-A Ralph Loop wraps an AI agent (Claude Code or Gemini CLI) in an iterative execution cycle. Each iteration gets a fresh context window, with progress persisted to the filesystem between iterations. This overcomes context window limits and allows self-correction. The pipeline's provider abstraction (`pipeline/lib/provider.sh`) handles CLI-specific flags, auth, and output formats for each provider.
+A Ralph Loop wraps an AI agent (Claude Code or Gemini CLI) in an iterative execution cycle. Each iteration gets a fresh context window, with progress persisted to the filesystem between iterations. This overcomes context window limits and allows self-correction. The pipeline's provider abstraction (`src/provider/mod.rs`, `Provider` trait) handles CLI-specific flags, auth, and output formats for each provider.
 
 ## How It Works
 
 ```mermaid
 flowchart TD
-    Start([run-agent.sh called]) --> Init[Initialize\nprogress directory]
+    Start([AgentRunner::run invoked]) --> Init[Initialize progress directory]
     Init --> LoopStart
 
     subgraph Loop["Ralph Loop (max N iterations)"]
-        LoopStart{Already\ncompleted?} -->|Yes| Done
-        LoopStart -->|No| Build[Build prompt:\nbase system +\nagent prompt +\nPRD +\nprevious agents +\nown progress +\niteration context]
-        Build --> TempFile[Write prompt\nto temp file]
-        TempFile --> AI["AI CLI (claude/gemini)\nprovider.sh invokes with\nmodel + provider-specific flags"]
-        AI --> CheckStatus{Progress file\nstatus = COMPLETED?}
+        LoopStart{Already completed?} -->|Yes| Done
+        LoopStart -->|No| Build[Build prompt: AgentRunner::build_prompt]
+        Build --> TempFile[Write prompt to temp file]
+        TempFile --> AI["AI CLI (claude/gemini)\nProvider::build_run_args +\nexecute_cli"]
+        AI --> CheckStatus{Progress file status = COMPLETED?}
         CheckStatus -->|Yes| Done
-        CheckStatus -->|No| MaxCheck{Max iterations\nreached?}
-        MaxCheck -->|No| Sleep[Sleep 2s\nrate limit] --> LoopStart
-        MaxCheck -->|Yes| Warn[Log warning:\nmax iterations reached]
+        CheckStatus -->|No| MaxCheck{Max iterations reached?}
+        MaxCheck -->|No| Sleep[Sleep 2s rate limit] --> LoopStart
+        MaxCheck -->|Yes| Warn[Log warning: max iterations reached]
     end
 
     Done([Agent finished])
@@ -28,7 +28,7 @@ flowchart TD
 ## Why Ralph Loops Work
 
 ### Fresh Context Per Iteration
-Each iteration invokes the AI CLI (e.g. `claude -p` or `gemini -p`) via `provider.sh`, starting a new session with a full context window. No stale context accumulates.
+Each iteration invokes the AI CLI (e.g. `claude -p` or `gemini -p`) via the `Provider` trait, starting a new session with a full context window. No stale context accumulates.
 
 ### Filesystem as Memory
 Progress, decisions, and artifacts are written to `.agent-progress/<agent>.md` and `docs/architecture/`. Each iteration reads this file to understand what's already been done.
@@ -40,7 +40,7 @@ If an iteration produces incorrect code or misses a task, the next iteration see
 
 ## Prompt Assembly Per Iteration
 
-The prompt is assembled from multiple sources, layered in this order:
+The prompt is assembled in `AgentRunner::build_prompt()` from multiple sources, layered in this order:
 
 ```mermaid
 flowchart TD
@@ -68,21 +68,24 @@ An agent is considered `COMPLETED` when its progress file contains:
 ## Status: COMPLETED
 ```
 
-The `is_agent_completed()` function in `pipeline/lib/progress.sh` parses this status. If the status is `COMPLETED` at the start of an iteration, the loop exits immediately.
+The `AgentRunner::is_completed()` method in `src/pipeline/agent.rs` checks `.agent-progress/<agent>.md` for this status. If the status is `COMPLETED` at the start of an iteration, the loop exits immediately.
 
 ## Iteration Limits
 
-Iteration limits can be configured at three levels (highest priority wins):
+Iteration limits are resolved in `Config::max_iterations_for_agent()` (`src/config.rs`). Priority (highest wins):
 
 ```mermaid
 flowchart LR
     A["Agent-specific env var\n(e.g., DEVELOPER_MAX_ITERATIONS=15)"]
-    B["Pipeline default env var\n(PIPELINE_MAX_ITERATIONS=10)"]
-    C["CLI flag\n(--max-iterations 20)"]
-    D["Hardcoded default\n(10)"]
+    B["Pipeline default\n(PIPELINE_MAX_ITERATIONS or --max-iterations)"]
+    C["Hardcoded default\n(10)"]
 
-    A -->|overrides| B -->|overrides| C -->|overrides| D
+    A -->|overrides| B -->|overrides| C
 ```
+
+## Interactive Mode
+
+When `--interactive` is enabled and stdin is a TTY, the pipeline pauses between Ralph Loop iterations. The operator is prompted via `dialoguer::Select` with choices: continue to next iteration, skip this agent, or abort the pipeline. The prompt is implemented in `prompt_interactive()` in `src/pipeline/agent.rs`.
 
 ## Session Resume
 
@@ -96,7 +99,7 @@ claude --resume <session-id>
 gemini --resume <session-id>
 ```
 
-Session IDs are shown in pipeline output and can be listed with `ca monitor --sessions`.
+Session IDs are extracted from JSONL output by `Provider::extract_session_id()` and saved to `<agent>_iteration_<n>.session` files. They are shown in pipeline output and can be listed with `ca monitor --sessions`.
 
 ## Cost Implications
 
@@ -108,4 +111,4 @@ Each iteration consumes API tokens. A typical iteration uses 10K-50K input token
 | Complex agent (developer) | 5-15 | 50K-100K per iteration | $10-30 |
 | Max iterations hit | 10 | 50K per iteration | $15-25 |
 
-Set `MAX_ITERATIONS` conservatively and monitor logs to calibrate.
+Set `PIPELINE_MAX_ITERATIONS` or agent-specific env vars conservatively and monitor logs to calibrate.

@@ -2,60 +2,62 @@
 
 The Coding Agents Pipeline transforms PRDs into Pull Requests by running specialized AI agents in sequence inside Dev Containers. It supports **Claude Code** and **Gemini CLI** as AI providers (select via `AI_PROVIDER` env var or `ca --provider <name>`). A **manifest** JSON defines the execution plan: sequential **orders**, each containing **PRDs** that run in parallel, each targeting **repositories** with their own context and branch.
 
+The pipeline is implemented as a single **Rust binary** (`ca`) built with Cargo. All logic lives in Rust modules—no bash scripts. Manifest parsing uses `serde_json`, parallel execution uses tokio `Semaphore` + `JoinSet`, and Dev Container lifecycle uses RAII (`Drop` impl) for cleanup.
+
 ## End-to-End Flow
 
 ```mermaid
 flowchart TD
-    Input["📋 Manifest JSON\n(orders → PRDs → repos)"]
-    Input --> Orch["orchestrator.sh\n(manifest orchestrator)"]
+    Input["[Manifest JSON]\n(orders to PRDs to repos)"]
+    Input --> Orch["ca orchestrate\n(orchestrator.rs)"]
 
     Orch --> O1["Order 1\n(sequential)"]
     Orch --> O2["Order 2\n(waits for Order 1)"]
     Orch --> On["Order N"]
 
     subgraph O1Detail["Order 1 — PRDs run in parallel"]
-        WU1["PRD A × Repo 1\n(context: repo-1.md)"]
-        WU2["PRD A × Repo 2\n(context: repo-2.md)"]
-        WU3["PRD B × Repo 1\n(context: repo-1.md)"]
+        WU1["PRD A x Repo 1\n(context: repo-1.md)"]
+        WU2["PRD A x Repo 2\n(context: repo-2.md)"]
+        WU3["PRD B x Repo 1\n(context: repo-1.md)"]
     end
     O1 --> O1Detail
 
     subgraph Pipeline["Each Work Unit"]
-        DC["🐳 Dev Container"] --> AgentSeq
+        DC["[Dev Container]"] --> AgentSeq
         subgraph AgentSeq["Agent Sequence"]
             direction LR
-            A1["🏗️ Architect"] --> A2["🎨 Designer"]
-            A2 --> A2b["🗄️ Migration"]
-            A2b --> A3["💻 Developer"]
-            A3 --> A3b["♿ Accessibility"]
-            A3b --> A4["🧪 Tester"]
-            A4 --> A4b["⚡ Performance"]
-            A4b --> A5["🔐 SecOps"]
-            A5 --> A5b["📦 Dependency"]
-            A5b --> A6["🏗️ Infrastructure"]
-            A6 --> A7["⚙️ DevOps"]
-            A7 --> A7b["🔄 Rollback"]
-            A7b --> A7c["📝 Documentation"]
-            A7c --> A8["🔍 Reviewer"]
+            A1["[Architect]"] --> A2["[Designer]"]
+            A2 --> A2b["[Migration]"]
+            A2b --> A3["[Developer]"]
+            A3 --> A3b["[Accessibility]"]
+            A3b --> A4["[Tester]"]
+            A4 --> A4b["[Performance]"]
+            A4b --> A5["[SecOps]"]
+            A5 --> A5b["[Dependency]"]
+            A5b --> A6["[Infrastructure]"]
+            A6 --> A7["[DevOps]"]
+            A7 --> A7b["[Rollback]"]
+            A7b --> A7c["[Documentation]"]
+            A7c --> A8["[Reviewer]"]
         end
     end
 
     WU1 --> Pipeline
-    Pipeline --> PR["📬 Pull Request"]
+    Pipeline --> PR["[Pull Request]"]
 ```
 
 ## Pre-Pipeline: PRD Generation
 
-Before running the pipeline, generate PRDs and a manifest using `ca generate prd`. The script prompts you to describe what you want built directly in the terminal, then uses the `prd-generator` agent with repo contexts to decompose your description into ordered, pipeline-ready PRDs.
+Before running the pipeline, generate PRDs and a manifest using `ca generate prd`. The command prompts you to describe what you want built directly in the terminal, then uses the `prd-generator` agent with repo contexts to decompose your description into ordered, pipeline-ready PRDs.
 
 ```mermaid
 flowchart LR
-    Input["💬 Your Tasks\n(describe what to build)"]
-    Ctx["📚 Repo Contexts\n(ca generate context)"]
+    Input["[Your Tasks]\n(describe what to build)"]
+    Ctx["[Repo Contexts]\n(ca generate context)"]
     Input --> Gen["ca generate prd\n(prd-generator agent)"]
     Ctx --> Gen
-    Gen --> PRDs["📋 PRD Files\n(01-foundation.md, 02-feature.md, ...)"]
-    Gen --> Manifest["📦 Manifest JSON\n(orders, repos, contexts)"]
+    Gen --> PRDs["[PRD Files]\n(01-foundation.md, 02-feature.md, ...)"]
+    Gen --> Manifest["[Manifest JSON]\n(orders, repos, contexts)"]
     Manifest --> Orch["ca orchestrate\n(run the pipeline)"]
 ```
 
@@ -69,33 +71,35 @@ The typical workflow is:
 ```mermaid
 flowchart LR
     subgraph Layer0["Unified CLI"]
-        CA["ca\nAlways verbose logs\nAlways dev containers\n--follow agent"]
+        CA["ca\nRust binary\nAlways verbose logs\nAlways dev containers\n--follow agent"]
     end
 
     subgraph Layer1["Layer 1: Manifest Orchestrator"]
-        Orch["orchestrator.sh\nOrders → PRDs → repos\nSequential orders,\nparallel PRDs"]
+        Orch["orchestrator.rs\nOrders to PRDs to repos\nSequential orders,\nparallel PRDs\n(tokio Semaphore + JoinSet)"]
     end
 
     subgraph Layer2["Layer 2: Single Pipeline"]
-        Run["run-pipeline.sh\n1 PRD × 1 repo\nDev Container lifecycle\nAgent sequence"]
+        Run["runner.rs\n1 PRD x 1 repo\nDev Container lifecycle\nAgent sequence"]
     end
 
     subgraph Layer3["Layer 3: Agent Runner"]
-        Agent["run-agent.sh\nRalph Loop\n1 agent × 1 repo\n(inside container)"]
+        Agent["agent.rs\nRalph Loop\n1 agent x 1 repo\n(inside container)"]
     end
 
     CA -->|dispatches| Orch
-    Orch -->|"per PRD×repo"| Run
+    Orch -->|"per PRD x repo"| Run
     Run -->|"per agent\n(devcontainer exec)"| Agent
 ```
 
-| Script | Scope | Responsibility |
-|--------|-------|---------------|
-| `ca` | All operations | Unified CLI: wraps all scripts, enforces verbose logs + dev containers, `--provider` for AI selection |
-| `generate-prd.sh` | Description → PRDs + manifest | Prompt for a project description, decompose into ordered PRDs and a pipeline manifest |
-| `orchestrator.sh` | Manifest → orders → PRDs → repos | Parse manifest, execute orders sequentially, dispatch PRDs in parallel, pause between orders |
-| `run-pipeline.sh` | 1 PRD × 1 repo | Clone repo, start Dev Container, inject context, run agents, stop container, create PR |
-| `run-agent.sh` | 1 agent | Ralph Loop: build prompt, run AI agent (Claude Code or Gemini CLI via provider.sh), check completion |
+| Component | Scope | Responsibility |
+|-----------|-------|----------------|
+| `ca` | All operations | Unified CLI: single Rust executable, enforces verbose logs + dev containers, `--provider` for AI selection |
+| `src/pipeline/orchestrator.rs` | Manifest → orders → PRDs → repos | Parse manifest (serde_json), execute orders sequentially, dispatch PRDs in parallel via tokio |
+| `src/pipeline/runner.rs` | 1 PRD × 1 repo | Clone repo, start Dev Container (RAII Drop), inject context, run agents, create PR |
+| `src/pipeline/agent.rs` | 1 agent | Ralph Loop: build prompt, run AI agent (Claude or Gemini via `src/provider/`), check completion |
+| `src/provider/` | AI execution | Provider abstraction: Claude Code + Gemini CLI (CLI flags, auth, output formats) |
+| `src/logging/formatter.rs` | Log output | Verbose log formatting (replaces bash+jq stream-json) |
+| `src/pipeline/devcontainer.rs` | Container lifecycle | Dev Container start/stop with RAII cleanup on Drop |
 
 ## Manifest Structure
 
@@ -151,15 +155,15 @@ flowchart TD
     LoadEnv --> Validate[Validate environment]
     Validate --> Mode{Manifest\nor legacy?}
 
-    Mode -->|Manifest| ParseManifest[Parse manifest JSON\nwith jq]
+    Mode -->|Manifest| ParseManifest[Parse manifest JSON\nwith serde_json]
     Mode -->|Legacy| CollectPRDs[Collect PRD files\nfrom --prd / --prd-dir]
 
     ParseManifest --> OrderLoop
 
     subgraph OrderLoop["For Each Order (sequential)"]
-        BuildUnits[Build work units\nPRD × repo × context]
+        BuildUnits[Build work units\nPRD x repo x context]
         BuildUnits --> SameRepo{Same-repo\nPRDs?}
-        SameRepo -->|No| Execute[Execute all units\nin parallel]
+        SameRepo -->|No| Execute[Execute all units\nin parallel via JoinSet]
         SameRepo -->|Yes| Waves["Execute in waves\nWave 1: first unit per repo\nWave 2+: stack on previous branch"]
         Execute --> Pause{More orders\nremaining?}
         Waves --> Pause
@@ -174,7 +178,7 @@ flowchart TD
     LegacyExec --> Summary
 ```
 
-## Single Pipeline Lifecycle (run-pipeline.sh)
+## Single Pipeline Lifecycle (ca pipeline)
 
 ```mermaid
 flowchart TD
@@ -185,7 +189,7 @@ flowchart TD
     SeedMain --> InjectCtx
     Branch --> InjectCtx[Inject context file\nas ephemeral CLAUDE.md / GEMINI.md]
     InjectCtx --> CopyPRD[Copy PRD into\nrepo docs/]
-    CopyPRD --> StartDC["🐳 Start Dev Container\n(devcontainer up)"]
+    CopyPRD --> StartDC["[Start Dev Container]\n(devcontainer up)\nRAII Drop for cleanup"]
     StartDC --> AuthCheck{"AI provider\nauth available?"}
     AuthCheck -->|No| Fail([Pipeline Failed])
     AuthCheck -->|Yes| Loop
@@ -193,7 +197,7 @@ flowchart TD
     subgraph Loop["For Each Agent (inside container)"]
         Check{Already\ncompleted?}
         Check -->|Yes| Skip[Skip agent]
-        Check -->|No| Run["devcontainer exec\nrun-agent.sh\n(Ralph Loop)"]
+        Check -->|No| Run["devcontainer exec\nagent.rs Ralph Loop"]
         Run --> ValidateOut{Agent\ncompleted?}
         ValidateOut -->|Yes| Cleanup["Scrub runtime artifacts\nfrom git index"]
         ValidateOut -->|No, non-critical| Cleanup
@@ -202,14 +206,14 @@ flowchart TD
         Skip --> Next
     end
 
-    Loop --> StopDC["🐳 Stop Dev Container\n(docker stop)"]
+    Loop --> StopDC["[Stop Dev Container]\n(Drop impl)"]
     StopDC --> WriteMarker["Write feature branch\nmarker for stacking"]
     WriteMarker --> WasEmpty{Empty\nrepo?}
     WasEmpty -->|Yes| PushMain["Push main to origin\n(no PR)"]
     WasEmpty -->|No| CreatePR{--skip-pr?}
     CreatePR -->|No| Rebase["Rebase onto latest\ntarget branch"]
-    Rebase --> PR["Push branch &\ngh pr create\n(3 retries)"]
-    PR --> Evidence["Post evidence comments\n(agent reports → PR)"]
+    Rebase --> PR["Push branch and\ngh pr create\n(3 retries)"]
+    PR --> Evidence["Post evidence comments\n(agent reports to PR)"]
     CreatePR -->|Yes| Done
     PushMain --> Done
     Evidence --> Done([Pipeline Complete])
@@ -217,8 +221,9 @@ flowchart TD
 
 ### Dev Container Execution Notes
 
-- `run-pipeline.sh` starts the container with `.devcontainer/agent/devcontainer.json`.
+- `runner.rs` starts the container with `.devcontainer/agent/devcontainer.json`.
 - Per-agent `devcontainer exec` uses that same config file, so target repos do not need their own `.devcontainer/devcontainer.json`.
+- Dev Container lifecycle uses RAII: a `Drop` impl ensures the container is stopped on panic or early return.
 - Pipeline logs are written to the repository root `logs/` directory by default.
 - Agent commit identity is propagated from host git config (`user.name` / `user.email`) into container execution.
 - Agent runtime logs inside containers are written under `.pipeline/logs` (excluded from git), not the target repo `logs/`.
@@ -245,14 +250,14 @@ When multiple PRDs in the same order target the same repo, the orchestrator grou
 ```mermaid
 flowchart LR
     subgraph Wave1["Wave 1 (parallel)"]
-        U1["PRD-A × repo-1"]
-        U2["PRD-B × repo-2"]
-        U3["PRD-C × repo-1"]
+        U1["PRD-A x repo-1"]
+        U2["PRD-B x repo-2"]
+        U3["PRD-C x repo-1"]
     end
 
     subgraph Actual["Actual Execution"]
-        W1["Wave 1\nPRD-A × repo-1\nPRD-B × repo-2"]
-        W1 --> W2["Wave 2\nPRD-C × repo-1\n(stacks on PRD-A branch)"]
+        W1["Wave 1\nPRD-A x repo-1\nPRD-B x repo-2"]
+        W1 --> W2["Wave 2\nPRD-C x repo-1\n(stacks on PRD-A branch)"]
     end
 
     Wave1 -.->|"repo-1 has 2 units\nauto-serialize"| Actual
@@ -269,59 +274,59 @@ This is automatic — no manifest changes needed. Different repos still run in p
 
 ```mermaid
 flowchart TD
-    subgraph Architect["🏗️ Architect"]
+    subgraph Architect["[Architect]"]
         A_In[Reads: PRD] --> A_Out[Produces: architecture.md\nFile structure, data models,\nAPI contracts, impl tasks]
     end
 
-    subgraph Designer["🎨 Designer"]
+    subgraph Designer["[Designer]"]
         D_In[Reads: PRD +\narchitecture.md] --> D_Out[Produces: design.md\nUX flows, component specs,\nvisual specs, accessibility]
     end
 
-    subgraph Migration["🗄️ Migration"]
+    subgraph Migration["[Migration]"]
         Mig_In[Reads: PRD +\narchitecture.md] --> Mig_Out[Produces: migration-plan.md\nDB migrations, rollback,\ndangerous op mitigation]
     end
 
-    subgraph Developer["💻 Developer"]
+    subgraph Developer["[Developer]"]
         Dev_In[Reads: PRD +\narchitecture.md +\ndesign.md] --> Dev_Out[Produces: Working code\nImplementation, commits,\nbuild verification]
     end
 
-    subgraph Accessibility["♿ Accessibility"]
+    subgraph Accessibility["[Accessibility]"]
         Acc_In[Reads: design.md +\ncode] --> Acc_Out[Produces: accessibility-report.md\nWCAG audit, ARIA fixes,\nkeyboard nav, contrast]
     end
 
-    subgraph Tester["🧪 Tester"]
+    subgraph Tester["[Tester]"]
         T_In[Reads: PRD +\narchitecture.md +\ncode] --> T_Out[Produces: test-report.md\nUnit/integration/E2E tests,\ncoverage, bug fixes]
     end
 
-    subgraph Performance["⚡ Performance"]
+    subgraph Performance["[Performance]"]
         Perf_In[Reads: PRD +\ncode + tests] --> Perf_Out[Produces: performance-report.md\nBenchmarks, query analysis,\nbundle size, memory]
     end
 
-    subgraph SecOps["🔐 SecOps"]
+    subgraph SecOps["[SecOps]"]
         S_In[Reads: PRD +\narchitecture.md +\ncode + tests] --> S_Out[Produces: security-report.md\nSecurity hardening,\nrisk triage]
     end
 
-    subgraph Dependency["📦 Dependency"]
+    subgraph Dependency["[Dependency]"]
         Dep_In[Reads: code +\nsecurity-report.md] --> Dep_Out[Produces: dependency-report.md\nLicense, vulnerabilities,\nmaintenance health]
     end
 
-    subgraph Infrastructure["🏗️ Infrastructure"]
+    subgraph Infrastructure["[Infrastructure]"]
         I_In[Reads: PRD +\narchitecture.md +\nsecurity-report.md] --> I_Out[Produces: infrastructure.md\nEnv/runtime contracts,\ndeployment constraints]
     end
 
-    subgraph DevOps["⚙️ DevOps"]
+    subgraph DevOps["[DevOps]"]
         O_In[Reads: PRD +\ninfrastructure.md +\ncode/tests] --> O_Out[Produces: devops.md\nCI/CD and release\nrunbook updates]
     end
 
-    subgraph Rollback["🔄 Rollback"]
+    subgraph Rollback["[Rollback]"]
         Rb_In[Reads: migration-plan +\ninfrastructure.md +\ndevops.md] --> Rb_Out[Produces: rollback-plan.md\nRollback procedures,\nfeature flags, monitoring]
     end
 
-    subgraph Documentation["📝 Documentation"]
+    subgraph Documentation["[Documentation]"]
         Doc_In[Reads: All prior\nagent output + code] --> Doc_Out[Produces: documentation-summary.md\nREADME, API docs,\nchangelog, guides]
     end
 
-    subgraph Reviewer["🔍 Reviewer"]
+    subgraph Reviewer["[Reviewer]"]
         R_In[Reads: All prior\nagent output + code] --> R_Out[Produces: pr-description.md\nReview fixes, quality gates,\nfinal verification]
     end
 
@@ -335,10 +340,10 @@ Agents don't communicate directly. Each agent writes artifacts to disk, and subs
 ```mermaid
 flowchart LR
     subgraph Filesystem["Shared Filesystem (workspace inside container)"]
-        Progress[".agent-progress/\n├── architect.md\n├── designer.md\n├── migration.md\n├── developer.md\n├── accessibility.md\n├── tester.md\n├── performance.md\n├── secops.md\n├── dependency.md\n├── infrastructure.md\n├── devops.md\n├── rollback.md\n├── documentation.md\n└── reviewer.md"]
-        Docs["docs/architecture/prd-slug/\n├── architecture.md\n├── design.md\n├── migration-plan.md\n├── accessibility-report.md\n├── test-report.md\n├── performance-report.md\n├── security-report.md\n├── dependency-report.md\n├── infrastructure.md\n├── devops.md\n├── rollback-plan.md\n├── documentation-summary.md\n└── pr-description.md"]
-        Code["src/\n└── (implemented code)"]
-        Context["CLAUDE.md / GEMINI.md\n(ephemeral, assembled from\ncontexts/<repo>/ skills)"]
+        Progress[".agent-progress/\narchitect.md, designer.md,\nmigration.md, developer.md,\netc."]
+        Docs["docs/architecture/prd-slug/\narchitecture.md, design.md,\nmigration-plan.md, etc."]
+        Code["src/\n(implemented code)"]
+        Context["CLAUDE.md / GEMINI.md\n(ephemeral, assembled from\ncontexts/repo skills)"]
     end
 
     A1[Architect] -->|writes| Progress
@@ -353,9 +358,23 @@ flowchart LR
 
 ## CLI Reference
 
+### Subcommands
+
+| Command | Replaces | Description |
+|---------|----------|-------------|
+| `ca orchestrate --manifest <path>` | orchestrator.sh | Run full manifest (orders, PRDs, repos) |
+| `ca pipeline --prd <path> --repo <url>` | run-pipeline.sh | Single PRD × single repo |
+| `ca run --agent <name> --workdir <path> --prd <path>` | run-agent.sh | Single agent (Ralph Loop) |
+| `ca generate prd ...` | generate-prd.sh | Generate PRDs and manifest from description |
+| `ca generate context ...` | generate-context.sh | Generate context skills from repo analysis |
+| `ca monitor` | monitor.sh | Tail agent logs, list sessions |
+| `ca logs <file.jsonl>` | log-formatter.sh | Re-format raw .jsonl log file |
+| `ca install skills` | scripts/install-skills.sh | Install Cursor skills as symlinks |
+| `ca update` | — | Self-update the `ca` binary |
+
 ### Unified CLI (`ca`)
 
-The `ca` CLI is the primary interface. Install it globally with the install script (see README) or run it from the repo root. It always enables verbose log formatting and always enforces Dev Containers.
+The `ca` CLI is a single Rust executable built with Cargo. Install it globally with the install script (see README) or run it from the repo root. It always enables verbose log formatting and always enforces Dev Containers.
 
 ```bash
 # Generate context skills for a repo
@@ -391,22 +410,15 @@ ca monitor --sessions
 
 # Re-format a raw .jsonl log file
 ca logs ./logs/developer_iteration_1.jsonl
+
+# Install Cursor skills
+ca install skills
+
+# Self-update
+ca update
 ```
 
-### Direct Script Access
-
-The underlying scripts can still be called directly for advanced use cases (e.g., debugging without dev containers):
-
-```bash
-# Without dev containers and verbose logs (for fast local testing)
-./pipeline/run-pipeline.sh --prd <path> --repo <url> --no-devcontainer --skip-pr
-
-# Quiet mode (text-only output, no stream-json formatting)
-./pipeline/generate-prd.sh --output ./prds/my-app --manifest ./manifests/my-app.json \
-  --repo <url> --context <path> --quiet
-```
-
-### generate-prd.sh Options
+### ca generate prd Options
 
 | Option | Description | Default |
 |--------|-------------|---------|
@@ -422,7 +434,7 @@ The underlying scripts can still be called directly for advanced use cases (e.g.
 | `--quiet` | Suppress detailed streaming (text-only output) | Verbose (stream-json) |
 | `--interactive` | Pause between iterations for review and course correction | false |
 
-### Orchestrator Options
+### ca orchestrate Options
 
 | Option | Description | Default |
 |--------|-------------|---------|
@@ -446,7 +458,7 @@ The underlying scripts can still be called directly for advanced use cases (e.g.
 | `--verbose-logs` | Enable detailed logging (thinking, tool calls, results) | false |
 | `--interactive` | Pause between agents and iterations for review | false |
 
-### run-pipeline.sh Options
+### ca pipeline Options
 
 | Option | Description | Default |
 |--------|-------------|---------|
@@ -472,4 +484,4 @@ The underlying scripts can still be called directly for advanced use cases (e.g.
 | `--follow <agent>` | `orchestrate`, `pipeline` | Focus output on a specific agent |
 | `--provider <name>` | All commands | AI provider: `claude` (default) or `gemini` |
 
-The `ca` CLI always injects `--verbose-logs` and blocks `--no-devcontainer`. All other flags are passed through to the underlying scripts. Provider can also be set via `AI_PROVIDER` env var.
+The `ca` CLI always injects `--verbose-logs` and blocks `--no-devcontainer`. All other flags are passed through to the underlying commands. Provider can also be set via `AI_PROVIDER` env var.

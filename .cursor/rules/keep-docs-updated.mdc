@@ -1,8 +1,3 @@
----
-description: Enforce documentation updates whenever repo structure or behavior changes
-alwaysApply: true
----
-
 # Keep Documentation Updated
 
 When making changes to this repository, you MUST update the relevant documentation in `docs/` and root-level files. Documentation that falls out of sync is worse than no documentation.
@@ -10,22 +5,20 @@ When making changes to this repository, you MUST update the relevant documentati
 ## What Triggers a Docs Update
 
 | Change | Files to Update |
-|--------|----------------|
+|-----|----|
 | Add/remove/rename an agent | `docs/pipeline-overview.md` (flow diagrams), `docs/adding-agents.md`, `docs/project-structure.md`, `README.md` (agent table), `CLAUDE.md` |
 | Change pipeline flow or orchestrator logic | `docs/pipeline-overview.md`, `docs/ralph-loop.md` |
 | Change prompt assembly or Ralph Loop mechanics | `docs/ralph-loop.md` |
 | Add/remove MCP servers | `docs/mcp-integrations.md`, `README.md` (setup section) |
-| Add/remove/rename files or directories | `docs/project-structure.md` |
+| Add/remove/rename source files or directories | `docs/project-structure.md` |
 | Change environment variables | `.env.example`, `docs/project-structure.md` (file reference table) |
 | Change dev container setup | `docs/project-structure.md` |
 | Add/modify Cursor skills | `docs/project-structure.md` |
 | Change context skill format or assembly | `docs/pipeline-overview.md`, `docs/project-structure.md`, `templates/context-skill.md` |
 | Change PRD generation | `docs/pipeline-overview.md`, `docs/project-structure.md` |
 | Change installation or CLI setup | `README.md` (installation section), `docs/prerequisites.md`, `scripts/install.sh` |
-
-## Mermaid Diagrams
-
-The docs use Mermaid diagrams extensively. When updating flow or structure, update the corresponding diagram — don't just change the prose.
+| Change Cargo dependencies | `Cargo.toml`, `docs/project-structure.md` (dependencies table) |
+| Change CLI flags or subcommands | `src/cli.rs`, `docs/pipeline-overview.md` (CLI reference), `README.md` |
 
 ## Checklist
 
@@ -34,3 +27,4 @@ Before considering a change complete, verify:
 - [ ] The file reference table in `docs/project-structure.md` is accurate
 - [ ] `README.md` matches the current setup and usage instructions
 - [ ] `CLAUDE.md` matches the current project structure
+- [ ] `Cargo.toml` dependencies match what `src/` actually imports

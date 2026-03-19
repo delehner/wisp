@@ -1,0 +1,38 @@
+# Rust Conventions
+
+## Code Standards
+
+- Run `cargo fmt` before committing
+- Run `cargo clippy` and fix all warnings
+- Run `cargo test` to verify changes
+- Use `anyhow::Result` for fallible functions in the binary
+- Use `thiserror` for library-style error types
+- Use `tracing::{info, warn, error}` for logging (not `println!`)
+- Use `tokio` for async operations (process spawning, parallel execution)
+
+## Adding New CLI Flags
+
+1. Add the flag to the relevant `Args` struct in `src/cli.rs`
+2. Wire it through the dispatch in `src/main.rs`
+3. If it's a config value, also add it to `Config` in `src/config.rs` with env var binding
+
+## Adding New Modules
+
+1. Create the module file(s) under `src/`
+2. Add `mod <name>;` in the parent module or `main.rs`
+3. Prefer `mod.rs` pattern for modules with multiple files
+
+## External Commands
+
+- Shell out to `git`, `gh`, `docker`, `devcontainer`, `claude`, `gemini` via `tokio::process::Command`
+- Use `crate::utils::exec_capture` for output capture
+- Use `crate::utils::exec_streaming` for streaming output
+- Always propagate exit codes and stderr
+
+## Testing
+
+```bash
+cargo test                    # Unit tests
+cargo build --release         # Verify release build
+ca run --agent architect --workdir /tmp/test --prd ./templates/examples/sample-prd.md  # Integration test
+```

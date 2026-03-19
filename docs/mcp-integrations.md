@@ -85,17 +85,7 @@ claude        # Start a Claude Code session
 
 ### Adding Jira
 
-Jira uses stdio transport with environment variables:
-
-```bash
-claude mcp add jira \
-  -e JIRA_URL="$JIRA_URL" \
-  -e JIRA_EMAIL="$JIRA_EMAIL" \
-  -e JIRA_API_TOKEN="$JIRA_API_TOKEN" \
-  -- npx -y @anthropic/jira-mcp
-```
-
-Or add to `.mcp.json` manually:
+Jira uses stdio transport with environment variables. Add to `.mcp.json` manually:
 
 ```json
 {
@@ -113,10 +103,18 @@ Or add to `.mcp.json` manually:
 }
 ```
 
+Set the corresponding variables in `.env` (copy from `.env.example`):
+
+```bash
+JIRA_URL=
+JIRA_EMAIL=
+JIRA_API_TOKEN=
+```
+
 ## Adding a New MCP Server
 
 1. Add the server config to `.mcp.json`
-2. Add any required environment variables to `.env.example`
+2. Add any required environment variables to `.env.example` and document them in `.env`
 3. Document the server in this file
 4. If agent-specific, update the relevant agent prompt in `agents/<name>/prompt.md`
 5. Run `claude` and authenticate via `/mcp`

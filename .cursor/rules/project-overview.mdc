@@ -1,47 +1,46 @@
----
-description: Project overview and architecture for the Coding Agents Pipeline
-alwaysApply: true
----
-
 # Coding Agents Pipeline
 
-AI agent pipeline that turns PRDs into Pull Requests using AI coding agents (Claude Code or Gemini CLI), Ralph Loops, and Dev Containers.
+Single Rust binary (`ca`) that turns PRDs into Pull Requests using AI coding agents (Claude Code or Gemini CLI), Ralph Loops, and Dev Containers.
 
 ## Structure
 
-- `ca` — Unified CLI: wraps all pipeline scripts, always enables verbose logs and Dev Containers
-- `scripts/install.sh` — curl-based installer for macOS and Linux
-- `scripts/install-skills.sh` — Install Cursor skills locally
-- `pipeline/orchestrator.sh` — Batch dispatcher: N PRDs × N repos, parallel execution
-- `pipeline/run-pipeline.sh` — Single PRD × single repo: agent sequence, git, PR
-- `pipeline/run-agent.sh` — Ralph Loop wrapper for one agent
-- `pipeline/generate-context.sh` — Context skill generator: analyzes repos, produces context skills
-- `pipeline/generate-prd.sh` — PRD and manifest generator: prompts for a description, uses repo contexts to produce PRDs and a manifest
-- `pipeline/lib/` — Shared utilities (prd-parser, progress, git-utils, validation, provider)
+- `Cargo.toml` — Rust project manifest
+- `src/main.rs` — Entry point, CLI dispatch, generator commands
+- `src/cli.rs` — Clap derive structs for all subcommands
+- `src/config.rs` — `.env` loading, env var resolution, defaults
+- `src/pipeline/orchestrator.rs` — Manifest dispatch, order sequencing, parallel execution
+- `src/pipeline/runner.rs` — Single PRD x repo pipeline (clone, branch, agents, PR)
+- `src/pipeline/agent.rs` — Ralph Loop (prompt assembly, completion detection)
+- `src/pipeline/devcontainer.rs` — Dev Container lifecycle (RAII cleanup)
+- `src/pipeline/mod.rs` — Agent ordering, blocking/non-blocking classification
+- `src/provider/` — AI provider abstraction (Provider trait, Claude, Gemini)
+- `src/git/` — Clone, branch, rebase, PR creation, evidence comments
+- `src/manifest/mod.rs` — Manifest JSON parsing (serde)
+- `src/prd/mod.rs` — PRD metadata extraction
+- `src/context/mod.rs` — Context skill assembly, frontmatter stripping
+- `src/logging/` — JSONL formatting, log tailing, tracing setup
+- `src/utils.rs` — Async exec helpers, repo name extraction
 - `agents/` — Agent prompt markdown files (`_base-system.md` + per-agent `prompt.md`)
 - `templates/` — PRD, manifest, and context templates
 - `skills/` — Cursor-compatible agent skills (SKILL.md format)
-- `.devcontainer/` — Dev Container config (Dockerfile, firewall, post-create hooks)
+- `.devcontainer/` — Dev Container config (firewall, setup hooks — only remaining shell)
+- `scripts/install.sh` — Binary download installer
+- `.github/workflows/` — CI (test/clippy/fmt) and release (cross-compile, GitHub Releases)
 - `config/` — AI CLI settings templates
 - `.mcp.json` — MCP server configuration (GitHub, Notion, Figma, Slack)
 
 ## Pipeline Flow
 
 ```
-Description → generate-prd.sh → PRDs + Manifest
-N PRDs → orchestrator.sh → N×M work units → run-pipeline.sh → [Architect → Designer → Migration → Developer → Accessibility → Tester → Performance → SecOps → Dependency → Infrastructure → DevOps → Rollback → Documentation → Reviewer] → PRs
+Description → ca generate prd → PRDs + Manifest
+Manifest → ca orchestrate → [Architect → Designer → Migration → Developer → Accessibility → Tester → Performance → SecOps → Dependency → Infrastructure → DevOps → Rollback → Documentation → Reviewer] → PRs
 ```
-
-PRDs can be written manually or generated interactively using `generate-prd.sh`. The orchestrator dispatches one `run-pipeline.sh` per PRD×repo pair (parallel by default, max 4). Each agent runs in a Ralph Loop with filesystem-based progress tracking via `.agent-progress/*.md`.
 
 ## Key Files
 
-- `ca` — unified CLI entry point (always verbose logs, always dev containers, `--follow` agent filtering)
+- `src/main.rs` — CLI dispatch, subcommand handlers
+- `src/pipeline/mod.rs` — `DEFAULT_AGENTS` ordering, `is_blocking()` classification
+- `src/pipeline/agent.rs` — Ralph Loop: builds prompt, runs AI CLI, checks completion
+- `src/provider/mod.rs` — Provider trait (CLI name, build args, session extraction)
+- `src/config.rs` — All configuration from .env + CLI flags + env vars
 - `agents/_base-system.md` — shared instructions inherited by ALL agents
-- `pipeline/run-agent.sh` — Ralph Loop implementation (builds prompt, runs AI CLI, checks completion)
-- `pipeline/lib/provider.sh` — AI provider abstraction (Claude Code / Gemini CLI)
-- `pipeline/run-pipeline.sh` — sequences agents, manages git branches, creates PRs
-- `pipeline/orchestrator.sh` — batch dispatcher, parses PRD metadata, parallel execution
-- `pipeline/generate-prd.sh` — PRD and manifest generator (interactive prompt)
-- `pipeline/generate-context.sh` — context skill generator from repo analysis
-- `pipeline/lib/prd-parser.sh` — extracts repos, status, title from PRD markdown

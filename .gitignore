@@ -1,3 +1,7 @@
+# Rust
+/target/
+Cargo.lock
+
 # Environment
 .env
 .env.local
@@ -5,10 +9,13 @@
 # Logs
 logs/
 *.log
+*.jsonl
+*.session
 
 # Working directories
 /tmp/
 .agent-progress/
+.pipeline/
 
 # OS files
 .DS_Store
@@ -18,14 +25,10 @@ Thumbs.db
 .vscode/settings.json
 .idea/
 
-# Node (if any tooling is added)
+# Node (devcontainer tooling)
 node_modules/
 
-# PRDs
+# Pipeline artifacts (generated, not committed)
 prds/
-
-# Contexts
 contexts/
-
-# Manifests
 manifests/

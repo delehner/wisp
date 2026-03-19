@@ -1,0 +1,36 @@
+[package]
+name = "ca"
+version = "0.1.0"
+edition = "2021"
+description = "AI agent pipeline: PRDs to Pull Requests"
+license = "MIT"
+repository = "https://github.com/delehner/coding-agents"
+
+[[bin]]
+name = "ca"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+atty = "0.2"
+clap = { version = "4", features = ["derive", "env"] }
+dialoguer = "0.11"
+dotenvy = "0.15"
+indicatif = "0.17"
+notify = "7"
+owo-colors = { version = "4", features = ["supports-colors"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tempfile = "3"
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+tokio-util = "0.7"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+which = "7"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true

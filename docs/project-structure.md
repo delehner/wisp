@@ -1,6 +1,6 @@
 # Project Structure
 
-Complete reference for the repository layout and how each component connects.
+Complete reference for the repository layout and how each component connects. The pipeline is a **Rust binary** (`ca`) built with Cargo — no bash scripts.
 
 ## Directory Map
 
@@ -8,147 +8,182 @@ Complete reference for the repository layout and how each component connects.
 flowchart TD
     Root["coding-agents/"]
 
-    Root --> CA["ca\nUnified CLI entry point"]
-    Root --> Scripts["scripts/\nInstallation & setup scripts"]
-    Root --> Pipeline["pipeline/\nOrchestrator & Ralph Loop scripts"]
+    Root --> Cargo["Cargo.toml\nRust project manifest"]
+    Root --> Src["src/\nRust source code"]
+    Root --> Scripts["scripts/\nBinary installer"]
     Root --> Agents["agents/\nAgent prompt definitions"]
-    Root --> Manifests["manifests/\nExecution plans (orders + PRDs + repos)"]
+    Root --> Manifests["manifests/\nExecution plans"]
     Root --> PRDs["prds/\nProduct Requirements Documents"]
     Root --> Contexts["contexts/\nPer-repo context skill directories"]
-    Root --> Templates["templates/\nManifest, PRD & context templates"]
+    Root --> Templates["templates/\nPRD, manifest, context templates"]
     Root --> Skills["skills/\nCursor-compatible skills"]
     Root --> DevC[".devcontainer/\nDev Container configs"]
-    Root --> Docs["docs/\nProject documentation"]
+    Root --> Docs["docs/\nDocumentation"]
     Root --> Config["config/\nSettings templates"]
+    Root --> Workflows[".github/workflows/\nCI and release"]
 
-    Pipeline --> POrch["orchestrator.sh\n(manifest orchestrator)"]
-    Pipeline --> PPipe["run-pipeline.sh\n(single PRD × repo + container)"]
-    Pipeline --> PRun["run-agent.sh\n(Ralph Loop)"]
-    Pipeline --> PGen["generate-context.sh\n(context skill generator)"]
-    Pipeline --> PPrd["generate-prd.sh\n(PRD & manifest generator)"]
-    Pipeline --> PMon["monitor.sh\n(real-time log monitor)"]
-    Pipeline --> PLib["lib/\nprogress.sh\ngit-utils.sh\nvalidation.sh\nprd-parser.sh\nprovider.sh\ncontext.sh\nlog-formatter.sh"]
+    Src --> Main["main.rs\nEntry point, CLI dispatch"]
+    Src --> Cli["cli.rs\nclap derive structs"]
+    Src --> ConfigRs["config.rs\n.env loading, env resolution"]
+    Src --> Utils["utils.rs\nShell exec, path resolution, slugify"]
+    Src --> ManifestMod["manifest/mod.rs\nManifest, Order, PrdEntry, Repository"]
+    Src --> PrdMod["prd/mod.rs\nPRD struct, metadata extraction"]
+    Src --> Provider["provider/\nAI provider abstraction"]
+    Src --> Pipeline["pipeline/\nOrchestration, Ralph Loop, Dev Container"]
+    Src --> Git["git/\nClone, branch, rebase, PR"]
+    Src --> ContextMod["context/mod.rs\nSkill assembly, frontmatter stripping"]
+    Src --> Logging["logging/\nTracing, formatter, monitor"]
+
+    Provider --> ProviderMod["mod.rs\nProvider trait"]
+    Provider --> Claude["claude.rs\nClaude Code CLI flags"]
+    Provider --> Gemini["gemini.rs\nGemini CLI flags"]
+
+    Pipeline --> PipelineMod["mod.rs\nAgent ordering, blocking"]
+    Pipeline --> Orchestrator["orchestrator.rs\nManifest dispatch, waves"]
+    Pipeline --> Runner["runner.rs\nSingle PRD x repo pipeline"]
+    Pipeline --> Agent["agent.rs\nRalph Loop"]
+    Pipeline --> Devcontainer["devcontainer.rs\nDev Container lifecycle"]
+
+    Git --> GitMod["mod.rs\nClone, branch, rebase, push"]
+    Git --> Pr["pr.rs\ngh pr create, evidence comments"]
+
+    Logging --> LoggingMod["mod.rs\nTracing setup"]
+    Logging --> Formatter["formatter.rs\nJSONL stream formatting"]
+    Logging --> Monitor["monitor.rs\nReal-time log tailing"]
 
     Agents --> ABase["_base-system.md"]
-    Agents --> AArch["architect/prompt.md"]
-    Agents --> ADes["designer/prompt.md"]
-    Agents --> AMig["migration/prompt.md"]
-    Agents --> ADev["developer/prompt.md"]
-    Agents --> AAcc["accessibility/prompt.md"]
-    Agents --> ATest["tester/prompt.md"]
-    Agents --> APerf["performance/prompt.md"]
-    Agents --> ASec["secops/prompt.md"]
-    Agents --> ADep["dependency/prompt.md"]
-    Agents --> AInfra["infrastructure/prompt.md"]
-    Agents --> AOps["devops/prompt.md"]
-    Agents --> ARb["rollback/prompt.md"]
-    Agents --> ADoc["documentation/prompt.md"]
-    Agents --> ARev["reviewer/prompt.md"]
-    Agents --> ACtx["context-generator/prompt.md"]
-    Agents --> APrd["prd-generator/prompt.md"]
+    Agents --> APrompts["*/prompt.md\nPer-agent prompts"]
 
-    DevC --> DCMain["devcontainer.json\n(for editing this repo)"]
-    DevC --> DCAgent["agent/\n(for running agents headlessly)"]
+    DevC --> DCMain["devcontainer.json\nFor editing this repo"]
+    DevC --> DCAgent["agent/\nFor agent execution"]
+    DevC --> InitFirewall["init-firewall.sh\nNetwork firewall"]
+    DevC --> PostCreate["post-create.sh"]
+    DevC --> PostStart["post-start.sh"]
 
-    Templates --> TManifest["manifest.json"]
-    Templates --> TPRD["prd.md"]
-    Templates --> TCtx["project-context.md\ncontext-skill.md"]
+    Workflows --> CI["ci.yml\nBuild, test, clippy, fmt"]
+    Workflows --> Release["release.yml\nCross-compile, GitHub Releases, Homebrew"]
 ```
 
 ## Component Relationships
 
 ```mermaid
 flowchart LR
-    subgraph User["User Input"]
+    subgraph UserInput["User Input"]
         Desc["Interactive Prompt\n(describe what to build)"]
-        Manifest["Manifest JSON\n(orders, PRDs, repos, contexts, agents)"]
-        Env[".env config"]
+        ManifestFile["Manifest JSON\n(orders, PRDs, repos)"]
+        EnvFile[".env config"]
     end
 
-    subgraph CLI["CLI Layer"]
-        CaCli["ca\n(unified entry point)"]
+    subgraph CLILayer["CLI Layer"]
+        MainRs["main.rs\n(entry point)"]
+        CliRs["cli.rs\n(clap subcommands)"]
+        ConfigRs["config.rs\n(.env, env resolution)"]
     end
 
-    subgraph Orchestration["Pipeline Layer"]
-        Orch["orchestrator.sh\n(manifest orchestrator)"]
-        Pipe["run-pipeline.sh\n(container lifecycle)"]
-        Runner["run-agent.sh"]
-        Libs["lib/ utilities"]
+    subgraph PipelineLayer["Pipeline Layer"]
+        OrchestratorRs["orchestrator.rs\n(manifest dispatch)"]
+        RunnerRs["runner.rs\n(single PRD x repo)"]
+        AgentRs["agent.rs\n(Ralph Loop)"]
+        DevcontainerRs["devcontainer.rs\n(RAII lifecycle)"]
     end
 
     subgraph AgentLayer["Agent Layer"]
-        Base["_base-system.md"]
+        BaseSystem["_base-system.md"]
         Prompts["Agent prompts\n(14 agents)"]
     end
 
     subgraph Infra["Infrastructure"]
         DC[".devcontainer/agent/\n(headless container)"]
         MCP[".mcp.json"]
-        AI["AI CLI\n(Claude Code or Gemini)"]
+        AICLI["AI CLI\n(Claude Code or Gemini)"]
     end
 
     subgraph Output["Pipeline Output"]
-        Branch["Feature branch\n(from PRD Working Branch)"]
+        Branch["Feature branch"]
         Artifacts["Architecture docs\nDesign specs\nTest reports"]
         PullReq["Pull Request"]
-        Evidence["Evidence comments\n(agent reports on PR)"]
-        CtxUpdate["Updated context\n(synced to contexts/<repo>/)"]
+        Evidence["Evidence comments"]
     end
 
-    Desc -->|"generate-prd.sh"| Manifest
-    Manifest --> CaCli
-    Env --> CaCli
-    CaCli -->|"dispatches"| Orch
-    Orch -->|"per PRD×repo"| Pipe
-    Pipe -->|"starts"| DC
-    Pipe -->|"devcontainer exec"| Runner
-    Runner --> Libs
-    Runner -->|builds prompt from| Base
-    Runner -->|builds prompt from| Prompts
-    Runner -->|invokes| AI
-    AI -->|uses| MCP
-    DC -->|sandbox for| AI
-    AI --> Branch
-    AI --> Artifacts
-    Pipe --> PullReq
+    Desc -->|"generate prd"| ManifestFile
+    ManifestFile --> MainRs
+    EnvFile --> ConfigRs
+    ConfigRs --> MainRs
+    CliRs --> MainRs
+    MainRs -->|"orchestrate"| OrchestratorRs
+    OrchestratorRs -->|"per PRD x repo"| RunnerRs
+    RunnerRs --> DevcontainerRs
+    RunnerRs -->|"per agent"| AgentRs
+    AgentRs --> BaseSystem
+    AgentRs --> Prompts
+    AgentRs -->|"invokes"| AICLI
+    AICLI -->|"uses"| MCP
+    DC -->|"sandbox for"| AICLI
+    AICLI --> Branch
+    AICLI --> Artifacts
+    RunnerRs --> PullReq
     PullReq --> Evidence
-    Pipe --> CtxUpdate
 ```
+
+## Key Dependencies
+
+| Crate | Purpose |
+|-------|---------|
+| `clap` | CLI argument parsing (derive) |
+| `tokio` | Async runtime |
+| `serde` / `serde_json` | JSON serialization |
+| `anyhow` / `thiserror` | Error handling |
+| `tracing` / `tracing-subscriber` | Structured logging |
+| `notify` | File watching (monitor) |
+| `dialoguer` | Interactive prompts |
+| `indicatif` | Progress bars |
+| `which` | PATH lookup for AI CLIs |
+| `dotenvy` | `.env` loading |
 
 ## File Reference
 
 | File | Purpose | Modified When |
 |------|---------|---------------|
-| `ca` | Unified CLI: wraps all scripts, enforces verbose logs + dev containers, `--follow` filtering | Adding subcommands, changing CLI defaults |
-| `scripts/install.sh` | curl-based installer: clones repo, symlinks `ca` to PATH, checks prerequisites | Changing install path, adding prerequisites |
-| `scripts/install-skills.sh` | Installs Cursor skills as symlinks to `~/.cursor/skills/` | Adding/removing skills |
-| `pipeline/orchestrator.sh` | Manifest orchestrator: orders, parallel PRDs, per-repo context | Changing execution model, adding manifest features |
-| `pipeline/run-pipeline.sh` | Single PRD × single repo: Dev Container lifecycle, agent sequence, PR, repo-root logging | Adding agents, changing container config, flow |
-| `pipeline/run-agent.sh` | Ralph Loop implementation, prompt assembly | Changing iteration logic or prompt structure |
-| `pipeline/generate-context.sh` | Context skill generator: analyzes repos and produces skill files | Changing context generation workflow |
-| `pipeline/generate-prd.sh` | PRD and manifest generator: prompts for a description, uses repo contexts to produce ordered PRDs and a manifest | Changing PRD generation workflow |
-| `pipeline/lib/prd-parser.sh` | Parse PRD metadata: status, title, priority, working branch | Changing PRD metadata format |
-| `pipeline/lib/provider.sh` | AI provider abstraction: Claude Code vs Gemini CLI, CLI flags, auth, context filename (CLAUDE.md/GEMINI.md) | Adding providers, changing CLI invocation |
-| `pipeline/lib/progress.sh` | Read/write `.agent-progress/` files | Changing progress format |
-| `pipeline/lib/git-utils.sh` | Clone, branch, rebase, PR creation, PR evidence posting | Changing git workflow |
-| `pipeline/lib/validation.sh` | Environment, PRD, and devcontainer validation | Adding new validations |
-| `pipeline/lib/context.sh` | Context skill assembly (directory → single CLAUDE.md or GEMINI.md per provider) | Changing context skill format or ordering |
-| `pipeline/lib/log-formatter.sh` | Format stream-json events into readable output (thinking, tools, results) | Changing log format or adding new event types |
-| `pipeline/monitor.sh` | Real-time log tailing with agent filtering and session listing | Changing monitoring workflow |
+| `Cargo.toml` | Rust project manifest, dependencies | Adding crates, changing build config |
+| `src/main.rs` | Entry point, CLI dispatch, generator commands | Adding subcommands, changing flow |
+| `src/cli.rs` | clap derive structs for all subcommands | Adding/removing CLI options |
+| `src/config.rs` | `.env` loading, env var resolution, defaults | Adding config options |
+| `src/utils.rs` | Shell exec helpers, path resolution, slugify | Changing utility behavior |
+| `src/manifest/mod.rs` | Manifest, Order, PrdEntry, Repository structs + serde | Changing manifest schema |
+| `src/prd/mod.rs` | PRD struct, metadata extraction (title, status, branch) | Changing PRD metadata format |
+| `src/provider/mod.rs` | Provider trait | Adding providers |
+| `src/provider/claude.rs` | Claude Code CLI flags, session extraction | Changing Claude invocation |
+| `src/provider/gemini.rs` | Gemini CLI flags, session extraction | Changing Gemini invocation |
+| `src/pipeline/mod.rs` | Agent ordering, blocking classification | Changing agent sequence |
+| `src/pipeline/orchestrator.rs` | Manifest dispatch, wave stacking, parallel execution | Changing orchestration logic |
+| `src/pipeline/runner.rs` | Single PRD × repo pipeline | Changing pipeline flow |
+| `src/pipeline/agent.rs` | Ralph Loop (prompt assembly, completion detection) | Changing iteration logic |
+| `src/pipeline/devcontainer.rs` | Dev Container lifecycle (RAII cleanup) | Changing container behavior |
+| `src/git/mod.rs` | Clone, branch, rebase, push | Changing git workflow |
+| `src/git/pr.rs` | `gh pr create`, evidence comments | Changing PR creation |
+| `src/context/mod.rs` | Skill assembly, frontmatter stripping | Changing context format |
+| `src/logging/mod.rs` | Tracing setup | Changing log config |
+| `src/logging/formatter.rs` | JSONL stream formatting (Claude + Gemini) | Changing log format |
+| `src/logging/monitor.rs` | Real-time log tailing (notify-based) | Changing monitoring |
+| `scripts/install.sh` | Binary download installer (GitHub Releases) | Changing install path, platforms |
 | `agents/_base-system.md` | Shared instructions for all agents | Changing universal agent behavior |
 | `agents/*/prompt.md` | Per-agent instructions and completion criteria | Modifying agent behavior |
-| `manifests/*.json` | Execution plans: orders, PRDs, repos, contexts, per-unit agents | Adding projects or changing execution plans |
-| `contexts/<repo>/` | Per-repo context skill directories (assembled into ephemeral CLAUDE.md or GEMINI.md per provider) | Repo conventions change, new repos added |
+| `manifests/*.json` | Execution plans: orders, PRDs, repos, contexts | Adding projects or changing plans |
+| `prds/<project>/` | Product Requirements Documents (referenced by manifests) | Adding or editing PRDs |
+| `contexts/<repo>/` | Per-repo context skill directories | Repo conventions change |
 | `templates/manifest.json` | Manifest template | Changing manifest schema |
-| `templates/prd.md` | PRD template for users | Changing required PRD sections |
-| `templates/project-context.md` | Legacy single-file context template | Changing project setup workflow |
-| `templates/context-skill.md` | Context skill template (directory-based contexts) | Changing context skill format |
-| `.devcontainer/devcontainer.json` | Dev Container for editing this repo (VS Code/Cursor) | Changing IDE dev environment |
-| `.devcontainer/agent/*` | Dev Container for running agents headlessly (installs both Claude Code and Gemini CLI) | Changing agent sandbox |
-| `.mcp.json` | MCP server connections (GitHub, Notion, Figma, Slack) | Adding/removing integrations |
-| `.env.example` | Environment variable documentation | Adding new config options |
-| `config/settings.json` | Claude Code settings template | Changing default model or permissions |
+| `templates/prd.md` | PRD template | Changing required PRD sections |
+| `templates/context-skill.md` | Context skill template | Changing context skill format |
+| `.devcontainer/devcontainer.json` | Dev Container for editing this repo | Changing IDE dev environment |
+| `.devcontainer/agent/*` | Dev Container for running agents headlessly | Changing agent sandbox |
+| `.devcontainer/init-firewall.sh` | Network firewall (only remaining shell script) | Changing firewall rules |
+| `.devcontainer/post-create.sh` | Container setup hook | Changing container setup |
+| `.devcontainer/post-start.sh` | Container start hook | Changing container startup |
+| `.github/workflows/ci.yml` | Build, test, clippy, fmt | Changing CI steps |
+| `.github/workflows/release.yml` | Cross-compile, GitHub Releases, Homebrew | Changing release process |
+| `.mcp.json` | MCP server connections | Adding/removing integrations |
+| `.env.example` | Environment variable reference | Adding new config options |
+| `config/settings.json` | AI CLI settings template | Changing default model |
 | `skills/*/SKILL.md` | Cursor agent skills | Adding skills or changing workflows |
-| `.cursor/rules/*.mdc` | Cursor rules for maintaining this repo | Changing development conventions |
-| `CLAUDE.md` | Claude Code instructions for this repo | Changing project structure or conventions |
-| `docs/*.md` | This documentation | Any significant change to the repo |
+| `CLAUDE.md` | Claude Code instructions for this repo | Changing project conventions |
+| `docs/*.md` | This documentation | Any significant change |
