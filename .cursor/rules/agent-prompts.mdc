@@ -29,5 +29,5 @@ Every agent prompt file (`agents/<name>/prompt.md`) must have:
 1. Copy an existing agent prompt as a starting point
 2. Define clear boundaries — what this agent does and does NOT do
 3. Specify which prior agents' output it reads
-4. Register it in `pipeline/run-pipeline.sh` default `AGENTS` variable
+4. Register it in `src/pipeline/mod.rs` (`DEFAULT_AGENTS`)
 5. Create a matching Cursor skill in `skills/<name>/SKILL.md`

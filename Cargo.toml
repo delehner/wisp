@@ -1,13 +1,13 @@
 [package]
-name = "ca"
+name = "wisp"
 version = "0.1.0"
 edition = "2021"
 description = "AI agent pipeline: PRDs to Pull Requests"
 license = "MIT"
-repository = "https://github.com/delehner/coding-agents"
+repository = "https://github.com/delehner/wisp"
 
 [[bin]]
-name = "ca"
+name = "wisp"
 path = "src/main.rs"
 
 [dependencies]

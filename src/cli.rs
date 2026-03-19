@@ -4,7 +4,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Parser)]
 #[command(
-    name = "ca",
+    name = "wisp",
     about = "AI agent pipeline: PRDs to Pull Requests",
     long_about = "Turns Product Requirements Documents into Pull Requests using AI coding agents, \
                   Ralph Loops, and Dev Containers.",

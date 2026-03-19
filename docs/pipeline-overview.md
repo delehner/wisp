@@ -1,15 +1,15 @@
 # Pipeline Overview
 
-The Coding Agents Pipeline transforms PRDs into Pull Requests by running specialized AI agents in sequence inside Dev Containers. It supports **Claude Code** and **Gemini CLI** as AI providers (select via `AI_PROVIDER` env var or `ca --provider <name>`). A **manifest** JSON defines the execution plan: sequential **orders**, each containing **PRDs** that run in parallel, each targeting **repositories** with their own context and branch.
+The Wisp pipeline transforms PRDs into Pull Requests by running specialized AI agents in sequence inside Dev Containers. It supports **Claude Code** and **Gemini CLI** as AI providers (select via `AI_PROVIDER` env var or `wisp --provider <name>`). A **manifest** JSON defines the execution plan: sequential **orders**, each containing **PRDs** that run in parallel, each targeting **repositories** with their own context and branch.
 
-The pipeline is implemented as a single **Rust binary** (`ca`) built with Cargo. All logic lives in Rust modules—no bash scripts. Manifest parsing uses `serde_json`, parallel execution uses tokio `Semaphore` + `JoinSet`, and Dev Container lifecycle uses RAII (`Drop` impl) for cleanup.
+The pipeline is implemented as a single **Rust binary** (`wisp`) built with Cargo. All logic lives in Rust modules—no bash scripts. Manifest parsing uses `serde_json`, parallel execution uses tokio `Semaphore` + `JoinSet`, and Dev Container lifecycle uses RAII (`Drop` impl) for cleanup.
 
 ## End-to-End Flow
 
 ```mermaid
 flowchart TD
     Input["[Manifest JSON]\n(orders to PRDs to repos)"]
-    Input --> Orch["ca orchestrate\n(orchestrator.rs)"]
+    Input --> Orch["wisp orchestrate\n(orchestrator.rs)"]
 
     Orch --> O1["Order 1\n(sequential)"]
     Orch --> O2["Order 2\n(waits for Order 1)"]
@@ -48,30 +48,30 @@ flowchart TD
 
 ## Pre-Pipeline: PRD Generation
 
-Before running the pipeline, generate PRDs and a manifest using `ca generate prd`. The command prompts you to describe what you want built directly in the terminal, then uses the `prd-generator` agent with repo contexts to decompose your description into ordered, pipeline-ready PRDs.
+Before running the pipeline, generate PRDs and a manifest using `wisp generate prd`. The command prompts you to describe what you want built directly in the terminal, then uses the `prd-generator` agent with repo contexts to decompose your description into ordered, pipeline-ready PRDs.
 
 ```mermaid
 flowchart LR
     Input["[Your Tasks]\n(describe what to build)"]
-    Ctx["[Repo Contexts]\n(ca generate context)"]
-    Input --> Gen["ca generate prd\n(prd-generator agent)"]
+    Ctx["[Repo Contexts]\n(wisp generate context)"]
+    Input --> Gen["wisp generate prd\n(prd-generator agent)"]
     Ctx --> Gen
     Gen --> PRDs["[PRD Files]\n(01-foundation.md, 02-feature.md, ...)"]
     Gen --> Manifest["[Manifest JSON]\n(orders, repos, contexts)"]
-    Manifest --> Orch["ca orchestrate\n(run the pipeline)"]
+    Manifest --> Orch["wisp orchestrate\n(run the pipeline)"]
 ```
 
 The typical workflow is:
-1. `ca generate context` — analyze repos, produce context skills
-2. `ca generate prd` — describe what you want built, produce PRDs and a manifest
-3. `ca orchestrate` — execute the manifest (agents process each PRD)
+1. `wisp generate context` — analyze repos, produce context skills
+2. `wisp generate prd` — describe what you want built, produce PRDs and a manifest
+3. `wisp orchestrate` — execute the manifest (agents process each PRD)
 
 ## Architecture
 
 ```mermaid
 flowchart LR
     subgraph Layer0["Unified CLI"]
-        CA["ca\nRust binary\nAlways verbose logs\nAlways dev containers\n--follow agent"]
+        WISP["wisp\nRust binary\nAlways verbose logs\nAlways dev containers\n--follow agent"]
     end
 
     subgraph Layer1["Layer 1: Manifest Orchestrator"]
@@ -86,14 +86,14 @@ flowchart LR
         Agent["agent.rs\nRalph Loop\n1 agent x 1 repo\n(inside container)"]
     end
 
-    CA -->|dispatches| Orch
+    WISP -->|dispatches| Orch
     Orch -->|"per PRD x repo"| Run
     Run -->|"per agent\n(devcontainer exec)"| Agent
 ```
 
 | Component | Scope | Responsibility |
 |-----------|-------|----------------|
-| `ca` | All operations | Unified CLI: single Rust executable, enforces verbose logs + dev containers, `--provider` for AI selection |
+| `wisp` | All operations | Unified CLI: single Rust executable, enforces verbose logs + dev containers, `--provider` for AI selection |
 | `src/pipeline/orchestrator.rs` | Manifest → orders → PRDs → repos | Parse manifest (serde_json), execute orders sequentially, dispatch PRDs in parallel via tokio |
 | `src/pipeline/runner.rs` | 1 PRD × 1 repo | Clone repo, start Dev Container (RAII Drop), inject context, run agents, create PR |
 | `src/pipeline/agent.rs` | 1 agent | Ralph Loop: build prompt, run AI agent (Claude or Gemini via `src/provider/`), check completion |
@@ -178,7 +178,7 @@ flowchart TD
     LegacyExec --> Summary
 ```
 
-## Single Pipeline Lifecycle (ca pipeline)
+## Single Pipeline Lifecycle (wisp pipeline)
 
 ```mermaid
 flowchart TD
@@ -362,63 +362,63 @@ flowchart LR
 
 | Command | Replaces | Description |
 |---------|----------|-------------|
-| `ca orchestrate --manifest <path>` | orchestrator.sh | Run full manifest (orders, PRDs, repos) |
-| `ca pipeline --prd <path> --repo <url>` | run-pipeline.sh | Single PRD × single repo |
-| `ca run --agent <name> --workdir <path> --prd <path>` | run-agent.sh | Single agent (Ralph Loop) |
-| `ca generate prd ...` | generate-prd.sh | Generate PRDs and manifest from description |
-| `ca generate context ...` | generate-context.sh | Generate context skills from repo analysis |
-| `ca monitor` | monitor.sh | Tail agent logs, list sessions |
-| `ca logs <file.jsonl>` | log-formatter.sh | Re-format raw .jsonl log file |
-| `ca install skills` | scripts/install-skills.sh | Install Cursor skills as symlinks |
-| `ca update` | — | Self-update the `ca` binary |
+| `wisp orchestrate --manifest <path>` | orchestrator.sh | Run full manifest (orders, PRDs, repos) |
+| `wisp pipeline --prd <path> --repo <url>` | run-pipeline.sh | Single PRD × single repo |
+| `wisp run --agent <name> --workdir <path> --prd <path>` | run-agent.sh | Single agent (Ralph Loop) |
+| `wisp generate prd ...` | generate-prd.sh | Generate PRDs and manifest from description |
+| `wisp generate context ...` | generate-context.sh | Generate context skills from repo analysis |
+| `wisp monitor` | monitor.sh | Tail agent logs, list sessions |
+| `wisp logs <file.jsonl>` | log-formatter.sh | Re-format raw .jsonl log file |
+| `wisp install skills` | scripts/install-skills.sh | Install Cursor skills as symlinks |
+| `wisp update` | — | Self-update the `wisp` binary |
 
-### Unified CLI (`ca`)
+### Unified CLI (`wisp`)
 
-The `ca` CLI is a single Rust executable built with Cargo. Install it globally with the install script (see README) or run it from the repo root. It always enables verbose log formatting and always enforces Dev Containers.
+The `wisp` CLI is a single Rust executable built with Cargo. Install it globally with the install script (see README) or run it from the repo root. It always enables verbose log formatting and always enforces Dev Containers.
 
 ```bash
 # Generate context skills for a repo
-ca generate context --repo <path-or-url> --output ./contexts/my-repo
+wisp generate context --repo <path-or-url> --output ./contexts/my-repo
 
 # Generate PRDs and a manifest (prompts you to describe your tasks)
-ca generate prd \
+wisp generate prd \
   --output ./prds/my-app \
   --manifest ./manifests/my-app.json \
   --repo https://github.com/org/my-repo --context ./contexts/my-repo
 
 # Run a full manifest
-ca orchestrate --manifest ./manifests/my-project.json
+wisp orchestrate --manifest ./manifests/my-project.json
 
 # Use Gemini CLI instead of Claude Code
-ca orchestrate --manifest ./manifests/my-project.json --provider gemini
+wisp orchestrate --manifest ./manifests/my-project.json --provider gemini
 
 # Interactive mode (pause between agents/iterations)
-ca orchestrate --manifest ./manifests/my-project.json --interactive
+wisp orchestrate --manifest ./manifests/my-project.json --interactive
 
 # Focus on a specific agent's output
-ca orchestrate --manifest ./manifests/my-project.json --follow developer
+wisp orchestrate --manifest ./manifests/my-project.json --follow developer
 
 # Single PRD × single repo
-ca pipeline --prd <path> --repo <url> --context <path-or-dir>
+wisp pipeline --prd <path> --repo <url> --context <path-or-dir>
 
 # Single agent (Ralph Loop)
-ca run --agent <name> --workdir <path> --prd <path>
+wisp run --agent <name> --workdir <path> --prd <path>
 
 # Monitor running agents from another terminal
-ca monitor --agent developer
-ca monitor --sessions
+wisp monitor --agent developer
+wisp monitor --sessions
 
 # Re-format a raw .jsonl log file
-ca logs ./logs/developer_iteration_1.jsonl
+wisp logs ./logs/developer_iteration_1.jsonl
 
 # Install Cursor skills
-ca install skills
+wisp install skills
 
 # Self-update
-ca update
+wisp update
 ```
 
-### ca generate prd Options
+### wisp generate prd Options
 
 | Option | Description | Default |
 |--------|-------------|---------|
@@ -434,7 +434,7 @@ ca update
 | `--quiet` | Suppress detailed streaming (text-only output) | Verbose (stream-json) |
 | `--interactive` | Pause between iterations for review and course correction | false |
 
-### ca orchestrate Options
+### wisp orchestrate Options
 
 | Option | Description | Default |
 |--------|-------------|---------|
@@ -458,7 +458,7 @@ ca update
 | `--verbose-logs` | Enable detailed logging (thinking, tool calls, results) | false |
 | `--interactive` | Pause between agents and iterations for review | false |
 
-### ca pipeline Options
+### wisp pipeline Options
 
 | Option | Description | Default |
 |--------|-------------|---------|
@@ -470,18 +470,18 @@ ca update
 
 | Command | Description |
 |---------|-------------|
-| `ca monitor` | Tail all agent logs in real-time |
-| `ca monitor --agent <name>` | Tail logs for a specific agent |
-| `ca monitor --sessions` | List available session IDs for resumption |
-| `ca logs <file.jsonl>` | Re-format a raw .jsonl log file for reading |
+| `wisp monitor` | Tail all agent logs in real-time |
+| `wisp monitor --agent <name>` | Tail logs for a specific agent |
+| `wisp monitor --sessions` | List available session IDs for resumption |
+| `wisp logs <file.jsonl>` | Re-format a raw .jsonl log file for reading |
 | `claude --resume <session-id>` | Resume a Claude agent session interactively |
 | `gemini --resume <session-id>` | Resume a Gemini agent session interactively |
 
-### ca CLI Options
+### wisp CLI Options
 
 | Option | Applies to | Description |
 |--------|-----------|-------------|
 | `--follow <agent>` | `orchestrate`, `pipeline` | Focus output on a specific agent |
 | `--provider <name>` | All commands | AI provider: `claude` (default) or `gemini` |
 
-The `ca` CLI always injects `--verbose-logs` and blocks `--no-devcontainer`. All other flags are passed through to the underlying commands. Provider can also be set via `AI_PROVIDER` env var.
+The `wisp` CLI always injects `--verbose-logs` and blocks `--no-devcontainer`. All other flags are passed through to the underlying commands. Provider can also be set via `AI_PROVIDER` env var.

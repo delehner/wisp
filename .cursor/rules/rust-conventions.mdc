@@ -34,5 +34,5 @@
 ```bash
 cargo test                    # Unit tests
 cargo build --release         # Verify release build
-ca run --agent architect --workdir /tmp/test --prd ./templates/examples/sample-prd.md  # Integration test
+wisp run --agent architect --workdir /tmp/test --prd ./templates/examples/sample-prd.md  # Integration test
 ```

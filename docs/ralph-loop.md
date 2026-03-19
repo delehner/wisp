@@ -99,7 +99,7 @@ claude --resume <session-id>
 gemini --resume <session-id>
 ```
 
-Session IDs are extracted from JSONL output by `Provider::extract_session_id()` and saved to `<agent>_iteration_<n>.session` files. They are shown in pipeline output and can be listed with `ca monitor --sessions`.
+Session IDs are extracted from JSONL output by `Provider::extract_session_id()` and saved to `<agent>_iteration_<n>.session` files. They are shown in pipeline output and can be listed with `wisp monitor --sessions`.
 
 ## Cost Implications
 

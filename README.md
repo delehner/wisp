@@ -1,10 +1,10 @@
-# Coding Agents Pipeline
+# Wisp
 
 A single Rust binary that turns PRDs into Pull Requests using AI coding agents (Claude Code or Gemini CLI), Ralph Loops, and Dev Containers.
 
 ```
-Description → ca generate prd → PRDs + Manifest
-Manifest → ca orchestrate → [Architect → Designer → Migration → Developer → Accessibility →
+Description → wisp generate prd → PRDs + Manifest
+Manifest → wisp orchestrate → [Architect → Designer → Migration → Developer → Accessibility →
   Tester → Performance → SecOps → Dependency → Infrastructure → DevOps → Rollback →
   Documentation → Reviewer] → Pull Requests
 ```
@@ -14,27 +14,27 @@ Manifest → ca orchestrate → [Architect → Designer → Migration → Develo
 **Pre-built binary** (recommended):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/delehner/coding-agents/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/delehner/wisp/main/scripts/install.sh | bash
 ```
 
 **Homebrew:**
 
 ```bash
 brew tap delehner/tap
-brew install ca
+brew install wisp
 ```
 
 **From source:**
 
 ```bash
-cargo install ca
+cargo install wisp
 ```
 
 **Verify:**
 
 ```bash
-ca --version
-ca --help
+wisp --version
+wisp --help
 ```
 
 ## Prerequisites
@@ -47,7 +47,7 @@ ca --help
 | `gh` | Yes | `brew install gh` |
 | `claude` or `gemini` | Yes (one) | `npm install -g @anthropic-ai/claude-code` or `npm install -g @google/gemini-cli` |
 
-**Note:** `jq` and `node` are no longer required to run the pipeline — the Rust binary handles JSON natively.
+**Note:** `jq` and `node` are not required — the Rust binary handles JSON natively.
 
 ## Quick Start
 
@@ -61,7 +61,7 @@ gh auth login     # login to GitHub
 ### 2. Generate context for your repo
 
 ```bash
-ca generate context \
+wisp generate context \
   --repo https://github.com/you/your-repo \
   --output ./contexts/your-repo
 ```
@@ -69,7 +69,7 @@ ca generate context \
 ### 3. Generate PRDs and a manifest
 
 ```bash
-ca generate prd \
+wisp generate prd \
   --output ./prds/your-project \
   --manifest ./manifests/your-project.json \
   --repo https://github.com/you/your-repo \
@@ -79,22 +79,22 @@ ca generate prd \
 ### 4. Run the pipeline
 
 ```bash
-ca orchestrate --manifest ./manifests/your-project.json
+wisp orchestrate --manifest ./manifests/your-project.json
 ```
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `ca orchestrate --manifest <path>` | Run all orders/PRDs from a manifest |
-| `ca pipeline --prd <path> --repo <url>` | Run a single PRD against one repo |
-| `ca run --agent <name> --workdir <path> --prd <path>` | Run a single agent (Ralph Loop) |
-| `ca generate prd --output <dir> --manifest <path> --repo <url> --context <path>` | Generate PRDs interactively |
-| `ca generate context --repo <url> --output <dir>` | Generate context skills from a repo |
-| `ca monitor [--agent <name>]` | Tail agent logs in real-time |
-| `ca logs <file.jsonl>` | Re-format raw log files |
-| `ca install skills [--project <path>]` | Install Cursor skills as symlinks |
-| `ca update` | Self-update to latest version |
+| `wisp orchestrate --manifest <path>` | Run all orders/PRDs from a manifest |
+| `wisp pipeline --prd <path> --repo <url>` | Run a single PRD against one repo |
+| `wisp run --agent <name> --workdir <path> --prd <path>` | Run a single agent (Ralph Loop) |
+| `wisp generate prd --output <dir> --manifest <path> --repo <url> --context <path>` | Generate PRDs interactively |
+| `wisp generate context --repo <url> --output <dir>` | Generate context skills from a repo |
+| `wisp monitor [--agent <name>]` | Tail agent logs in real-time |
+| `wisp logs <file.jsonl>` | Re-format raw log files |
+| `wisp install skills [--project <path>]` | Install Cursor skills as symlinks |
+| `wisp update` | Self-update to latest version |
 
 ## Manifest Structure
 
@@ -166,7 +166,7 @@ Key variables:
 | `GEMINI_MODEL` | `gemini-2.5-pro` | Default Gemini model |
 | `PIPELINE_MAX_ITERATIONS` | `10` | Max Ralph Loop iterations per agent |
 | `PIPELINE_MAX_PARALLEL` | `4` | Max concurrent pipelines |
-| `PIPELINE_WORK_DIR` | `/tmp/coding-agents-work` | Clone directory |
+| `PIPELINE_WORK_DIR` | `/tmp/wisp-work` | Clone directory |
 | `EVIDENCE_AGENTS` | `tester,performance,...` | Agents whose reports become PR comments |
 | `INTERACTIVE` | `false` | Pause between agents/iterations |
 
@@ -202,16 +202,16 @@ Per-agent overrides: `ARCHITECT_MODEL`, `DEVELOPER_MAX_ITERATIONS`, etc.
 
 ```bash
 # Tail all agent logs
-ca monitor
+wisp monitor
 
 # Filter by agent
-ca monitor --agent developer
+wisp monitor --agent developer
 
 # List resumable sessions
-ca monitor --sessions
+wisp monitor --sessions
 
 # Re-format a raw log file
-ca logs ./logs/developer_iteration_1.jsonl
+wisp logs ./logs/developer_iteration_1.jsonl
 
 # Resume a session interactively
 claude --resume <session-id>

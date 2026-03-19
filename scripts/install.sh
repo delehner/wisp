@@ -2,18 +2,18 @@
 set -euo pipefail
 
 # =============================================================================
-# Coding Agents Pipeline — Binary Installer
+# Wisp — Binary Installer
 # =============================================================================
-# Downloads the pre-built `ca` binary for your platform from GitHub Releases.
+# Downloads the pre-built `wisp` binary for your platform from GitHub Releases.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/delehner/coding-agents/main/cli/scripts/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/delehner/wisp/main/scripts/install.sh | bash
 #   curl ... | bash -s -- --dir /usr/local/bin
 #   curl ... | bash -s -- --version v0.2.0
 #   curl ... | bash -s -- --uninstall
 
-REPO="delehner/coding-agents"
-BINARY_NAME="ca"
+REPO="delehner/wisp"
+BINARY_NAME="wisp"
 DEFAULT_INSTALL_DIR="/usr/local/bin"
 
 if [ -t 1 ]; then
@@ -39,7 +39,7 @@ while [[ $# -gt 0 ]]; do
     --uninstall) UNINSTALL=true; shift ;;
     -h|--help)
       cat <<'HELP'
-Coding Agents Pipeline — Binary Installer
+Wisp — Binary Installer
 
 Usage:
   curl -fsSL <url>/install.sh | bash
@@ -48,7 +48,7 @@ Usage:
 Options:
   --dir <path>       Directory to install the binary (default: /usr/local/bin)
   --version <tag>    Specific release version (default: latest)
-  --uninstall        Remove the ca binary
+  --uninstall        Remove the wisp binary
   -h, --help         Show this help
 HELP
       exit 0 ;;
@@ -57,7 +57,7 @@ HELP
 done
 
 if [ "$UNINSTALL" = true ]; then
-  info "Uninstalling ca..."
+  info "Uninstalling wisp..."
   if [ -f "$INSTALL_DIR/$BINARY_NAME" ]; then
     rm -f "$INSTALL_DIR/$BINARY_NAME" 2>/dev/null || sudo rm -f "$INSTALL_DIR/$BINARY_NAME"
     ok "Removed $INSTALL_DIR/$BINARY_NAME"
@@ -68,7 +68,7 @@ if [ "$UNINSTALL" = true ]; then
 fi
 
 echo ""
-echo -e "${BOLD}Coding Agents Pipeline — Installer${RESET}"
+echo -e "${BOLD}Wisp — Installer${RESET}"
 echo ""
 
 OS="$(uname -s)"
@@ -100,19 +100,19 @@ fi
 
 info "Version: $VERSION"
 
-DOWNLOAD_URL="https://github.com/$REPO/releases/download/$VERSION/ca-${TARGET}.tar.gz"
+DOWNLOAD_URL="https://github.com/$REPO/releases/download/$VERSION/wisp-${TARGET}.tar.gz"
 info "Downloading from $DOWNLOAD_URL..."
 
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 
-if ! curl -fsSL "$DOWNLOAD_URL" -o "$TMPDIR/ca.tar.gz"; then
+if ! curl -fsSL "$DOWNLOAD_URL" -o "$TMPDIR/wisp.tar.gz"; then
   error "Download failed. Check the version and try again."
   error "URL: $DOWNLOAD_URL"
   exit 1
 fi
 
-tar -xzf "$TMPDIR/ca.tar.gz" -C "$TMPDIR"
+tar -xzf "$TMPDIR/wisp.tar.gz" -C "$TMPDIR"
 
 if [ -w "$INSTALL_DIR" ]; then
   mv "$TMPDIR/$BINARY_NAME" "$INSTALL_DIR/$BINARY_NAME"
@@ -126,10 +126,10 @@ fi
 ok "Installed $BINARY_NAME to $INSTALL_DIR/$BINARY_NAME"
 
 echo ""
-if command -v ca &>/dev/null; then
-  ok "ca is available ($(ca --version 2>/dev/null || echo "$VERSION"))"
+if command -v wisp &>/dev/null; then
+  ok "wisp is available ($(wisp --version 2>/dev/null || echo "$VERSION"))"
 else
-  warn "ca was installed but not found in PATH"
+  warn "wisp was installed but not found in PATH"
   warn "Add $INSTALL_DIR to your PATH:"
   echo "  export PATH=\"$INSTALL_DIR:\$PATH\""
 fi
@@ -137,7 +137,7 @@ fi
 echo ""
 echo -e "${GREEN}${BOLD}Installation complete!${RESET}"
 echo ""
-echo "  Run 'ca --help' to get started."
+echo "  Run 'wisp --help' to get started."
 echo "  To update: re-run this install script"
 echo "  To remove: re-run with --uninstall"
 echo ""

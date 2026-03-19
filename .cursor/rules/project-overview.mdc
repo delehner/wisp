@@ -1,6 +1,6 @@
-# Coding Agents Pipeline
+# Wisp
 
-Single Rust binary (`ca`) that turns PRDs into Pull Requests using AI coding agents (Claude Code or Gemini CLI), Ralph Loops, and Dev Containers.
+Single Rust binary (`wisp`) that turns PRDs into Pull Requests using AI coding agents (Claude Code or Gemini CLI), Ralph Loops, and Dev Containers.
 
 ## Structure
 
@@ -32,8 +32,8 @@ Single Rust binary (`ca`) that turns PRDs into Pull Requests using AI coding age
 ## Pipeline Flow
 
 ```
-Description → ca generate prd → PRDs + Manifest
-Manifest → ca orchestrate → [Architect → Designer → Migration → Developer → Accessibility → Tester → Performance → SecOps → Dependency → Infrastructure → DevOps → Rollback → Documentation → Reviewer] → PRs
+Description → wisp generate prd → PRDs + Manifest
+Manifest → wisp orchestrate → [Architect → Designer → Migration → Developer → Accessibility → Tester → Performance → SecOps → Dependency → Infrastructure → DevOps → Rollback → Documentation → Reviewer] → PRs
 ```
 
 ## Key Files

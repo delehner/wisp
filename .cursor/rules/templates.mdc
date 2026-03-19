@@ -21,7 +21,7 @@ Context skills are focused markdown files stored per-repo in `contexts/<repo-nam
 - Keep each skill under 150 lines — shorter context is followed more reliably
 - Include optional YAML frontmatter with `name` and `description` for Cursor compatibility
 - Skills are assembled in a canonical order (overview → architecture → conventions → ... → custom)
-- Generate skills automatically with `pipeline/generate-context.sh`
+- Generate skills automatically with `wisp generate context`
 
 ## Project Context Template (`templates/project-context.md`)
 

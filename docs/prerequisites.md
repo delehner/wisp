@@ -1,6 +1,6 @@
 # Prerequisites
 
-Everything you need to run the Coding Agents pipeline.
+Everything you need to run the Wisp pipeline.
 
 ## Required
 
@@ -13,20 +13,20 @@ Everything you need to run the Coding Agents pipeline.
 | **GitHub CLI (`gh`)** | PR creation, repo management | `brew install gh` |
 
 > Docker and the Dev Containers CLI are required because agents always run inside
-> containers. The `ca` CLI enforces this; `--no-devcontainer` is only available
+> containers. The `wisp` CLI enforces this; `--no-devcontainer` is only available
 > when calling the pipeline directly for debugging.
 
-## Installing the `ca` CLI
+## Installing the `wisp` CLI
 
-The `ca` binary is a single static executable. Choose one of:
+The `wisp` binary is a single static executable. Choose one of:
 
 | Method | Use case | Command |
 |--------|----------|---------|
-| **curl \| bash** | Quick install, pre-built binary | `curl -fsSL https://raw.githubusercontent.com/delehner/coding-agents/main/scripts/install.sh \| bash` |
-| **Homebrew** | macOS/Linux package manager | `brew install ca` (when available) |
-| **Cargo** | Build from source | `cargo install ca` |
+| **curl \| bash** | Quick install, pre-built binary | `curl -fsSL https://raw.githubusercontent.com/delehner/wisp/main/scripts/install.sh \| bash` |
+| **Homebrew** | macOS/Linux package manager | `brew install wisp` (when available) |
+| **Cargo** | Build from source | `cargo install wisp` |
 
-The curl installer downloads a pre-built binary for your platform from GitHub Releases. No `jq`, `node`, or other runtime dependencies are required — `ca` is self-contained.
+The curl installer downloads a pre-built binary for your platform from GitHub Releases. No `jq`, `node`, or other runtime dependencies are required — `wisp` is self-contained.
 
 ### Optional: Build from Source
 
@@ -34,9 +34,9 @@ If you want to modify the pipeline or build from source:
 
 | Tool | Purpose | Install |
 |------|---------|---------|
-| **Rust toolchain** | Compile `ca` from source | [rustup.rs](https://rustup.rs) |
+| **Rust toolchain** | Compile `wisp` from source | [rustup.rs](https://rustup.rs) |
 
-Then run `cargo build --release` in the repo root, or `cargo install ca` to install globally.
+Then run `cargo build --release` in the repo root, or `cargo install wisp` to install globally.
 
 ## Recommended
 
@@ -99,8 +99,8 @@ claude                              # Claude: login with Max subscription
 # Or: gemini auth login             # Gemini: browser login
 gh auth login                       # login to GitHub
 
-# Install the ca CLI (pre-built binary)
-curl -fsSL https://raw.githubusercontent.com/delehner/coding-agents/main/scripts/install.sh | bash
+# Install the wisp CLI (pre-built binary)
+curl -fsSL https://raw.githubusercontent.com/delehner/wisp/main/scripts/install.sh | bash
 ```
 
 ## Quick Verify
@@ -112,7 +112,7 @@ claude --version        # Claude Code (or gemini --version for Gemini CLI)
 docker --version        # any version
 devcontainer --version   # any version
 gh --version            # any version
-ca help                 # verify ca is installed
+wisp help               # verify wisp is installed
 
 # Check Docker is running
 docker info > /dev/null 2>&1 && echo "Docker is running" || echo "Start Docker Desktop"
@@ -125,8 +125,8 @@ When you run the pipeline, each PRD × repo combination gets its own Dev Contain
 ```
 Host                          Container
 ─────────────────────────────────────────────
-ca orchestrate
-  └─ ca run (per PRD×repo)
+wisp orchestrate
+  └─ wisp run (per PRD×repo)
        ├─ git clone
        ├─ devcontainer up ──→ Container starts
        │                      │

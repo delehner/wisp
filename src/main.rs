@@ -167,7 +167,7 @@ async fn main() -> Result<()> {
 
         Commands::Update => {
             tracing::info!("self-update not yet implemented — install the latest version manually");
-            tracing::info!("  cargo install ca");
+            tracing::info!("  cargo install wisp");
             tracing::info!("  # or re-run the install script");
         }
     }
@@ -215,7 +215,7 @@ async fn run_generate_prd(args: &cli::GeneratePrdArgs, config: &Config) -> Resul
     ));
 
     // Write prompt to temp file and run
-    let prompt_file = std::env::temp_dir().join("ca-generate-prd-prompt.md");
+    let prompt_file = std::env::temp_dir().join("wisp-generate-prd-prompt.md");
     std::fs::write(&prompt_file, &prompt)?;
 
     let model = config.default_model().to_string();
@@ -281,7 +281,7 @@ async fn run_generate_context(args: &cli::GenerateContextArgs, config: &Config) 
         args.output.display()
     ));
 
-    let prompt_file = std::env::temp_dir().join("ca-generate-context-prompt.md");
+    let prompt_file = std::env::temp_dir().join("wisp-generate-context-prompt.md");
     std::fs::write(&prompt_file, &prompt)?;
 
     let model = config.default_model().to_string();

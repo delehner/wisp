@@ -1,6 +1,6 @@
-# Coding Agents Pipeline
+# Wisp
 
-A single Rust binary (`ca`) that turns PRDs into Pull Requests using AI coding agents (Claude Code or Gemini CLI), Ralph Loops, and Dev Containers.
+A single Rust binary (`wisp`) that turns PRDs into Pull Requests using AI coding agents (Claude Code or Gemini CLI), Ralph Loops, and Dev Containers.
 
 ## Project Structure
 
@@ -50,7 +50,7 @@ A single Rust binary (`ca`) that turns PRDs into Pull Requests using AI coding a
 - Keep prompts focused on the agent's specific responsibility
 - Always include clear completion criteria
 - Reference `_base-system.md` for shared conventions — don't duplicate them
-- Test prompt changes: `ca run --agent <name> --workdir <path> --prd <path>`
+- Test prompt changes: `wisp run --agent <name> --workdir <path> --prd <path>`
 
 ## When Modifying Rust Code
 

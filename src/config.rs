@@ -135,8 +135,8 @@ fn env_bool(key: &str) -> Option<bool> {
 /// Locate the installation root by walking up from the current executable.
 fn find_root_dir() -> PathBuf {
     if let Ok(exe) = std::env::current_exe() {
-        // In dev: cli/target/debug/ca -> root is cli/../../
-        // In install: /usr/local/bin/ca -> fall back to ~/.coding-agents
+        // In dev: target/debug/wisp -> walk up to find agents/ + templates/
+        // In install: /usr/local/bin/wisp -> fall back to ~/.wisp
         let mut dir = exe.parent().map(Path::to_path_buf).unwrap_or_default();
         for _ in 0..4 {
             if dir.join("agents").is_dir() && dir.join("templates").is_dir() {
@@ -150,11 +150,11 @@ fn find_root_dir() -> PathBuf {
         }
     }
     // Fallback: check env, then default install location
-    if let Some(root) = env_opt("CA_ROOT_DIR") {
+    if let Some(root) = env_opt("WISP_ROOT_DIR") {
         return PathBuf::from(root);
     }
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
-    PathBuf::from(home).join(".coding-agents")
+    PathBuf::from(home).join(".wisp")
 }
 
 impl Config {

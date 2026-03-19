@@ -1,12 +1,12 @@
 # Project Structure
 
-Complete reference for the repository layout and how each component connects. The pipeline is a **Rust binary** (`ca`) built with Cargo — no bash scripts.
+Complete reference for the repository layout and how each component connects. The pipeline is a **Rust binary** (`wisp`) built with Cargo — no bash scripts.
 
 ## Directory Map
 
 ```mermaid
 flowchart TD
-    Root["coding-agents/"]
+    Root["wisp/"]
 
     Root --> Cargo["Cargo.toml\nRust project manifest"]
     Root --> Src["src/\nRust source code"]
