@@ -183,6 +183,7 @@ flowchart LR
 | `.github/workflows/release.yml` | Cross-compile, GitHub Releases, Homebrew | Changing release process |
 | `.mcp.json` | MCP server connections | Adding/removing integrations |
 | `.env.example` | Environment variable reference | Adding new config options |
+| `docs/configuration.md` | `.env` and `WISP_ROOT_DIR` for Homebrew/curl | Changing install config |
 | `config/settings.json` | AI CLI settings template | Changing default model |
 | `skills/*/SKILL.md` | Cursor agent skills | Adding skills or changing workflows |
 | `CLAUDE.md` | Claude Code instructions for this repo | Changing project conventions |

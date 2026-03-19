@@ -23,10 +23,12 @@ The `wisp` binary is a single static executable. Choose one of:
 | Method | Use case | Command |
 |--------|----------|---------|
 | **curl \| bash** | Quick install, pre-built binary | `curl -fsSL https://raw.githubusercontent.com/delehner/wisp/main/scripts/install.sh \| bash` |
-| **Homebrew** | macOS/Linux package manager | `brew install wisp` (when available) |
+| **Homebrew** | macOS/Linux package manager | `brew tap delehner/tap && brew install wisp` |
 | **Cargo** | Build from source | `cargo install wisp` |
 
 The curl installer downloads a pre-built binary for your platform from GitHub Releases. No `jq`, `node`, or other runtime dependencies are required — `wisp` is self-contained.
+
+> **Homebrew and curl installs:** The binary needs `agents/`, `templates/`, and `.env`. See [Configuration Guide](configuration.md).
 
 ### Optional: Build from Source
 
@@ -99,8 +101,10 @@ claude                              # Claude: login with Max subscription
 # Or: gemini auth login             # Gemini: browser login
 gh auth login                       # login to GitHub
 
-# Install the wisp CLI (pre-built binary)
-curl -fsSL https://raw.githubusercontent.com/delehner/wisp/main/scripts/install.sh | bash
+# Install the wisp CLI
+brew tap delehner/tap && brew install wisp
+# Or: curl -fsSL https://raw.githubusercontent.com/delehner/wisp/main/scripts/install.sh | bash
+# Then: see docs/configuration.md for .env and WISP_ROOT_DIR setup
 ```
 
 ## Quick Verify

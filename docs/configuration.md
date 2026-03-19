@@ -1,0 +1,129 @@
+# Configuration Guide
+
+How to configure `.env` and the installation root when using Homebrew, curl, or `cargo install`.
+
+## How Wisp Finds Your Config
+
+Wisp looks for a **root directory** containing:
+
+- `agents/` — Agent prompt definitions
+- `templates/` — PRD, manifest, and context templates
+- `.env` — Your configuration (API keys, model overrides, etc.)
+
+**Resolution order:**
+
+1. Walk up from the executable — if `agents/` and `templates/` exist nearby (e.g. when running from repo root), use that
+2. `WISP_ROOT_DIR` environment variable — if set, use that path
+3. `~/.wisp` — default fallback
+
+When you install via **Homebrew** or **curl**, the binary is placed in `/opt/homebrew/bin` or `/usr/local/bin`. The executable has no `agents/` or `templates/` next to it, so wisp falls back to `WISP_ROOT_DIR` or `~/.wisp`.
+
+---
+
+## Setup for Homebrew / curl / cargo install
+
+### Option A: Clone the repo (recommended)
+
+This gives you the full wisp directory: agents, templates, and `.env.example`.
+
+```bash
+# 1. Clone the repo
+git clone https://github.com/delehner/wisp.git ~/wisp
+cd ~/wisp
+
+# 2. Create your .env from the template
+cp .env.example .env
+
+# 3. Edit .env with your values (see below)
+# $EDITOR .env
+
+# 4. Set WISP_ROOT_DIR so wisp finds this directory
+# Add to ~/.zshrc or ~/.bashrc:
+echo 'export WISP_ROOT_DIR="$HOME/wisp"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+**Optional:** Use `~/.wisp` instead of `~/wisp` so you don’t need `WISP_ROOT_DIR`:
+
+```bash
+git clone https://github.com/delehner/wisp.git ~/.wisp
+cd ~/.wisp
+cp .env.example .env
+# Edit .env
+```
+
+### Option B: Use an existing project directory
+
+If you already have a wisp project (e.g. with manifests and PRDs):
+
+```bash
+# Clone wisp into your project
+git clone https://github.com/delehner/wisp.git /tmp/wisp-clone
+cp -r /tmp/wisp-clone/agents /tmp/wisp-clone/templates /path/to/your/project/
+cp /tmp/wisp-clone/.env.example /path/to/your/project/.env
+
+# Set WISP_ROOT_DIR to your project
+export WISP_ROOT_DIR="/path/to/your/project"
+```
+
+---
+
+## Configuring `.env`
+
+Copy `.env.example` to `.env` and adjust as needed.
+
+### Minimum required
+
+| Variable | When to set | Example |
+|----------|-------------|---------|
+| `ANTHROPIC_API_KEY` | Using Claude API (pay-per-token) | `sk-ant-...` |
+| `CLAUDE_CODE_OAUTH_TOKEN` | Claude Max + Dev Containers | From `claude setup-token` |
+| `GEMINI_API_KEY` | Using Gemini | From aistudio.google.com |
+| `GITHUB_TOKEN` | If `gh auth login` not used | `ghp_...` |
+
+**Claude Max users:** Leave `ANTHROPIC_API_KEY` blank. Run `claude` once to log in. For Dev Containers, prefer `CLAUDE_CODE_OAUTH_TOKEN`.
+
+**Gemini users:** Run `gemini auth login` or set `GEMINI_API_KEY`.
+
+### Common overrides
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AI_PROVIDER` | `claude` | `claude` or `gemini` |
+| `CLAUDE_MODEL` | `sonnet` | Default Claude model |
+| `GEMINI_MODEL` | `gemini-2.5-pro` | Default Gemini model |
+| `PIPELINE_MAX_ITERATIONS` | `10` | Max Ralph Loop iterations per agent |
+| `PIPELINE_WORK_DIR` | `/tmp/wisp-work` | Where repos are cloned |
+| `LOG_DIR` | `./logs` | Log output directory |
+
+### Full reference
+
+See [`.env.example`](../.env.example) in the repo root for all variables and comments.
+
+---
+
+## Verify
+
+```bash
+# Check wisp finds your root
+wisp --help
+
+# If using WISP_ROOT_DIR, ensure it's set
+echo $WISP_ROOT_DIR
+
+# Ensure .env exists in that directory
+ls -la $WISP_ROOT_DIR/.env
+# or
+ls -la ~/.wisp/.env
+```
+
+---
+
+## Summary
+
+| Install method | Root directory | Action |
+|----------------|----------------|--------|
+| Homebrew | `WISP_ROOT_DIR` or `~/.wisp` | Clone repo, set env, create `.env` |
+| curl \| bash | Same | Same |
+| cargo install | Same | Same |
+| From repo (dev) | Repo root | `.env` in repo root |

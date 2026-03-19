@@ -24,6 +24,8 @@ brew tap delehner/tap
 brew install wisp
 ```
 
+> **Homebrew/curl users:** The binary alone isn't enough — you need `agents/`, `templates/`, and `.env`. See [Configuration Guide](docs/configuration.md).
+
 **From source:**
 
 ```bash
@@ -157,6 +159,8 @@ Copy `.env.example` to `.env` and edit:
 cp .env.example .env
 ```
 
+**Installed via Homebrew or curl?** See [Configuration Guide](docs/configuration.md) for `WISP_ROOT_DIR` and `.env` setup.
+
 Key variables:
 
 | Variable | Default | Description |
@@ -245,6 +249,7 @@ See `docs/` for detailed guides:
 - [Adding Agents](docs/adding-agents.md) — step-by-step guide for new agents
 - [Project Structure](docs/project-structure.md) — directory map, component relationships
 - [Prerequisites](docs/prerequisites.md) — required tools, auth setup
+- [Configuration](docs/configuration.md) — `.env` and `WISP_ROOT_DIR` for Homebrew/curl installs
 - [MCP Integrations](docs/mcp-integrations.md) — Notion, Figma, Slack, Jira
 
 ## License

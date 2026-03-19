@@ -11,6 +11,12 @@ else
   npm install -g @anthropic-ai/claude-code@latest
 fi
 
+# Dev Containers CLI (required for wisp pipeline to spawn agent containers)
+if ! command -v devcontainer &> /dev/null; then
+  echo "Installing Dev Containers CLI..."
+  npm install -g @devcontainers/cli
+fi
+
 # Configure git defaults if not set
 git config --global init.defaultBranch main 2>/dev/null || true
 git config --global pull.rebase false 2>/dev/null || true

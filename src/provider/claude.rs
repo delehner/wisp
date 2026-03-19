@@ -66,7 +66,8 @@ impl Provider for ClaudeProvider {
             args.push(tools.clone());
         }
 
-        if opts.verbose {
+        // stream-json requires --verbose (Claude CLI constraint)
+        if opts.verbose || opts.output_format == "stream-json" {
             args.push("--verbose".into());
         }
 
