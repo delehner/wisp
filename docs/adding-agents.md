@@ -99,6 +99,7 @@ pub const NON_BLOCKING_AGENTS: &[&str] = &[
     "accessibility",
     "performance",
     "dependency",
+    "infrastructure",
     "rollback",
     "documentation",
     // "compliance",  // add if non-blocking

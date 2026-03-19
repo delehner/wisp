@@ -356,6 +356,12 @@ flowchart LR
     A3 -->|writes| Code
 ```
 
+## Ralph loop iterations & blocking agents
+
+**Iterations** — Each agent run uses a **Ralph loop** (see [`docs/ralph-loop.md`](ralph-loop.md)): after the AI finishes, Wisp checks `.agent-progress/<agent>.md` for a COMPLETED status. If not complete, it runs the same agent again, up to `PIPELINE_MAX_ITERATIONS` (default **2**) or a per-agent override (e.g. `INFRASTRUCTURE_MAX_ITERATIONS`). Log lines like `iteration=1` / `iteration=2` are **attempts**, not a goal—the agent is supposed to finish in one pass when it updates its progress file correctly. Hitting the max means “still not marked COMPLETED,” not “this agent always needs two rounds.”
+
+**Blocking** — If an agent ends in failure or max iterations without completion, the pipeline **stops** only for **blocking** agents. **Non-blocking** agents log a warning and the next agent runs. Non-blocking set is defined in `src/pipeline/mod.rs` (`NON_BLOCKING_AGENTS`): currently designer, migration, accessibility, performance, dependency, infrastructure, rollback, and documentation. All other agents (architect, developer, tester, secops, devops, reviewer, …) still abort the pipeline on failure or incomplete max iterations.
+
 ## CLI Reference
 
 ### Subcommands
