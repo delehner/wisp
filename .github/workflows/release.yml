@@ -78,12 +78,27 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Update Homebrew tap
-        uses: mislav/bump-homebrew-formula-action@v3
+      - name: Checkout wisp
+        uses: actions/checkout@v4
+
+      - name: Checkout homebrew-tap
+        uses: actions/checkout@v4
         with:
-          formula-name: wisp
-          homebrew-tap: delehner/homebrew-tap
-          download-url: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/wisp-x86_64-apple-darwin.tar.gz
-        env:
-          COMMITTER_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          repository: delehner/homebrew-tap
+          path: homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+      - name: Update Homebrew formula
+        run: |
+          chmod +x scripts/update-homebrew-formula.sh
+          ./scripts/update-homebrew-formula.sh ${{ github.ref_name }} homebrew-tap/Formula/wisp.rb
+
+      - name: Commit and push
         continue-on-error: true
+        run: |
+          cd homebrew-tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/wisp.rb
+          git diff --staged --quiet || git commit -m "wisp ${{ github.ref_name }}"
+          git push
