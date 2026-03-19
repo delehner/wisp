@@ -257,6 +257,10 @@ pub struct GeneratePrdArgs {
     #[arg(long = "context")]
     pub contexts: Vec<PathBuf>,
 
+    /// Project description (what to build). If omitted, prompts interactively or reads from stdin.
+    #[arg(long)]
+    pub description: Option<String>,
+
     /// Show verbose output
     #[arg(long, env = "VERBOSE_LOGS")]
     pub verbose_logs: bool,
@@ -312,7 +316,7 @@ pub struct MonitorArgs {
     #[arg(long)]
     pub sessions: bool,
 
-    /// Show raw JSON events
+    /// Tail .jsonl event files (formatted for readability)
     #[arg(long)]
     pub raw: bool,
 

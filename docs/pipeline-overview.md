@@ -426,6 +426,7 @@ wisp update
 | `--manifest <path>` | Path to write manifest JSON (required) | — |
 | `--repo <url>` | Repository URL (repeatable, starts a new repo entry) | — |
 | `--context <path>` | Context directory or file for the preceding `--repo` | — |
+| `--description <text>` | Project description (what to build). If omitted, prompts interactively or reads from stdin | — |
 | `--branch <name>` | Base branch for the preceding `--repo` | main |
 | `--name <text>` | Project name for the manifest | From output dir name |
 | `--author <slug>` | Author slug for PRD metadata and branch names | From git config |

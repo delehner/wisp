@@ -70,12 +70,18 @@ wisp generate context \
 
 ### 3. Generate PRDs and a manifest
 
+Wisp will prompt you to describe what you want to build, or you can pass it via `--description`:
+
 ```bash
 wisp generate prd \
   --output ./prds/your-project \
   --manifest ./manifests/your-project.json \
   --repo https://github.com/you/your-repo \
   --context ./contexts/your-repo
+# Prompts: "Describe what you want to build (goals, features, constraints)"
+
+# Or non-interactively:
+wisp generate prd ... --description "Build a VS Code extension for Wisp"
 ```
 
 ### 4. Run the pipeline
@@ -91,7 +97,7 @@ wisp orchestrate --manifest ./manifests/your-project.json
 | `wisp orchestrate --manifest <path>` | Run all orders/PRDs from a manifest |
 | `wisp pipeline --prd <path> --repo <url>` | Run a single PRD against one repo |
 | `wisp run --agent <name> --workdir <path> --prd <path>` | Run a single agent (Ralph Loop) |
-| `wisp generate prd --output <dir> --manifest <path> --repo <url> --context <path>` | Generate PRDs interactively |
+| `wisp generate prd --output <dir> --manifest <path> --repo <url> --context <path> [--description <text>]` | Generate PRDs (prompts for description or use --description) |
 | `wisp generate context --repo <url> --output <dir>` | Generate context skills from a repo |
 | `wisp monitor [--agent <name>]` | Tail agent logs in real-time |
 | `wisp logs <file.jsonl>` | Re-format raw log files |

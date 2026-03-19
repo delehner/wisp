@@ -35,6 +35,24 @@ pub fn format_jsonl_stream(
     }
 }
 
+/// Format a single JSONL line for terminal display. Returns formatted output as a string.
+/// Non-JSON lines are returned as-is.
+pub fn format_jsonl_line(line: &str, provider: ProviderKind, truncate_len: usize) -> String {
+    if line.trim().is_empty() {
+        return String::new();
+    }
+    let parsed: serde_json::Value = match serde_json::from_str(line) {
+        Ok(v) => v,
+        Err(_) => return line.to_string(),
+    };
+    let mut out = Vec::new();
+    match provider {
+        ProviderKind::Claude => format_claude_event(&parsed, &mut out, truncate_len),
+        ProviderKind::Gemini => format_gemini_event(&parsed, &mut out, truncate_len),
+    }
+    String::from_utf8_lossy(&out).trim_end().to_string()
+}
+
 /// Auto-detect provider from JSONL content heuristics.
 pub fn detect_provider(line: &str) -> Option<ProviderKind> {
     if let Ok(v) = serde_json::from_str::<serde_json::Value>(line) {

@@ -138,8 +138,14 @@ async fn main() -> Result<()> {
                     cancel_clone.cancel();
                 });
 
-                logging::monitor::tail_logs(&args.log_dir, args.agent.as_deref(), args.raw, cancel)
-                    .await?;
+                logging::monitor::tail_logs(
+                    &args.log_dir,
+                    args.agent.as_deref(),
+                    args.raw,
+                    config.provider,
+                    cancel,
+                )
+                .await?;
             }
         }
 
@@ -175,8 +181,45 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+fn collect_project_description(args: &cli::GeneratePrdArgs) -> Result<String> {
+    if let Some(ref d) = args.description {
+        let s = d.trim().to_string();
+        if s.is_empty() {
+            anyhow::bail!("--description cannot be empty");
+        }
+        return Ok(s);
+    }
+
+    if atty::is(atty::Stream::Stdin) {
+        let description = dialoguer::Input::<String>::new()
+            .with_prompt("Describe what you want to build (goals, features, constraints)")
+            .allow_empty(false)
+            .interact_text()
+            .map_err(|e| anyhow::anyhow!("failed to read description: {e}"))?;
+        let s = description.trim().to_string();
+        if s.is_empty() {
+            anyhow::bail!("Description cannot be empty");
+        }
+        return Ok(s);
+    }
+
+    // Read from stdin (e.g. echo "Build X" | wisp generate prd ...)
+    let mut buf = String::new();
+    std::io::Read::read_to_string(&mut std::io::stdin(), &mut buf)
+        .map_err(|e| anyhow::anyhow!("failed to read from stdin: {e}"))?;
+    let s = buf.trim().to_string();
+    if s.is_empty() {
+        anyhow::bail!(
+            "No project description provided. Use --description \"...\" or run interactively."
+        );
+    }
+    Ok(s)
+}
+
 async fn run_generate_prd(args: &cli::GeneratePrdArgs, config: &Config) -> Result<()> {
     use crate::provider;
+
+    let description = collect_project_description(args)?;
 
     let provider = provider::create_provider(config);
     let root = &config.root_dir;
@@ -197,6 +240,11 @@ async fn run_generate_prd(args: &cli::GeneratePrdArgs, config: &Config) -> Resul
         prompt.push_str(&std::fs::read_to_string(&gen_prompt)?);
         prompt.push('\n');
     }
+
+    // Project description from user — required for the agent to know what to build
+    prompt.push_str("\n## Project Description (from user)\n\n");
+    prompt.push_str(&description);
+    prompt.push_str("\n\n");
 
     // Add repo contexts
     for (i, repo_url) in args.repos.iter().enumerate() {

@@ -4,11 +4,15 @@ use anyhow::Result;
 use tokio::io::AsyncBufReadExt;
 use tracing::info;
 
+use crate::cli::ProviderKind;
+use crate::logging::formatter;
+
 /// Tail log files in a directory, optionally filtered by agent name.
 pub async fn tail_logs(
     log_dir: &Path,
     agent_filter: Option<&str>,
     raw: bool,
+    provider: ProviderKind,
     cancel: tokio_util::sync::CancellationToken,
 ) -> Result<()> {
     use notify::{Event, EventKind, RecursiveMode, Watcher};
@@ -34,7 +38,7 @@ pub async fn tail_logs(
                 let path = entry.path();
                 if should_tail(&path, pattern_suffix, agent_prefix.as_deref()) {
                     seen.insert(path.clone());
-                    spawn_tail(path, cancel.clone());
+                    spawn_tail(path, raw, provider, cancel.clone());
                 }
             }
         }
@@ -62,7 +66,7 @@ pub async fn tail_logs(
                 if should_tail(&path, pattern_suffix, agent_prefix.as_deref()) {
                     let mut seen = tailed.lock().await;
                     if seen.insert(path.clone()) {
-                        spawn_tail(path, cancel.clone());
+                        spawn_tail(path, raw, provider, cancel.clone());
                     }
                 }
             }
@@ -91,7 +95,14 @@ fn should_tail(path: &Path, suffix: &str, agent_prefix: Option<&str>) -> bool {
     true
 }
 
-fn spawn_tail(path: std::path::PathBuf, cancel: tokio_util::sync::CancellationToken) {
+const TRUNCATE_LEN: usize = 500;
+
+fn spawn_tail(
+    path: std::path::PathBuf,
+    format_jsonl: bool,
+    provider: ProviderKind,
+    cancel: tokio_util::sync::CancellationToken,
+) {
     tokio::spawn(async move {
         let file = match tokio::fs::File::open(&path).await {
             Ok(f) => f,
@@ -99,6 +110,14 @@ fn spawn_tail(path: std::path::PathBuf, cancel: tokio_util::sync::CancellationTo
         };
         let reader = tokio::io::BufReader::new(file);
         let mut lines = reader.lines();
+        let prefix = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("?")
+            .to_string();
+
+        // For JSONL files: detect provider from first line if possible
+        let mut detected_provider = provider;
 
         loop {
             tokio::select! {
@@ -106,10 +125,23 @@ fn spawn_tail(path: std::path::PathBuf, cancel: tokio_util::sync::CancellationTo
                 result = lines.next_line() => {
                     match result {
                         Ok(Some(line)) => {
-                            let prefix = path.file_stem()
-                                .and_then(|s| s.to_str())
-                                .unwrap_or("?");
-                            println!("\x1b[2m[{prefix}]\x1b[0m {line}");
+                            let display = if format_jsonl {
+                                if let Some(p) = formatter::detect_provider(&line) {
+                                    detected_provider = p;
+                                }
+                                let formatted =
+                                    formatter::format_jsonl_line(&line, detected_provider, TRUNCATE_LEN);
+                                if formatted.is_empty() {
+                                    continue;
+                                }
+                                formatted
+                            } else {
+                                line
+                            };
+
+                            for output_line in display.lines() {
+                                println!("\x1b[2m[{prefix}]\x1b[0m {output_line}");
+                            }
                         }
                         Ok(None) => {
                             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
