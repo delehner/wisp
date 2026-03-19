@@ -228,7 +228,7 @@ flowchart TD
 - `runner.rs` starts the container with `.devcontainer/agent/devcontainer.json`.
 - Per-agent `devcontainer exec` uses that same config file, so target repos do not need their own `.devcontainer/devcontainer.json`.
 - Dev Container lifecycle uses RAII: a `Drop` impl ensures the container is stopped on panic or early return.
-- Pipeline logs are written to the repository root `logs/` directory by default.
+- Agent session logs (JSONL / `.log`) go to **`LOG_DIR`** (default `./logs` relative to the **process working directory** where you invoke `wisp`, not the cloned repo). If every agent is skipped as “already completed,” no log files are created for those agents.
 - Agent commit identity is propagated from host git config (`user.name` / `user.email`) into container execution.
 - Agent runtime logs inside containers are written under `.pipeline/logs` (excluded from git), not the target repo `logs/`.
 - Per-agent progress files are cleared at the start of each PRD run to avoid cross-PRD completion leakage.

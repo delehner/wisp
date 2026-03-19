@@ -107,13 +107,14 @@ impl DevContainer {
     }
 
     /// Stop and remove the container.
-    pub async fn stop(&self) {
+    pub async fn stop(&mut self) {
         if self.container_id.is_empty() {
             return;
         }
         info!(container_id = %self.container_id, "stopping Dev Container");
         let _ = exec_capture("docker", &["stop", &self.container_id], None).await;
         let _ = exec_capture("docker", &["rm", &self.container_id], None).await;
+        self.container_id.clear();
     }
 
     pub fn workspace_folder(&self) -> &str {

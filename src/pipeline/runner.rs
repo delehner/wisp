@@ -100,6 +100,10 @@ pub async fn run(
     let prd_copy = pipeline_dir.join("prd.md");
     std::fs::copy(&run_config.prd_path, &prd_copy)?;
 
+    // `.agent-progress/` is gitignored — it survives branch switches in a reused workdir.
+    // Without clearing, stale COMPLETED markers skip every agent (no logs, no commits, no PR).
+    reset_agent_progress_for_prd(&workdir)?;
+
     // Run agents
     let mut container: Option<DevContainer> = None;
 
@@ -180,7 +184,7 @@ pub async fn run(
     }
 
     // Stop container before git operations
-    if let Some(c) = container.take() {
+    if let Some(mut c) = container.take() {
         c.stop().await;
     }
 
@@ -237,6 +241,17 @@ pub async fn run(
     }
 
     info!(pr = %pr_url, "pipeline complete");
+    Ok(())
+}
+
+/// Remove prior PRD progress so Ralph loops do not treat leftover `.agent-progress/*.md` as done.
+fn reset_agent_progress_for_prd(workdir: &std::path::Path) -> Result<()> {
+    let dir = workdir.join(".agent-progress");
+    if dir.is_dir() {
+        std::fs::remove_dir_all(&dir)?;
+    }
+    std::fs::create_dir_all(&dir)?;
+    info!("reset .agent-progress for this PRD");
     Ok(())
 }
 
