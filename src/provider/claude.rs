@@ -44,11 +44,15 @@ impl Provider for ClaudeProvider {
     }
 
     fn build_run_args(&self, prompt_file: &Path, opts: &RunOpts) -> Vec<String> {
-        let prompt_content = std::fs::read_to_string(prompt_file).unwrap_or_default();
+        // Pass file path instead of content to avoid CLI parsing "---" (YAML frontmatter) as an option
+        let prompt_arg = prompt_file
+            .to_str()
+            .map(String::from)
+            .unwrap_or_else(|| std::fs::read_to_string(prompt_file).unwrap_or_default());
 
         let mut args = vec![
             "-p".into(),
-            prompt_content,
+            prompt_arg,
             "--model".into(),
             opts.model.clone(),
             "--dangerously-skip-permissions".into(),
