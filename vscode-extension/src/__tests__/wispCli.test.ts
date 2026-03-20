@@ -266,7 +266,7 @@ describe('WispCli.write()', () => {
   });
 
   it('does not throw when proc has no stdin (stdin is null)', async () => {
-    let closeHandlers: Array<(code: number | null) => void> = [];
+    const closeHandlers: Array<(code: number | null) => void> = [];
     const stdout = new PassThrough();
     const stderr = new PassThrough();
     const proc = {
@@ -293,7 +293,7 @@ describe('WispCli.write()', () => {
 
   it('calls stdin.write with data when proc has a writable stdin', async () => {
     const stdinWrite = jest.fn();
-    let closeHandlers: Array<(code: number | null) => void> = [];
+    const closeHandlers: Array<(code: number | null) => void> = [];
     const stdout = new PassThrough();
     const stderr = new PassThrough();
     const proc = {
@@ -322,7 +322,7 @@ describe('WispCli.write()', () => {
 
   it('can write multiple commands sequentially', async () => {
     const stdinWrite = jest.fn();
-    let closeHandlers: Array<(code: number | null) => void> = [];
+    const closeHandlers: Array<(code: number | null) => void> = [];
     const stdout = new PassThrough();
     const stderr = new PassThrough();
     const proc = {
