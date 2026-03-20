@@ -289,6 +289,56 @@ describe('ChatPanel', () => {
       const call = (mockPanel.webview.postMessage as jest.Mock).mock.calls[0][0];
       expect(call.agent).toBe('tester');
     });
+
+    it('falls back to "tool" as toolName when name field is missing from tool_use event', () => {
+      const line = JSON.stringify({ type: 'tool_use', input: { path: '/foo.ts' } });
+      panel.handleStdout('developer', line);
+
+      const call = (mockPanel.webview.postMessage as jest.Mock).mock.calls[0][0];
+      expect(call.kind).toBe('tool_use');
+      expect(call.toolName).toBe('tool');
+      expect(call.text).toBe('tool');
+    });
+
+    it('uses empty object as truncatedInput when input field is missing from tool_use event', () => {
+      const line = JSON.stringify({ type: 'tool_use', name: 'bash_tool' });
+      panel.handleStdout('developer', line);
+
+      const call = (mockPanel.webview.postMessage as jest.Mock).mock.calls[0][0];
+      expect(call.kind).toBe('tool_use');
+      expect(call.truncatedInput).toBe('{}');
+    });
+
+    it('uses empty string serialized as JSON when tool_result content is null', () => {
+      // null ?? '' = '' because null is nullish, then JSON.stringify('') = '""'
+      const line = JSON.stringify({ type: 'tool_result', content: null });
+      panel.handleStdout('developer', line);
+
+      const call = (mockPanel.webview.postMessage as jest.Mock).mock.calls[0][0];
+      expect(call.kind).toBe('tool_result');
+      expect(call.text).toBe('""');
+    });
+
+    it('uses empty string serialized as JSON when tool_result content is undefined (missing)', () => {
+      const line = JSON.stringify({ type: 'tool_result' });
+      panel.handleStdout('developer', line);
+
+      const call = (mockPanel.webview.postMessage as jest.Mock).mock.calls[0][0];
+      expect(call.kind).toBe('tool_result');
+      expect(call.text).toBe('""');
+    });
+
+    it('falls back to raw line when type is "text" but text field is absent', () => {
+      const line = JSON.stringify({ type: 'text' });
+      panel.handleStdout('developer', line);
+
+      expect(mockPanel.webview.postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'text',
+          text: line,
+        }),
+      );
+    });
   });
 
   // ---- handleStderr() ----

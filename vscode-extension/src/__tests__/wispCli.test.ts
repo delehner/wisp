@@ -251,6 +251,198 @@ describe('WispCli.run()', () => {
   });
 });
 
+describe('WispCli.write()', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  function makeCliInstance(): WispCli {
+    return new (WispCli as unknown as new (path: string) => WispCli)('/usr/bin/wisp');
+  }
+
+  it('does not throw when called before any run() (proc is undefined)', () => {
+    const cli = makeCliInstance();
+    expect(() => cli.write('s\n')).not.toThrow();
+  });
+
+  it('does not throw when proc has no stdin (stdin is null)', async () => {
+    let closeHandlers: Array<(code: number | null) => void> = [];
+    const stdout = new PassThrough();
+    const stderr = new PassThrough();
+    const proc = {
+      stdout,
+      stderr,
+      stdin: null,
+      kill: jest.fn(),
+      on: jest.fn((event: string, cb: (...args: unknown[]) => void) => {
+        if (event === 'close') closeHandlers.push(cb as (code: number | null) => void);
+      }),
+    };
+    mockSpawn.mockReturnValue(proc as unknown as cp.ChildProcess);
+
+    const cli = makeCliInstance();
+    const runPromise = cli.run(['test'], '/tmp', jest.fn(), jest.fn());
+
+    expect(() => cli.write('s\n')).not.toThrow();
+
+    stdout.end();
+    stderr.end();
+    closeHandlers.forEach((h) => h(0));
+    await runPromise;
+  });
+
+  it('calls stdin.write with data when proc has a writable stdin', async () => {
+    const stdinWrite = jest.fn();
+    let closeHandlers: Array<(code: number | null) => void> = [];
+    const stdout = new PassThrough();
+    const stderr = new PassThrough();
+    const proc = {
+      stdout,
+      stderr,
+      stdin: { write: stdinWrite },
+      kill: jest.fn(),
+      on: jest.fn((event: string, cb: (...args: unknown[]) => void) => {
+        if (event === 'close') closeHandlers.push(cb as (code: number | null) => void);
+      }),
+    };
+    mockSpawn.mockReturnValue(proc as unknown as cp.ChildProcess);
+
+    const cli = makeCliInstance();
+    const runPromise = cli.run(['test'], '/tmp', jest.fn(), jest.fn());
+
+    cli.write('s\n');
+
+    stdout.end();
+    stderr.end();
+    closeHandlers.forEach((h) => h(0));
+    await runPromise;
+
+    expect(stdinWrite).toHaveBeenCalledWith('s\n');
+  });
+
+  it('can write multiple commands sequentially', async () => {
+    const stdinWrite = jest.fn();
+    let closeHandlers: Array<(code: number | null) => void> = [];
+    const stdout = new PassThrough();
+    const stderr = new PassThrough();
+    const proc = {
+      stdout,
+      stderr,
+      stdin: { write: stdinWrite },
+      kill: jest.fn(),
+      on: jest.fn((event: string, cb: (...args: unknown[]) => void) => {
+        if (event === 'close') closeHandlers.push(cb as (code: number | null) => void);
+      }),
+    };
+    mockSpawn.mockReturnValue(proc as unknown as cp.ChildProcess);
+
+    const cli = makeCliInstance();
+    const runPromise = cli.run(['test'], '/tmp', jest.fn(), jest.fn());
+
+    cli.write('s\n');
+    cli.write('c\n');
+    cli.write('q\n');
+
+    stdout.end();
+    stderr.end();
+    closeHandlers.forEach((h) => h(0));
+    await runPromise;
+
+    expect(stdinWrite).toHaveBeenCalledTimes(3);
+    expect(stdinWrite).toHaveBeenNthCalledWith(1, 's\n');
+    expect(stdinWrite).toHaveBeenNthCalledWith(2, 'c\n');
+    expect(stdinWrite).toHaveBeenNthCalledWith(3, 'q\n');
+  });
+});
+
+describe('WispCli.runCapture()', () => {
+  let closeHandlers: Array<(code: number | null) => void>;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    closeHandlers = [];
+  });
+
+  function makeMockProc() {
+    const stdout = new PassThrough();
+    const stderr = new PassThrough();
+    const proc = {
+      stdout,
+      stderr,
+      stdin: null,
+      kill: jest.fn(),
+      on: jest.fn((event: string, cb: (...args: unknown[]) => void) => {
+        if (event === 'close') closeHandlers.push(cb as (code: number | null) => void);
+      }),
+    };
+    mockSpawn.mockReturnValue(proc as unknown as cp.ChildProcess);
+    return { stdout, stderr };
+  }
+
+  function makeCliInstance(): WispCli {
+    return new (WispCli as unknown as new (path: string) => WispCli)('/usr/bin/wisp');
+  }
+
+  it('collects stdout and stderr lines into a CaptureResult', async () => {
+    const { stdout, stderr } = makeMockProc();
+    const cli = makeCliInstance();
+    const capturePromise = cli.runCapture(['--version'], '/tmp');
+
+    stdout.write('wisp 1.2.3\n');
+    stderr.write('warning: something\n');
+    stdout.end();
+    stderr.end();
+    closeHandlers.forEach((h) => h(0));
+
+    const result = await capturePromise;
+
+    expect(result.stdout).toBe('wisp 1.2.3');
+    expect(result.stderr).toBe('warning: something');
+    expect(result.code).toBe(0);
+  });
+
+  it('returns non-zero exit code on failure', async () => {
+    const { stdout, stderr } = makeMockProc();
+    const cli = makeCliInstance();
+    const capturePromise = cli.runCapture(['test'], '/tmp');
+
+    stdout.end();
+    stderr.end();
+    closeHandlers.forEach((h) => h(2));
+
+    const result = await capturePromise;
+    expect(result.code).toBe(2);
+  });
+
+  it('joins multiple stdout lines with newline separator', async () => {
+    const { stdout, stderr } = makeMockProc();
+    const cli = makeCliInstance();
+    const capturePromise = cli.runCapture(['test'], '/tmp');
+
+    stdout.write('line1\nline2\nline3\n');
+    stdout.end();
+    stderr.end();
+    closeHandlers.forEach((h) => h(0));
+
+    const result = await capturePromise;
+    expect(result.stdout).toBe('line1\nline2\nline3');
+  });
+
+  it('returns empty stdout and stderr when process produces no output', async () => {
+    const { stdout, stderr } = makeMockProc();
+    const cli = makeCliInstance();
+    const capturePromise = cli.runCapture(['test'], '/tmp');
+
+    stdout.end();
+    stderr.end();
+    closeHandlers.forEach((h) => h(0));
+
+    const result = await capturePromise;
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toBe('');
+  });
+});
+
 describe('package.json activationEvents', () => {
   const pkg = JSON.parse(
     readFileSync(join(__dirname, '../../package.json'), 'utf8'),

@@ -386,6 +386,231 @@ describe('CommandHandlers', () => {
     });
   });
 
+  describe('stdout/stderr line callbacks', () => {
+    it('invokes outputChannel.appendLine for stdout and stderr lines in orchestrate()', async () => {
+      const channel = {
+        appendLine: jest.fn(),
+        show: jest.fn(),
+        dispose: jest.fn(),
+      } as unknown as vscode.OutputChannel;
+      const cli = makeMockCli({
+        run: jest.fn().mockImplementation(
+          async (
+            _args: string[],
+            _cwd: string,
+            onStdout: (l: string) => void,
+            onStderr: (l: string) => void,
+          ) => {
+            onStdout('building output');
+            onStderr('a warning line');
+            return 0;
+          },
+        ),
+      } as Partial<WispCli>);
+      const { handlers } = makeHandlers(cli, channel);
+      const uri = { fsPath: '/ws/manifests/my.json' } as vscode.Uri;
+
+      await handlers.orchestrate(uri);
+
+      expect(channel.appendLine).toHaveBeenCalledWith('building output');
+      expect(channel.appendLine).toHaveBeenCalledWith('a warning line');
+    });
+
+    it('detects agent change from "starting agent" line in orchestrate() stdout', async () => {
+      const channel = {
+        appendLine: jest.fn(),
+        show: jest.fn(),
+        dispose: jest.fn(),
+      } as unknown as vscode.OutputChannel;
+      const cli = makeMockCli({
+        run: jest.fn().mockImplementation(
+          async (
+            _args: string[],
+            _cwd: string,
+            onStdout: (l: string) => void,
+          ) => {
+            onStdout('INFO starting agent: developer, iteration 1');
+            onStdout('INFO starting agent: developer, iteration 2'); // same agent — no repeat
+            onStdout('INFO starting agent: tester, iteration 1');    // new agent
+            return 0;
+          },
+        ),
+      } as Partial<WispCli>);
+      const { handlers } = makeHandlers(cli, channel);
+      const uri = { fsPath: '/ws/manifests/my.json' } as vscode.Uri;
+
+      await expect(handlers.orchestrate(uri)).resolves.not.toThrow();
+    });
+
+    it('invokes outputChannel.appendLine for stdout and stderr lines in pipeline()', async () => {
+      const channel = {
+        appendLine: jest.fn(),
+        show: jest.fn(),
+        dispose: jest.fn(),
+      } as unknown as vscode.OutputChannel;
+      (vscode.window.showInputBox as jest.Mock).mockResolvedValueOnce('https://github.com/org/repo');
+      const cli = makeMockCli({
+        run: jest.fn().mockImplementation(
+          async (
+            _args: string[],
+            _cwd: string,
+            onStdout: (l: string) => void,
+            onStderr: (l: string) => void,
+          ) => {
+            onStdout('pipeline stdout line');
+            onStderr('pipeline stderr line');
+            return 0;
+          },
+        ),
+      } as Partial<WispCli>);
+      const { handlers } = makeHandlers(cli, channel);
+      const prdUri = { fsPath: '/ws/prds/my.md' } as vscode.Uri;
+
+      await handlers.pipeline(prdUri);
+
+      expect(channel.appendLine).toHaveBeenCalledWith('pipeline stdout line');
+      expect(channel.appendLine).toHaveBeenCalledWith('pipeline stderr line');
+    });
+
+    it('invokes outputChannel.appendLine for stdout and stderr lines in run()', async () => {
+      const channel = {
+        appendLine: jest.fn(),
+        show: jest.fn(),
+        dispose: jest.fn(),
+      } as unknown as vscode.OutputChannel;
+      (vscode.window.showQuickPick as jest.Mock).mockResolvedValue({ label: 'developer' });
+      (vscode.window.showInputBox as jest.Mock)
+        .mockResolvedValueOnce('/tmp/work')
+        .mockResolvedValueOnce('prds/feat.md');
+      const cli = makeMockCli({
+        run: jest.fn().mockImplementation(
+          async (
+            _args: string[],
+            _cwd: string,
+            onStdout: (l: string) => void,
+            onStderr: (l: string) => void,
+          ) => {
+            onStdout('agent stdout line');
+            onStderr('agent stderr line');
+            return 0;
+          },
+        ),
+      } as Partial<WispCli>);
+      const { handlers } = makeHandlers(cli, channel);
+
+      await handlers.run();
+
+      expect(channel.appendLine).toHaveBeenCalledWith('agent stdout line');
+      expect(channel.appendLine).toHaveBeenCalledWith('agent stderr line');
+    });
+
+    it('invokes outputChannel.appendLine callbacks in generateContext()', async () => {
+      const channel = {
+        appendLine: jest.fn(),
+        show: jest.fn(),
+        dispose: jest.fn(),
+      } as unknown as vscode.OutputChannel;
+      (vscode.window.showInputBox as jest.Mock).mockResolvedValue('https://github.com/org/repo');
+      const cli = makeMockCli({
+        run: jest.fn().mockImplementation(
+          async (
+            _args: string[],
+            _cwd: string,
+            onStdout: (l: string) => void,
+            onStderr: (l: string) => void,
+          ) => {
+            onStdout('context output');
+            onStderr('context err');
+            return 0;
+          },
+        ),
+      } as Partial<WispCli>);
+      const { handlers } = makeHandlers(cli, channel);
+
+      await handlers.generateContext();
+
+      expect(channel.appendLine).toHaveBeenCalledWith('context output');
+      expect(channel.appendLine).toHaveBeenCalledWith('context err');
+    });
+
+    it('invokes outputChannel.appendLine callbacks in monitor()', async () => {
+      const channel = {
+        appendLine: jest.fn(),
+        show: jest.fn(),
+        dispose: jest.fn(),
+      } as unknown as vscode.OutputChannel;
+      (vscode.window.showInputBox as jest.Mock).mockResolvedValue('/tmp/work');
+      const cli = makeMockCli({
+        run: jest.fn().mockImplementation(
+          async (
+            _args: string[],
+            _cwd: string,
+            onStdout: (l: string) => void,
+            onStderr: (l: string) => void,
+          ) => {
+            onStdout('monitor line');
+            onStderr('monitor err');
+            return 0;
+          },
+        ),
+      } as Partial<WispCli>);
+      const { handlers } = makeHandlers(cli, channel);
+
+      await handlers.monitor();
+
+      expect(channel.appendLine).toHaveBeenCalledWith('monitor line');
+      expect(channel.appendLine).toHaveBeenCalledWith('monitor err');
+    });
+  });
+
+  describe('pipeline() with provided URI', () => {
+    it('uses prdUri.fsPath without prompting for PRD path', async () => {
+      (vscode.window.showInputBox as jest.Mock).mockResolvedValueOnce('https://github.com/org/repo');
+      const cli = makeMockCli();
+      const { handlers } = makeHandlers(cli);
+      const prdUri = { fsPath: '/ws/prds/my.md' } as vscode.Uri;
+
+      await handlers.pipeline(prdUri);
+
+      expect(cli.run).toHaveBeenCalledWith(
+        ['pipeline', '--prd', '/ws/prds/my.md', '--repo', 'https://github.com/org/repo'],
+        expect.any(String),
+        expect.any(Function),
+        expect.any(Function),
+        expect.anything(),
+      );
+      // Only one showInputBox call — for the repo URL (not for the PRD path)
+      expect(vscode.window.showInputBox).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('openChatPanel()', () => {
+    it('returns undefined when no extensionUri is configured', () => {
+      const { handlers } = makeHandlers(null); // no extensionUri passed to CommandHandlers
+      const result = handlers.openChatPanel();
+      expect(result).toBeUndefined();
+    });
+  });
+
+  describe('workspaceRoot() via workspaceFolders fallback', () => {
+    it('uses first workspace folder fsPath when root is not explicitly set', async () => {
+      (vscode.workspace.workspaceFolders as unknown) = [{ uri: { fsPath: '/workspace/root' } }];
+      const cli = makeMockCli();
+      const { handlers } = makeHandlers(cli);
+      const uri = { fsPath: '/workspace/root/manifests/my.json' } as vscode.Uri;
+
+      await handlers.orchestrate(uri);
+
+      expect(cli.run).toHaveBeenCalledWith(
+        expect.any(Array),
+        '/workspace/root',
+        expect.any(Function),
+        expect.any(Function),
+        expect.anything(),
+      );
+    });
+  });
+
   describe('updateRoot()', () => {
     it('uses updated root for env resolution', async () => {
       const { resolveEnv } = jest.requireMock('../config') as { resolveEnv: jest.Mock };
