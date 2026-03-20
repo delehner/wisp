@@ -490,6 +490,7 @@ impl<'a> AgentRunner<'a> {
         let mut cmd = tokio::process::Command::new(cli);
         cmd.args(args)
             .current_dir(workdir)
+            .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 

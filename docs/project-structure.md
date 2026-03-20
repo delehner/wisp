@@ -158,7 +158,7 @@ flowchart LR
 | `src/pipeline/mod.rs` | Agent ordering, blocking classification | Changing agent sequence |
 | `src/pipeline/orchestrator.rs` | Parallel epics by default (`--sequential-epics` opt-in), per-epic workdir, sequential subtasks per epic, wave stacking, shared concurrency cap | Changing orchestration logic |
 | `src/pipeline/runner.rs` | Single PRD × repo pipeline; per-agent Dev Container by default (`reuse_devcontainer` opt-in) | Changing pipeline flow |
-| `src/pipeline/agent.rs` | Ralph Loop; `devcontainer exec` for provider CLI when Dev Container enabled | Changing iteration logic |
+| `src/pipeline/agent.rs` | Ralph Loop; provider CLI with null stdin (headless); `devcontainer exec` when Dev Container enabled | Changing iteration logic |
 | `src/pipeline/devcontainer.rs` | Serialized `devcontainer up` (avoids parallel feature-download races); streaming `exec` (same `--config` as `up`) / stop; host→container path rewrite | Changing container behavior |
 | `src/git/mod.rs` | Clone, branch, stash-before-rebase, rebase, stash pop, commit-ahead check, push | Changing git workflow |
 | `src/git/pr.rs` | `gh pr create` (validates `HEAD` vs expected feature branch, explicit `--head`), evidence comments | Changing PR creation |

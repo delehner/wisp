@@ -161,7 +161,9 @@ impl DevContainer {
         for a in provider_args {
             cmd.arg(a);
         }
-        cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+        cmd.stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
 
         let mut child = cmd
             .spawn()
