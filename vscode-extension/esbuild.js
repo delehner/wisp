@@ -2,7 +2,7 @@ const esbuild = require('esbuild');
 
 const watch = process.argv.includes('--watch');
 
-const ctx = esbuild.context({
+const extensionCtx = esbuild.context({
   entryPoints: ['src/extension.ts'],
   bundle: true,
   format: 'cjs',
@@ -15,13 +15,25 @@ const ctx = esbuild.context({
   logLevel: 'silent',
 });
 
-ctx.then(async (c) => {
+const webviewCtx = esbuild.context({
+  entryPoints: ['media/chat.ts'],
+  bundle: true,
+  format: 'iife',
+  minify: true,
+  sourcemap: false,
+  platform: 'browser',
+  outfile: 'media/chat.js',
+  external: [],
+  logLevel: 'silent',
+});
+
+Promise.all([extensionCtx, webviewCtx]).then(async ([ext, webview]) => {
   if (watch) {
-    await c.watch();
+    await Promise.all([ext.watch(), webview.watch()]);
     console.log('[watch] build finished, watching for changes...');
   } else {
-    await c.rebuild();
-    await c.dispose();
+    await Promise.all([ext.rebuild(), webview.rebuild()]);
+    await Promise.all([ext.dispose(), webview.dispose()]);
     console.log('[build] build finished');
   }
 }).catch((err) => {
