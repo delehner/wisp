@@ -1,25 +1,43 @@
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::sync::{Arc, OnceLock};
 
 use anyhow::{bail, Context, Result};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
+use tokio::sync::Semaphore;
 use tracing::{info, warn};
 
 use crate::cli::ProviderKind;
 use crate::utils::exec_capture;
 
+fn agent_devcontainer_config(workdir: &Path) -> PathBuf {
+    workdir.join(".devcontainer/agent/devcontainer.json")
+}
+
+/// One `devcontainer up` at a time per Wisp process. Parallel `up` calls (e.g. multiple epics) race
+/// when fetching the same OCI features into the CLI cache, which can yield `TAR_BAD_ARCHIVE` /
+/// "Failed to download package" for `ghcr.io/devcontainers/features/*`.
+static DEVCONTAINER_UP_LOCK: OnceLock<Arc<Semaphore>> = OnceLock::new();
+
+fn devcontainer_up_semaphore() -> Arc<Semaphore> {
+    DEVCONTAINER_UP_LOCK
+        .get_or_init(|| Arc::new(Semaphore::new(1)))
+        .clone()
+}
+
 /// Represents an active Dev Container with RAII-style cleanup.
 pub struct DevContainer {
     container_id: String,
     workspace_folder: String,
-    workdir: std::path::PathBuf,
+    workdir: PathBuf,
+    config_path: PathBuf,
 }
 
 impl DevContainer {
     /// Start a Dev Container for the given workspace.
     pub async fn start(workdir: &Path) -> Result<Self> {
-        let devcontainer_config = workdir.join(".devcontainer/agent/devcontainer.json");
+        let devcontainer_config = agent_devcontainer_config(workdir);
         if !devcontainer_config.is_file() {
             bail!(
                 "Dev Container config not found: {}",
@@ -29,18 +47,25 @@ impl DevContainer {
 
         info!(workdir = %workdir.display(), "starting Dev Container");
 
-        let (code, stdout, stderr) = exec_capture(
-            "devcontainer",
-            &[
-                "up",
-                "--workspace-folder",
-                workdir.to_str().unwrap_or("."),
-                "--config",
-                devcontainer_config.to_str().unwrap_or(""),
-            ],
-            None,
-        )
-        .await?;
+        let up_sem = devcontainer_up_semaphore();
+        let (code, stdout, stderr) = {
+            let _up_slot = up_sem
+                .acquire()
+                .await
+                .context("devcontainer up coordination semaphore closed")?;
+            exec_capture(
+                "devcontainer",
+                &[
+                    "up",
+                    "--workspace-folder",
+                    workdir.to_str().unwrap_or("."),
+                    "--config",
+                    devcontainer_config.to_str().unwrap_or(""),
+                ],
+                None,
+            )
+            .await?
+        };
 
         if code != 0 {
             bail!("devcontainer up failed: {stderr}");
@@ -83,6 +108,7 @@ impl DevContainer {
             container_id,
             workspace_folder,
             workdir: workdir.to_path_buf(),
+            config_path: devcontainer_config,
         })
     }
 
@@ -96,6 +122,8 @@ impl DevContainer {
             "exec",
             "--workspace-folder",
             self.workdir.to_str().unwrap_or("."),
+            "--config",
+            self.config_path.to_str().unwrap_or(""),
         ];
 
         for (k, v) in env_vars {
@@ -126,6 +154,8 @@ impl DevContainer {
         cmd.arg("exec")
             .arg("--workspace-folder")
             .arg(wf)
+            .arg("--config")
+            .arg(&self.config_path)
             .arg("--")
             .arg(provider_cli);
         for a in provider_args {
