@@ -1,3 +1,7 @@
+---
+alwaysApply: true
+---
+
 # Keep Documentation Updated
 
 When making changes to this repository, you MUST update the relevant documentation in `docs/` and root-level files. Documentation that falls out of sync is worse than no documentation.

@@ -1,3 +1,7 @@
+---
+alwaysApply: true
+---
+
 # Wisp
 
 Single Rust binary (`wisp`) that turns PRDs into Pull Requests using AI coding agents (Claude Code or Gemini CLI), Ralph Loops, and Dev Containers.

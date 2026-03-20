@@ -1,6 +1,6 @@
 # Pipeline Overview
 
-The Wisp pipeline transforms PRDs into Pull Requests by running specialized AI agents in sequence inside Dev Containers. It supports **Claude Code** and **Gemini CLI** as AI providers (select via `AI_PROVIDER` env var or `wisp --provider <name>`). A **manifest** JSON defines the execution plan: sequential **orders**, each containing **PRDs** that run in parallel, each targeting **repositories** with their own context and branch.
+The Wisp pipeline transforms PRDs into Pull Requests by running specialized AI agents in sequence inside Dev Containers. It supports **Claude Code** and **Gemini CLI** as AI providers (select via `AI_PROVIDER` env var or `wisp --provider <name>`). A **manifest** JSON defines the execution plan: **orders run one after another by default** so multiple orders do not corrupt the same `PIPELINE_WORK_DIR` clone (branch checkout, `.agent-progress/`, Dev Container, and logs). Pass **`--parallel-orders`** only when each order uses an isolated workdir or disjoint repos. Within each order, **PRDs** run **in manifest order** (one PRD finishes before the next starts). For a single PRD, **repositories** are still dispatched in parallel (subject to `--max-parallel`), with automatic stacking when the same repo appears more than once in that PRD or across consecutive PRDs in the order.
 
 The pipeline is implemented as a single **Rust binary** (`wisp`) built with Cargo. All logic lives in Rust modules—no bash scripts. Manifest parsing uses `serde_json`, parallel execution uses tokio `Semaphore` + `JoinSet`, and Dev Container lifecycle uses RAII (`Drop` impl) for cleanup.
 
@@ -11,14 +11,18 @@ flowchart TD
     Input["[Manifest JSON]\n(orders to PRDs to repos)"]
     Input --> Orch["wisp orchestrate\n(orchestrator.rs)"]
 
-    Orch --> O1["Order 1\n(sequential)"]
-    Orch --> O2["Order 2\n(waits for Order 1)"]
+    Orch --> O1["Order 1\n(sequential by default)"]
+    Orch --> O2["Order 2\n(after order 1)"]
     Orch --> On["Order N"]
 
-    subgraph O1Detail["Order 1 — PRDs run in parallel"]
-        WU1["PRD A x Repo 1\n(context: repo-1.md)"]
-        WU2["PRD A x Repo 2\n(context: repo-2.md)"]
-        WU3["PRD B x Repo 1\n(context: repo-1.md)"]
+    subgraph O1Detail["Order 1 — PRDs sequential;\nrepos for one PRD in parallel"]
+        WU_A1["PRD A x Repo 1"]
+        WU_A2["PRD A x Repo 2"]
+        JoinA(( ))
+        WU_B["PRD B x Repo 1"]
+        WU_A1 --> JoinA
+        WU_A2 --> JoinA
+        JoinA --> WU_B
     end
     O1 --> O1Detail
 
@@ -42,7 +46,9 @@ flowchart TD
         end
     end
 
-    WU1 --> Pipeline
+    WU_A1 --> Pipeline
+    WU_A2 --> Pipeline
+    WU_B --> Pipeline
     Pipeline --> PR["[Pull Request]"]
 ```
 
@@ -75,7 +81,7 @@ flowchart LR
     end
 
     subgraph Layer1["Layer 1: Manifest Orchestrator"]
-        Orch["orchestrator.rs\nOrders to PRDs to repos\nSequential orders,\nparallel PRDs\n(tokio Semaphore + JoinSet)"]
+        Orch["orchestrator.rs\nOrders to PRDs to repos\nSequential orders (default),\noptional --parallel-orders,\nparallel repos per PRD\n(Semaphore + JoinSet)"]
     end
 
     subgraph Layer2["Layer 2: Single Pipeline"]
@@ -94,7 +100,7 @@ flowchart LR
 | Component | Scope | Responsibility |
 |-----------|-------|----------------|
 | `wisp` | All operations | Unified CLI: single Rust executable, enforces verbose logs + dev containers, `--provider` for AI selection |
-| `src/pipeline/orchestrator.rs` | Manifest → orders → PRDs → repos | Parse manifest (serde_json), execute orders sequentially, dispatch PRDs in parallel via tokio |
+| `src/pipeline/orchestrator.rs` | Manifest → orders → PRDs → repos | Parse manifest (serde_json), run orders sequentially by default (optional `--parallel-orders` + `JoinSet`), run PRDs in list order within each order, parallelize repo work units per PRD (shared `Semaphore` cap) |
 | `src/pipeline/runner.rs` | 1 PRD × 1 repo | Clone repo, start Dev Container (RAII Drop), inject context, run agents, create PR |
 | `src/pipeline/agent.rs` | 1 agent | Ralph Loop: build prompt, run AI agent (Claude or Gemini via `src/provider/`), check completion |
 | `src/provider/` | AI execution | Provider abstraction: Claude Code + Gemini CLI (CLI flags, auth, output formats) |
@@ -128,8 +134,8 @@ flowchart LR
 }
 ```
 
-- **Orders** execute sequentially — merge PRs from order N before order N+1 starts
-- **PRDs within an order** execute in parallel. When multiple PRDs target the same repo, they are automatically serialized into **stacking waves** (see below)
+- **Orders** execute **sequentially** by default (avoids racing on the same git clone under `PIPELINE_WORK_DIR`). Use **`--parallel-orders`** to run multiple orders concurrently (unsafe when they share the same workdir/repo clone). **`--sequential`** additionally forces a single pipeline at a time (no parallel repo work units within a PRD)
+- **PRDs within an order** execute **in manifest order** (the next PRD starts after the previous one’s work units complete). **Repositories** listed under the same PRD still run **in parallel** (within the global concurrency limit). When the same repo appears multiple times **in one PRD**, work is split into **stacking waves**; when the same repo appears again in a **later PRD** in that order, the next run **stacks** on the previous PRD’s feature branch (see below)
 - Each **repository** has its own context file, branch, and URL
 - **Context** is per-repo — either a directory of skill files (recommended) or a single file. Assembled into ephemeral `CLAUDE.md` (Claude) or `GEMINI.md` (Gemini) at runtime, never committed
 - **Agents** can be specified at the PRD level and/or the repository level (see below)
@@ -160,16 +166,17 @@ flowchart TD
 
     ParseManifest --> OrderLoop
 
-    subgraph OrderLoop["For Each Order (sequential)"]
-        BuildUnits[Build work units\nPRD x repo x context]
-        BuildUnits --> SameRepo{Same-repo\nPRDs?}
-        SameRepo -->|No| Execute[Execute all units\nin parallel via JoinSet]
-        SameRepo -->|Yes| Waves["Execute in waves\nWave 1: first unit per repo\nWave 2+: stack on previous branch"]
-        Execute --> Pause{More orders\nremaining?}
-        Waves --> Pause
-        Pause -->|Yes| Prompt[Pause for review\nand PR merge]
-        Prompt --> BuildUnits
-        Pause -->|No| OrderDone[All orders done]
+    subgraph OrderLoop["Orders sequential (default);\noptional parallel orders (JoinSet);\ninside each order: next PRD after previous"]
+        Spawn[One order at a time\n(or JoinSet if --parallel-orders)]
+        Spawn --> PerOrder[Per order: loop PRDs\nsequentially]
+        PerOrder --> BuildUnits[Build units for\ncurrent PRD only]
+        BuildUnits --> SameRepo{Same repo\nmultiple times\nin this PRD?}
+        SameRepo -->|No| Execute[Execute units\nin parallel via JoinSet]
+        SameRepo -->|Yes| Waves["Waves: stack within\nthis PRD"]
+        Execute --> NextPRD{Another PRD\nin this order?}
+        Waves --> NextPRD
+        NextPRD -->|Yes| BuildUnits
+        NextPRD -->|No| OrderTaskDone[Order task done]
     end
 
     CollectPRDs --> LegacyExec[Build and execute\nwork units]
@@ -206,7 +213,7 @@ flowchart TD
         Skip --> Next
     end
 
-    Loop --> StopDC["[Stop Dev Container]\n(Drop impl)"]
+    Loop --> StopDC["[Stop Dev Container]\nexplicit stop after agents"]
     StopDC --> WriteMarker["Write feature branch\nmarker for stacking"]
     WriteMarker --> WasEmpty{Empty\nrepo?}
     WasEmpty -->|Yes| PushMain["Push main to origin\n(no PR)"]
@@ -227,7 +234,7 @@ flowchart TD
 
 - `runner.rs` starts the container with `.devcontainer/agent/devcontainer.json`.
 - Per-agent `devcontainer exec` uses that same config file, so target repos do not need their own `.devcontainer/devcontainer.json`.
-- Dev Container lifecycle uses RAII: a `Drop` impl ensures the container is stopped on panic or early return.
+- Dev Container lifecycle: `runner` calls `stop()` after the agent sequence **whether it succeeds or returns an error**, so blocking-agent failures do not leave a running container. The `Drop` impl only warns if `stop()` was never called (e.g. panic before cleanup).
 - Agent session logs (JSONL / `.log`) go to **`LOG_DIR`** (default `./logs` relative to the **process working directory** where you invoke `wisp`, not the cloned repo). If every agent is skipped as “already completed,” no log files are created for those agents.
 - Agent commit identity is propagated from host git config (`user.name` / `user.email`) into container execution.
 - Agent runtime logs inside containers are written under `.pipeline/logs` (excluded from git), not the target repo `logs/`.
@@ -236,7 +243,7 @@ flowchart TD
 - **Runtime artifact protection**: `.agent-progress/`, `logs/`, and `.pipeline/` are appended to `.git/info/exclude` in the clone so they stay untracked. If the repo tracks `CLAUDE.md` / `GEMINI.md` at the root, assembling context still dirties the tree; **before rebase**, any local modifications are **stashed** so `git rebase` can run, then **`git stash pop`** restores them after the PR is created or after skipping PR when there is nothing to merge.
 - **No PR / no push**: A PR is only opened when `origin/<base>..HEAD` has at least one commit. The feature branch is created locally, but **`git push` runs only inside PR creation** — so if agents never committed (e.g. only updated `.agent-progress/` and marked `COMPLETED`), you will see “no commits ahead … skipping PR” and no remote branch. Ensure agents follow `_base-system.md` / developer prompts and commit real changes.
 - **PRD working branch**: The feature branch name is read from the PRD's `**Working Branch**` metadata field (e.g. `delehner/01-foundation`). If not declared, falls back to auto-generation from the PRD title.
-- **Feature branch start point**: New non-stacked branches are created from `origin/<base branch>` so each PRD starts cleanly from the configured base. Stacked waves still branch from the previous wave's feature branch.
+- **Feature branch start point**: New non-stacked branches are created from `origin/<base branch>` so each PRD starts cleanly from the configured base. Stacked work (waves within one PRD, or a later PRD on the same repo in the order) branches from the previous feature branch for that repo.
 - **PR evidence comments**: After PR creation, agent reports (tester, performance, secops, dependency, infrastructure, devops) are posted as PR comments. Configurable via `--evidence-agents` or `EVIDENCE_AGENTS` env var.
 - **Mandatory PR creation**: PR creation retries up to 3 times. If all attempts fail, the pipeline exits with an error. Use `--skip-pr` only for local testing.
 - **Empty repository handling**: When the target repo has no branches (virgin repo), the pipeline seeds `main` with an initial commit and works directly on it — no feature branch, no PR. The finished `main` is pushed to origin at the end. This avoids the impossible "PR to a branch that doesn't exist" scenario.
@@ -249,32 +256,32 @@ Two mechanisms prevent merge conflicts when multiple PRDs target the same reposi
 
 Before pushing and creating a PR, the pipeline rebases the feature branch onto the latest target branch. This catches changes from previously merged PRs (cross-order) and external commits. If the rebase fails due to true conflicts, it is aborted and the PR is created anyway — the user resolves the conflict on GitHub.
 
-### Stacked Branches (Same-Repo PRDs)
+### Stacked Branches (Same Repo)
 
-When multiple PRDs in the same order target the same repo, the orchestrator groups them by repo URL and runs them in **waves**:
+Two cases:
+
+1. **Same repo listed multiple times under one PRD** — the orchestrator groups units by repo URL and runs **waves**: wave 1 is one unit per distinct repo (in parallel across repos); wave 2+ stacks on the previous wave’s feature branch for that repo (`--stack-on`).
+
+2. **Same repo in consecutive PRDs within an order** — PRDs run in list order, so the earlier PRD finishes first. The next PRD’s pipeline for that repo stacks on the **previous PRD’s** working branch (read from PRD metadata after the first run completes).
 
 ```mermaid
-flowchart LR
-    subgraph Wave1["Wave 1 (parallel)"]
-        U1["PRD-A x repo-1"]
-        U2["PRD-B x repo-2"]
-        U3["PRD-C x repo-1"]
+flowchart TD
+    subgraph OnePRD["Single PRD, repo-1 twice in manifest"]
+        W1["Wave 1: first unit\nfor repo-1"]
+        W2["Wave 2: second unit\nstacks on wave 1 branch"]
+        W1 --> W2
     end
 
-    subgraph Actual["Actual Execution"]
-        W1["Wave 1\nPRD-A x repo-1\nPRD-B x repo-2"]
-        W1 --> W2["Wave 2\nPRD-C x repo-1\n(stacks on PRD-A branch)"]
+    subgraph TwoPRDs["PRD A then PRD B, both repo-1"]
+        A["PRD A x repo-1\n completes"]
+        B["PRD B x repo-1\nstacks on A branch"]
+        A --> B
     end
-
-    Wave1 -.->|"repo-1 has 2 units\nauto-serialize"| Actual
 ```
 
-- **Wave 1** runs one unit per repo (in parallel across repos)
-- **Wave 2+** runs subsequent units per repo, branching from the previous wave's feature branch (`--stack-on`)
-- PRs are chained: PRD-C's PR targets PRD-A's branch instead of `main`
-- When PRD-A's PR merges, GitHub auto-retargets PRD-C's PR to `main`
+- PRs can be chained so a stacked branch targets the previous feature branch instead of `main`; when the base PR merges, GitHub can auto-retarget follow-up PRs.
 
-This is automatic — no manifest changes needed. Different repos still run in parallel.
+This is automatic — no manifest changes needed. Different repos under the same PRD still run in parallel (within `--max-parallel`).
 
 ## Agent Responsibilities
 
@@ -460,8 +467,9 @@ wisp update
 | `--repo <url>` | Override repo for all PRDs | From manifest |
 | `--branch <name>` | Override branch for all PRDs | From manifest |
 | `--agents <list>` | Comma-separated agent list (global fallback; overridden by per-PRD/per-repo agents in manifest) | architect,designer,migration,developer,accessibility,tester,performance,secops,dependency,infrastructure,devops,rollback,documentation,reviewer |
-| `--sequential` | Run work units one at a time | Parallel |
-| `--max-parallel <n>` | Max concurrent pipelines | 4 |
+| `--sequential` | Run orders one after another and every pipeline strictly serial | Sequential orders; parallel repos per PRD when multiple repos under one PRD |
+| `--parallel-orders` | Run multiple manifest orders at the same time | false (off — avoids shared workdir races) |
+| `--max-parallel <n>` | Max concurrent `runner` pipelines **across all orders** (only matters when work units run in parallel) | 4 |
 | `--skip-pr` | Don't create PRs | false |
 | `--no-devcontainer` | Run on host instead of in containers | false |
 | `--no-context-update` | Don't update context file (CLAUDE.md/GEMINI.md) after agents | false |

@@ -75,7 +75,7 @@ Iterative execution loop for a single agent against a single repo:
 
 **Completion detection**: presence of `## Status: COMPLETED` in `.agent-progress/<agent>.md`.
 
-**Session resumption**: Claude uses `--resume <session_id>`; Gemini uses the same flag. Session ID is extracted from the first 5–10 JSONL lines and persisted to disk.
+**Session resumption**: Iteration 2+ passes `--resume <session_id>` (from the prior iteration’s `*.session` file) plus a short continuation prompt. Session ID is parsed from JSONL output (full stream scan) and persisted for the next iteration.
 
 ## Pipeline Data Flow
 
@@ -95,6 +95,10 @@ manifest.json
         10. post_pr_evidence()       — gh pr comment for evidence agents
 ```
 
+## Manifest orders
+
+Orchestrator runs **manifest orders sequentially** by default. **`--parallel-orders`** opts into concurrent orders (only safe with isolated workdirs). See `src/pipeline/orchestrator.rs`.
+
 ## Wave Stacking
 
 Multiple PRDs targeting the same repo within an `Order` are serialized:
@@ -106,6 +110,6 @@ Multiple PRDs targeting the same repo within an `Order` are serialized:
 
 - **Never use `std::process::Command` directly.** Always use `exec_streaming()` or `exec_capture()` from `src/utils.rs`.
 - **Never use `println!`.** Always use `tracing::info!`, `tracing::warn!`, `tracing::error!`.
-- **Always call `DevContainer::stop()` explicitly** in the happy path. The `Drop` impl only warns — it does not clean up.
+- **Always call `DevContainer::stop()` explicitly** after the agent sequence (success or error — see `run_agent_sequence` + cleanup in `runner.rs`). The `Drop` impl only warns — it does not clean up.
 - **Agent progress files are filesystem memory.** They persist across iterations and are read by subsequent agents. Never delete them during a run.
 - **`rebase_onto_latest()` fails loudly on conflict.** Do not catch the error; let the pipeline fail so humans can resolve.

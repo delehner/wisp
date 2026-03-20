@@ -42,13 +42,16 @@ impl Provider for GeminiProvider {
     }
 
     fn build_run_args(&self, prompt_file: &Path, opts: &RunOpts) -> Vec<String> {
-        // Pass file path instead of content to avoid CLI parsing "---" (YAML frontmatter) as an option
-        let prompt_arg = prompt_file
-            .to_str()
-            .map(String::from)
-            .unwrap_or_else(|| std::fs::read_to_string(prompt_file).unwrap_or_default());
+        let prompt_arg = if let Some(s) = &opts.prompt_inline {
+            s.clone()
+        } else {
+            prompt_file
+                .to_str()
+                .map(String::from)
+                .unwrap_or_else(|| std::fs::read_to_string(prompt_file).unwrap_or_default())
+        };
 
-        vec![
+        let mut args = vec![
             "-p".into(),
             prompt_arg,
             "--model".into(),
@@ -56,11 +59,16 @@ impl Provider for GeminiProvider {
             "--yolo".into(),
             "--output-format".into(),
             opts.output_format.clone(),
-        ]
+        ];
+        if let Some(id) = &opts.resume_session_id {
+            args.push("--resume".into());
+            args.push(id.clone());
+        }
+        args
     }
 
     fn extract_session_id(&self, lines: &[String]) -> Option<String> {
-        for line in lines.iter().take(10) {
+        for line in lines.iter() {
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(line) {
                 let id = v
                     .get("sessionId")

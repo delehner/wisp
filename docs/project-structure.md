@@ -21,6 +21,7 @@ flowchart TD
     Root --> Docs["docs/\nDocumentation"]
     Root --> Config["config/\nSettings templates"]
     Root --> Workflows[".github/workflows/\nCI and release"]
+    Root --> VSCodeExt["vscode-extension/\nVS Code extension"]
 
     Src --> Main["main.rs\nEntry point, CLI dispatch"]
     Src --> Cli["cli.rs\nclap derive structs"]
@@ -39,7 +40,7 @@ flowchart TD
     Provider --> Gemini["gemini.rs\nGemini CLI flags"]
 
     Pipeline --> PipelineMod["mod.rs\nAgent ordering, blocking"]
-    Pipeline --> Orchestrator["orchestrator.rs\nManifest dispatch, waves"]
+    Pipeline --> Orchestrator["orchestrator.rs\nSequential orders (default),\noptional parallel orders"]
     Pipeline --> Runner["runner.rs\nSingle PRD x repo pipeline"]
     Pipeline --> Agent["agent.rs\nRalph Loop"]
     Pipeline --> Devcontainer["devcontainer.rs\nDev Container lifecycle"]
@@ -155,7 +156,7 @@ flowchart LR
 | `src/provider/claude.rs` | Claude Code CLI flags, session extraction | Changing Claude invocation |
 | `src/provider/gemini.rs` | Gemini CLI flags, session extraction | Changing Gemini invocation |
 | `src/pipeline/mod.rs` | Agent ordering, blocking classification | Changing agent sequence |
-| `src/pipeline/orchestrator.rs` | Manifest dispatch, wave stacking, parallel execution | Changing orchestration logic |
+| `src/pipeline/orchestrator.rs` | Sequential orders by default (`--parallel-orders` opt-in), sequential PRDs per order, wave stacking, shared concurrency cap | Changing orchestration logic |
 | `src/pipeline/runner.rs` | Single PRD × repo pipeline | Changing pipeline flow |
 | `src/pipeline/agent.rs` | Ralph Loop (prompt assembly, completion detection) | Changing iteration logic |
 | `src/pipeline/devcontainer.rs` | Dev Container lifecycle (RAII cleanup) | Changing container behavior |
@@ -166,6 +167,8 @@ flowchart LR
 | `src/logging/formatter.rs` | JSONL stream formatting (Claude + Gemini) | Changing log format |
 | `src/logging/monitor.rs` | Real-time log tailing (notify-based) | Changing monitoring |
 | `scripts/install.sh` | Binary download installer (GitHub Releases) | Changing install path, platforms |
+| `vscode-extension/` | VS Code / Cursor extension (TypeScript, esbuild, Jest) | Changing IDE integration |
+| `vscode-extension/README.md` | Local build, test, package (`.vsix`) before publish | Extension developer workflow |
 | `agents/_base-system.md` | Shared instructions for all agents | Changing universal agent behavior |
 | `agents/*/prompt.md` | Per-agent instructions and completion criteria | Modifying agent behavior |
 | `manifests/*.json` | Execution plans: orders, PRDs, repos, contexts | Adding projects or changing plans |

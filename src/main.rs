@@ -87,14 +87,37 @@ async fn main() -> Result<()> {
                 max_iter
             };
 
+            let prd_slug = prd::Prd::load(&args.prd)
+                .map(|p| p.slug())
+                .unwrap_or_else(|_| {
+                    args.prd
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("prd")
+                        .to_string()
+                });
+            let log_uniq = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos();
+            let agent_log_dir = config.log_dir.join(format!(
+                "single__{}__{}__{}",
+                args.agent, prd_slug, log_uniq
+            ));
+            std::fs::create_dir_all(&agent_log_dir)?;
+            tracing::info!(logs = %agent_log_dir.display(), "single-agent run logs");
+
             let outcome = runner
                 .run(
                     &args.agent,
-                    &args.workdir,
-                    &args.prd,
-                    &previous,
-                    effective_max,
-                    config.interactive,
+                    pipeline::agent::AgentRunParams {
+                        workdir: &args.workdir,
+                        prd_path: &args.prd,
+                        previous_agents: &previous,
+                        configured_max: effective_max,
+                        interactive: config.interactive,
+                        log_dir: &agent_log_dir,
+                    },
                 )
                 .await?;
 
@@ -275,6 +298,8 @@ async fn run_generate_prd(args: &cli::GeneratePrdArgs, config: &Config) -> Resul
         verbose: config.verbose_logs,
         log_jsonl: Some(config.log_dir.join("prd_generator_iteration_1.jsonl")),
         log_formatted: Some(config.log_dir.join("prd_generator_iteration_1.log")),
+        resume_session_id: None,
+        prompt_inline: None,
     };
 
     let cli_args = provider.build_run_args(&prompt_file, &opts);
@@ -350,6 +375,8 @@ async fn run_generate_context(args: &cli::GenerateContextArgs, config: &Config) 
         verbose: config.verbose_logs,
         log_jsonl: Some(config.log_dir.join("context_generator_iteration_1.jsonl")),
         log_formatted: Some(config.log_dir.join("context_generator_iteration_1.log")),
+        resume_session_id: None,
+        prompt_inline: None,
     };
 
     let cli_args = provider.build_run_args(&prompt_file, &opts);

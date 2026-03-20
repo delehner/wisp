@@ -12,7 +12,7 @@ A single Rust binary (`wisp`) that turns PRDs into Pull Requests using AI coding
 - `src/prd/mod.rs` — PRD struct, markdown metadata extraction (title, status, branch, priority)
 - `src/provider/` — AI provider abstraction (Provider trait, claude.rs, gemini.rs)
 - `src/pipeline/mod.rs` — Default agent ordering, blocking/non-blocking classification
-- `src/pipeline/orchestrator.rs` — Manifest dispatch, order sequencing, wave stacking, parallel execution (tokio Semaphore + JoinSet)
+- `src/pipeline/orchestrator.rs` — Manifest dispatch, parallel orders, sequential PRDs per order, wave stacking, shared Semaphore + JoinSet
 - `src/pipeline/runner.rs` — Single PRD x repo pipeline (clone, branch, devcontainer, agent sequence, PR)
 - `src/pipeline/agent.rs` — Ralph Loop (prompt assembly, completion detection, interactive mode)
 - `src/pipeline/devcontainer.rs` — Dev Container lifecycle with RAII cleanup (Drop impl)
@@ -37,8 +37,8 @@ A single Rust binary (`wisp`) that turns PRDs into Pull Requests using AI coding
 ## Key Concepts
 
 - **Manifest**: JSON file defining orders, PRDs, repos, contexts, and agent lists. Parsed with serde_json.
-- **Orders**: Execute sequentially. PRDs within an order execute in parallel (tokio JoinSet + Semaphore).
-- **Stacked branches**: Same-repo PRDs auto-serialize into waves. Each wave branches from the previous feature branch.
+- **Orders**: Execute **sequentially** by default (shared `PIPELINE_WORK_DIR` clone is unsafe for parallel orders). Use `--parallel-orders` to opt into concurrent orders. PRDs within an order execute in manifest order; repositories under the same PRD run in parallel within `--max-parallel`.
+- **Stacked branches**: Same repo multiple times in one PRD → waves. Same repo again in a later PRD in the order → stack on the previous PRD’s feature branch.
 - **AI Provider**: Supports Claude Code (`claude`) and Gemini CLI (`gemini`). Provider trait in `src/provider/mod.rs`.
 - **Per-repo context**: Directory of markdown skill files assembled into ephemeral `CLAUDE.md` or `GEMINI.md`.
 - **Ralph Loop**: Iterative agent execution in `src/pipeline/agent.rs`. Progress tracked via `.agent-progress/` files.

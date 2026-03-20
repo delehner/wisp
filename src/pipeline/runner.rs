@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use tracing::{info, warn};
@@ -6,7 +6,7 @@ use tracing::{info, warn};
 use crate::config::Config;
 use crate::context;
 use crate::git;
-use crate::pipeline::agent::{AgentOutcome, AgentRunner};
+use crate::pipeline::agent::{AgentOutcome, AgentRunParams, AgentRunner};
 use crate::pipeline::devcontainer::DevContainer;
 use crate::prd::Prd;
 use crate::provider::Provider;
@@ -44,10 +44,20 @@ pub async fn run(
     }
 
     let repo_name = repo_name_from_url(&run_config.repo_url);
+    let log_uniq = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let pipeline_log_dir =
+        config
+            .log_dir
+            .join(format!("{}__{}__{}", repo_name, prd.slug(), log_uniq));
+    std::fs::create_dir_all(&pipeline_log_dir)?;
     info!(
         repo = %repo_name,
         prd = %prd.title,
         agents = ?run_config.agents,
+        logs = %pipeline_log_dir.display(),
         "starting pipeline"
     );
 
@@ -104,89 +114,21 @@ pub async fn run(
     // Without clearing, stale COMPLETED markers skip every agent (no logs, no commits, no PR).
     reset_agent_progress_for_prd(&workdir)?;
 
-    // Run agents
+    // Run agents (always stop Dev Container afterward — error paths must not skip cleanup)
     let mut container: Option<DevContainer> = None;
 
     if run_config.use_devcontainer {
         container = Some(DevContainer::start(&workdir).await?);
     }
 
-    let agent_runner = AgentRunner::new(config, provider);
-    let mut previous_agents: Vec<String> = Vec::new();
+    let agents_result =
+        run_agent_sequence(run_config, config, provider, &workdir, &pipeline_log_dir).await;
 
-    for agent_name in &run_config.agents {
-        let from_manifest = run_config
-            .manifest_agent_max_iterations
-            .for_agent(agent_name);
-        let from_config = config.agent_max_iterations.for_agent(agent_name);
-        let resolved = from_manifest
-            .or(from_config)
-            .unwrap_or(run_config.max_iterations);
-        let effective_max = if resolved > 0 {
-            resolved
-        } else {
-            run_config.max_iterations
-        };
-
-        info!(agent = %agent_name, "running agent");
-
-        let outcome = agent_runner
-            .run(
-                agent_name,
-                &workdir,
-                &run_config.prd_path,
-                &previous_agents,
-                effective_max,
-                run_config.interactive,
-            )
-            .await;
-
-        match outcome {
-            Ok(AgentOutcome::Completed) => {
-                info!(agent = %agent_name, "completed");
-            }
-            Ok(AgentOutcome::Skipped) => {
-                info!(agent = %agent_name, "skipped by operator");
-            }
-            Ok(AgentOutcome::MaxIterationsReached) => {
-                warn!(agent = %agent_name, "max iterations reached");
-                if crate::pipeline::is_blocking(agent_name) {
-                    anyhow::bail!("blocking agent {agent_name} did not complete");
-                }
-            }
-            Ok(AgentOutcome::Failed(reason)) => {
-                warn!(agent = %agent_name, reason = %reason, "failed");
-                if crate::pipeline::is_blocking(agent_name) {
-                    anyhow::bail!("blocking agent {agent_name} failed: {reason}");
-                }
-            }
-            Err(e) => {
-                warn!(agent = %agent_name, error = %e, "error running agent");
-                if crate::pipeline::is_blocking(agent_name) {
-                    return Err(e).with_context(|| format!("blocking agent {agent_name} failed"));
-                }
-            }
-        }
-
-        previous_agents.push(agent_name.clone());
-
-        if run_config.interactive && atty::is(atty::Stream::Stdin) {
-            use dialoguer::Select;
-            let choice = Select::new()
-                .with_prompt(format!("[pipeline] {agent_name} done. Continue?"))
-                .items(&["Continue to next agent", "Abort pipeline"])
-                .default(0)
-                .interact()?;
-            if choice == 1 {
-                anyhow::bail!("pipeline aborted by operator after {agent_name}");
-            }
-        }
-    }
-
-    // Stop container before git operations
     if let Some(mut c) = container.take() {
         c.stop().await;
     }
+
+    agents_result?;
 
     if run_config.skip_pr || was_empty {
         if was_empty {
@@ -246,6 +188,92 @@ pub async fn run(
     }
 
     info!(pr = %pr_url, "pipeline complete");
+    Ok(())
+}
+
+/// Runs the configured agent list. Separated from [`run`] so `bail!` / `return Err` do not skip Dev Container cleanup.
+async fn run_agent_sequence(
+    run_config: &PipelineRunConfig,
+    config: &Config,
+    provider: &dyn Provider,
+    workdir: &Path,
+    pipeline_log_dir: &Path,
+) -> Result<()> {
+    let agent_runner = AgentRunner::new(config, provider);
+    let mut previous_agents: Vec<String> = Vec::new();
+
+    for agent_name in &run_config.agents {
+        let from_manifest = run_config
+            .manifest_agent_max_iterations
+            .for_agent(agent_name);
+        let from_config = config.agent_max_iterations.for_agent(agent_name);
+        let resolved = from_manifest
+            .or(from_config)
+            .unwrap_or(run_config.max_iterations);
+        let effective_max = if resolved > 0 {
+            resolved
+        } else {
+            run_config.max_iterations
+        };
+
+        info!(agent = %agent_name, "running agent");
+
+        let outcome = agent_runner
+            .run(
+                agent_name,
+                AgentRunParams {
+                    workdir,
+                    prd_path: &run_config.prd_path,
+                    previous_agents: &previous_agents,
+                    configured_max: effective_max,
+                    interactive: run_config.interactive,
+                    log_dir: pipeline_log_dir,
+                },
+            )
+            .await;
+
+        match outcome {
+            Ok(AgentOutcome::Completed) => {
+                info!(agent = %agent_name, "completed");
+            }
+            Ok(AgentOutcome::Skipped) => {
+                info!(agent = %agent_name, "skipped by operator");
+            }
+            Ok(AgentOutcome::MaxIterationsReached) => {
+                warn!(agent = %agent_name, "max iterations reached");
+                if crate::pipeline::is_blocking(agent_name) {
+                    anyhow::bail!("blocking agent {agent_name} did not complete");
+                }
+            }
+            Ok(AgentOutcome::Failed(reason)) => {
+                warn!(agent = %agent_name, reason = %reason, "failed");
+                if crate::pipeline::is_blocking(agent_name) {
+                    anyhow::bail!("blocking agent {agent_name} failed: {reason}");
+                }
+            }
+            Err(e) => {
+                warn!(agent = %agent_name, error = %e, "error running agent");
+                if crate::pipeline::is_blocking(agent_name) {
+                    return Err(e).with_context(|| format!("blocking agent {agent_name} failed"));
+                }
+            }
+        }
+
+        previous_agents.push(agent_name.clone());
+
+        if run_config.interactive && atty::is(atty::Stream::Stdin) {
+            use dialoguer::Select;
+            let choice = Select::new()
+                .with_prompt(format!("[pipeline] {agent_name} done. Continue?"))
+                .items(&["Continue to next agent", "Abort pipeline"])
+                .default(0)
+                .interact()?;
+            if choice == 1 {
+                anyhow::bail!("pipeline aborted by operator after {agent_name}");
+            }
+        }
+    }
+
     Ok(())
 }
 

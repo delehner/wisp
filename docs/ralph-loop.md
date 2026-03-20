@@ -27,8 +27,13 @@ flowchart TD
 
 ## Why Ralph Loops Work
 
-### Fresh Context Per Iteration
-Each iteration invokes the AI CLI (e.g. `claude -p` or `gemini -p`) via the `Provider` trait, starting a new session with a full context window. No stale context accumulates.
+### Session resume after iteration 1
+Iteration **1** runs `claude -p <assembled-prompt.md>` (or `gemini` equivalent) as a **new** session — the prompt is still a **path** (large assembled markdown). Iterations **2+** run with **`--resume <session_id>`** and pass the continuation as **inline `-p` text** (`RunOpts.prompt_inline`), not a path, so the model cannot satisfy the turn by only `Read`-ing `.pipeline/prompt-*.md`.
+
+Without resume, each iteration was a **new** session given only the prompt path; models often issued a single `Read` on that file and stopped — producing identical-looking logs and no progress toward `## Status: COMPLETED`.
+
+### Stall detection
+If `.agent-progress/<agent>.md` is **unchanged** (after normalizing whitespace) for **two consecutive iterations**, the loop returns **failed** with a clear `Ralph stall` message instead of running until the hard iteration cap. That stops token burn when the model never updates its progress file.
 
 ### Filesystem as Memory
 Progress, decisions, and artifacts are written to `.agent-progress/<agent>.md` and `docs/architecture/`. Each iteration reads this file to understand what's already been done.
@@ -70,6 +75,8 @@ An agent is considered `COMPLETED` when its progress file contains:
 
 The `AgentRunner::is_completed()` method in `src/pipeline/agent.rs` checks `.agent-progress/<agent>.md` for this status. If the status is `COMPLETED` at the start of an iteration, the loop exits immediately.
 
+If the file contains `## Status: BLOCKED`, the run stops with a failure outcome (blocking agents abort the pipeline; non-blocking agents log a warning and the pipeline may continue).
+
 ## Iteration Limits
 
 For **`wisp orchestrate`**, each pipeline run gets a default cap and optional per-agent caps from the **manifest** (`max_iterations`, `agent_max_iterations` in the manifest JSON). The runner then resolves each agent in `src/pipeline/runner.rs`:
@@ -79,6 +86,14 @@ For **`wisp orchestrate`**, each pipeline run gets a default cap and optional pe
 3. Else the manifest default **`max_iterations`**, or if the manifest omits it, **`PIPELINE_MAX_ITERATIONS` / `--max-iterations`** from config  
 
 For **`wisp pipeline`** and **`wisp run`**, only config (env + CLI flags) applies — there is no manifest.
+
+### Blocking agents and the hard cap
+
+**Blocking** agents (everyone except designer, migration, accessibility, performance, dependency, infrastructure, rollback, documentation) may run **past** the configured iteration budget up to a **hard cap** so they can reach `COMPLETED` instead of failing at “max iterations” on large PRDs:
+
+- `scaled = configured_max × 4`, then `hard_cap = scaled` clamped to **24..128** (see `hard_iteration_cap()` in `src/pipeline/agent.rs`).
+- Iterations after the configured budget are **extension iterations**: the prompt tells the model the nominal budget is exhausted and it must finish or mark `BLOCKED`.
+- Non-blocking agents still stop after the configured maximum.
 
 When you run **`wisp generate prd`**, Wisp rewrites the output manifest to add `max_iterations` and `agent_max_iterations` from your current `.env` / CLI so new manifests start with your local defaults; edit the JSON to tune a project without changing env vars.
 
@@ -100,14 +115,32 @@ When `--interactive` is enabled and stdin is a TTY, the pipeline pauses between 
 To resume an agent session interactively (e.g. after a pipeline pause or for debugging):
 
 ```bash
-# Claude Code
-claude --resume <session-id>
+# Claude Code (headless): prompt first, then --resume (see Anthropic headless docs)
+claude -p "Your follow-up" --resume <session-id>
 
 # Gemini CLI
-gemini --resume <session-id>
+gemini -p "Your follow-up" --resume <session-id>
 ```
 
 Session IDs are extracted from JSONL output by `Provider::extract_session_id()` and saved to `<agent>_iteration_<n>.session` files. They are shown in pipeline output and can be listed with `wisp monitor --sessions`.
+
+## Log files per pipeline run
+
+Logs are **not** all written flat into `LOG_DIR`: each `runner::run` creates a subdirectory so concurrent or back-to-back pipelines do not overwrite each other:
+
+| Pattern | When |
+|---------|------|
+| `{repo}__{prd-slug}__{nanos}/` | `wisp orchestrate` / `wisp pipeline` |
+| `single__{agent}__{prd-slug}__{nanos}/` | `wisp run` |
+
+Inside that directory:
+
+- `{agent}_iteration_{n}.jsonl` — raw provider stream-json lines  
+- `{agent}_iteration_{n}.log` — formatted stream for humans  
+- `{agent}_iteration_{n}.stderr.log` — CLI stderr when non-empty  
+- `{agent}_iteration_{n}.session` — resume id when the provider exposes one  
+
+The pipeline logs the resolved directory at `starting pipeline` / `single-agent run logs`. `wisp monitor` watches the top-level `LOG_DIR` only; open the run subdirectory for a specific execution.
 
 ## Cost Implications
 

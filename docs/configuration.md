@@ -94,7 +94,7 @@ Copy `.env.example` to `.env` and adjust as needed.
 | `GEMINI_MODEL` | `gemini-2.5-pro` | Default Gemini model |
 | `PIPELINE_MAX_ITERATIONS` | `2` | Default max Ralph Loop iterations per agent (when manifest has no `max_iterations`) |
 | `PIPELINE_WORK_DIR` | `/tmp/wisp-work` | Where repos are cloned |
-| `LOG_DIR` | `./logs` | Log output directory |
+| `LOG_DIR` | `./logs` | Root log directory; each pipeline run writes under a child folder `{repo}__{prd-slug}__{nanos}/` (see [ralph-loop.md](./ralph-loop.md#log-files-per-pipeline-run)) |
 
 ### Manifest iteration fields (`wisp orchestrate`)
 

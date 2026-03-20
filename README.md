@@ -132,7 +132,7 @@ wisp orchestrate --manifest ./manifests/your-project.json
 ```
 
 - **Orders** execute sequentially (merge PRs before next order)
-- **PRDs within an order** execute in parallel
+- **PRDs within an order** execute in manifest order (sequential); **repos** under the same PRD can run in parallel within `--max-parallel`
 - **Same-repo PRDs** auto-serialize into stacking waves
 - **Per-unit agents** combine: PRD agents first, then repo agents
 

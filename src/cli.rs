@@ -25,7 +25,7 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Run the manifest orchestrator (orders -> PRDs -> repos -> PRs)
+    /// Run the manifest orchestrator (orders sequential by default; use --parallel-orders only if each order uses a distinct workdir/clone)
     Orchestrate(OrchestrateArgs),
 
     /// Run a single PRD x repo pipeline
@@ -75,17 +75,21 @@ impl std::fmt::Display for ProviderKind {
 // Subcommand arg structs
 // ---------------------------------------------------------------------------
 
-#[derive(clap::Args)]
+#[derive(Clone, clap::Args)]
 pub struct OrchestrateArgs {
     /// Path to manifest JSON file
     #[arg(long)]
     pub manifest: PathBuf,
 
-    /// Run PRDs sequentially instead of in parallel
+    /// Run orders one after another and each PRD/repo pipeline strictly serial (no concurrency)
     #[arg(long)]
     pub sequential: bool,
 
-    /// Max concurrent pipelines
+    /// Run multiple manifest orders at the same time (unsafe when orders share `PIPELINE_WORK_DIR` / the same clone)
+    #[arg(long)]
+    pub parallel_orders: bool,
+
+    /// Max concurrent pipelines across all orders (PRDs in an order still run in manifest order)
     #[arg(long, env = "PIPELINE_MAX_PARALLEL", default_value = "4")]
     pub max_parallel: usize,
 

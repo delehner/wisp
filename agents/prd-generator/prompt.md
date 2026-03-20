@@ -29,7 +29,7 @@ Break the project into PRDs following these principles:
 1. **Dependency-driven ordering** — Foundation work (schemas, shared types, config) comes before features that depend on it
 2. **One concern per PRD** — Each PRD should address a cohesive slice of functionality
 3. **Right-sized scope** — A single PRD should be achievable in one pipeline run (roughly 1-20 files of changes). Split large features into multiple PRDs rather than creating monolithic ones
-4. **Cross-repo awareness** — When a feature spans repos (e.g., frontend + backend), create separate PRDs per repo but place them in the same order so they run in parallel
+4. **Cross-repo awareness** — When a feature spans repos (e.g., frontend + backend), create separate PRDs per repo but place them in the **same order** so their **repos** can run in parallel within each PRD step (PRDs in an order still run one after another)
 5. **Progressive delivery** — Early orders should produce a working (if minimal) system. Later orders add features and polish
 
 ### Phase 3: PRD Generation
@@ -165,7 +165,7 @@ Produce a manifest JSON file at the specified manifest path:
 Manifest rules:
 - PRD paths must be **relative to the project root** (e.g. `./prds/<project>/01-foundation.md`)
 - Context paths must be **relative to the project root** (e.g. `./contexts/<repo>`)
-- PRDs in the same order run in parallel — only group together PRDs that have no dependencies on each other
+- PRDs in the same order run **sequentially** (manifest order). Repositories listed under **one** PRD can run in parallel. Only group PRDs in the same order when later PRDs do not depend on earlier ones finishing first
 - When multiple PRDs in the same order target the same repo, the pipeline auto-stacks their branches — no extra config needed
 - **Always include an `agents` array per PRD** selecting only the agents relevant to that PRD's scope. This avoids running all 14 agents when only a subset applies.
 

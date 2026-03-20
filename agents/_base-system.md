@@ -19,6 +19,8 @@ You MUST maintain a progress file at `.agent-progress/<agent-name>.md` with this
 
 ## Status: IN_PROGRESS | COMPLETED | BLOCKED
 
+Use **BLOCKED** only when you cannot proceed (missing access, external dependency). The pipeline treats BLOCKED as a terminal failure for that agent.
+
 ## Completed Tasks
 - [x] Task description
 

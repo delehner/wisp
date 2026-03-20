@@ -14,6 +14,22 @@ pub enum AgentOutcome {
     Failed(String),
 }
 
+/// Arguments for [`AgentRunner::run`].
+pub struct AgentRunParams<'a> {
+    pub workdir: &'a Path,
+    pub prd_path: &'a Path,
+    pub previous_agents: &'a [String],
+    pub configured_max: u32,
+    pub interactive: bool,
+    pub log_dir: &'a Path,
+}
+
+struct IterationMeta {
+    iteration: u32,
+    configured_limit: u32,
+    hard_cap: u32,
+}
+
 pub struct AgentRunner<'a> {
     config: &'a Config,
     provider: &'a dyn Provider,
@@ -25,37 +41,112 @@ impl<'a> AgentRunner<'a> {
     }
 
     /// Run the Ralph Loop for a single agent.
-    pub async fn run(
-        &self,
-        agent: &str,
-        workdir: &Path,
-        prd_path: &Path,
-        previous_agents: &[String],
-        max_iterations: u32,
-        interactive: bool,
-    ) -> Result<AgentOutcome> {
+    ///
+    /// `params.configured_max` is the manifest/config budget (shown to the model). **Blocking**
+    /// agents may continue past that up to [`hard_iteration_cap`] so they can reach
+    /// `## Status: COMPLETED` instead of failing early. Logs go under `params.log_dir`.
+    pub async fn run(&self, agent: &str, params: AgentRunParams<'_>) -> Result<AgentOutcome> {
+        let AgentRunParams {
+            workdir,
+            prd_path,
+            previous_agents,
+            configured_max,
+            interactive,
+            log_dir,
+        } = params;
+
         let progress_dir = workdir.join(".agent-progress");
         std::fs::create_dir_all(&progress_dir)?;
 
-        let log_dir = &self.config.log_dir;
         std::fs::create_dir_all(log_dir)?;
 
-        for iteration in 1..=max_iterations {
+        let configured_max = configured_max.max(1);
+        let hard_cap = hard_iteration_cap(agent, configured_max);
+        if hard_cap > configured_max {
+            info!(
+                agent,
+                configured_max,
+                hard_cap,
+                "blocking agent: iteration hard cap extended past configured max"
+            );
+        }
+
+        let mut stall_streak = 0u32;
+
+        for iteration in 1..=hard_cap {
             if self.is_completed(agent, workdir)? {
                 info!(agent, "already completed");
                 return Ok(AgentOutcome::Completed);
             }
+            if self.is_blocked(agent, workdir)? {
+                warn!(agent, iteration, "agent progress is BLOCKED");
+                return Ok(AgentOutcome::Failed(
+                    "progress file has ## Status: BLOCKED".into(),
+                ));
+            }
 
-            info!(agent, iteration, max_iterations, "starting iteration");
+            let snapshot_before = Self::read_progress_snapshot(agent, workdir);
 
-            let prompt_file = self.build_prompt(
-                agent,
-                workdir,
-                prd_path,
-                previous_agents,
+            if iteration > configured_max {
+                info!(
+                    agent,
+                    iteration,
+                    hard_cap,
+                    "extension iteration (past configured max — must reach COMPLETED)"
+                );
+            } else {
+                info!(agent, iteration, configured_max, "starting iteration");
+            }
+
+            let resume_session = if iteration > 1 {
+                let prev_session =
+                    log_dir.join(format!("{agent}_iteration_{}.session", iteration - 1));
+                std::fs::read_to_string(&prev_session)
+                    .ok()
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+            } else {
+                None
+            };
+
+            let meta = IterationMeta {
                 iteration,
-                max_iterations,
-            )?;
+                configured_limit: configured_max,
+                hard_cap,
+            };
+
+            let pipeline_dir = workdir.join(".pipeline");
+            std::fs::create_dir_all(&pipeline_dir)?;
+
+            let (prompt_file_opt, prompt_inline): (Option<PathBuf>, Option<String>) = if let Some(
+                ref sid,
+            ) =
+                resume_session
+            {
+                info!(
+                    agent,
+                    iteration,
+                    session = %sid,
+                    "resuming provider session (Ralph iteration > 1)"
+                );
+                let text = self.continuation_prompt_text(agent, workdir, meta)?;
+                (None, Some(text))
+            } else {
+                if iteration > 1 {
+                    warn!(
+                            agent,
+                            iteration,
+                            "missing prior .session file — cold-starting with full prompt (no --resume)"
+                        );
+                }
+                let p = self.build_prompt(agent, workdir, prd_path, previous_agents, meta)?;
+                (Some(p), None)
+            };
+
+            let path_for_cli: &Path = match &prompt_file_opt {
+                Some(p) => p.as_path(),
+                None => pipeline_dir.as_path(),
+            };
 
             let model = self.config.model_for_agent(agent);
             let opts = RunOpts {
@@ -65,15 +156,23 @@ impl<'a> AgentRunner<'a> {
                 verbose: self.config.verbose_logs,
                 log_jsonl: Some(log_dir.join(format!("{agent}_iteration_{iteration}.jsonl"))),
                 log_formatted: Some(log_dir.join(format!("{agent}_iteration_{iteration}.log"))),
+                resume_session_id: resume_session.clone(),
+                prompt_inline,
             };
 
-            let args = self.provider.build_run_args(&prompt_file, &opts);
+            let args = self.provider.build_run_args(path_for_cli, &opts);
             let (exit_code, stderr_lines) = self.execute_cli(agent, &args, workdir, &opts).await?;
 
-            // Clean up temp prompt file
-            let _ = std::fs::remove_file(&prompt_file);
+            if let Some(ref p) = prompt_file_opt {
+                let _ = std::fs::remove_file(p);
+            }
 
-            // Save session ID
+            let stderr_path = log_dir.join(format!("{agent}_iteration_{iteration}.stderr.log"));
+            if !stderr_lines.is_empty() {
+                let _ = std::fs::write(&stderr_path, stderr_lines.join("\n"));
+            }
+
+            // Persist session id for the next iteration's `--resume`
             if let Some(jsonl_path) = &opts.log_jsonl {
                 if jsonl_path.is_file() {
                     let lines: Vec<String> = std::fs::read_to_string(jsonl_path)
@@ -81,10 +180,20 @@ impl<'a> AgentRunner<'a> {
                         .lines()
                         .map(|l| l.to_string())
                         .collect();
-                    if let Some(session_id) = self.provider.extract_session_id(&lines) {
+                    let mut session_id = self.provider.extract_session_id(&lines);
+                    if session_id.is_none() {
+                        session_id = resume_session.clone();
+                    }
+                    if let Some(session_id) = session_id {
                         let session_file =
                             log_dir.join(format!("{agent}_iteration_{iteration}.session"));
                         let _ = std::fs::write(&session_file, &session_id);
+                    } else {
+                        warn!(
+                            agent,
+                            iteration,
+                            "could not extract session_id from JSONL — next iteration may cold-start"
+                        );
                     }
                 }
             }
@@ -107,6 +216,26 @@ impl<'a> AgentRunner<'a> {
                 return Ok(AgentOutcome::Completed);
             }
 
+            let snapshot_after = Self::read_progress_snapshot(agent, workdir);
+            if snapshot_after == snapshot_before {
+                stall_streak += 1;
+                warn!(
+                    agent,
+                    iteration,
+                    stall_streak,
+                    MAX_STALL_STREAK,
+                    "progress file unchanged this iteration"
+                );
+                if stall_streak >= MAX_STALL_STREAK {
+                    return Ok(AgentOutcome::Failed(format!(
+                        "Ralph stall: `.agent-progress/{agent}.md` did not change for {stall_streak} consecutive iterations — update that file and set `## Status: COMPLETED` (or `## Status: BLOCKED`). \
+                         If you only used Read on `.pipeline/` prompt files, use Write/Edit on the repo and progress file instead."
+                    )));
+                }
+            } else {
+                stall_streak = 0;
+            }
+
             if interactive && atty::is(atty::Stream::Stdin) {
                 match prompt_interactive(agent, iteration)? {
                     InteractiveChoice::Continue => {}
@@ -117,25 +246,42 @@ impl<'a> AgentRunner<'a> {
                 }
             }
 
-            if iteration < max_iterations {
+            if iteration < hard_cap {
                 tokio::time::sleep(std::time::Duration::from_secs(2)).await;
             }
         }
 
         warn!(
             agent,
-            max_iterations, "max iterations reached without completion"
+            hard_cap,
+            configured_max,
+            "max iterations reached without completion (hard cap exhausted)"
         );
         Ok(AgentOutcome::MaxIterationsReached)
     }
 
+    fn read_progress_snapshot(agent: &str, workdir: &Path) -> String {
+        let progress_file = workdir.join(".agent-progress").join(format!("{agent}.md"));
+        std::fs::read_to_string(&progress_file)
+            .unwrap_or_default()
+            .replace('\r', "")
+            .trim()
+            .to_string()
+    }
+
     fn is_completed(&self, agent: &str, workdir: &Path) -> Result<bool> {
+        Ok(progress_status_completed(&Self::read_progress_snapshot(
+            agent, workdir,
+        )))
+    }
+
+    fn is_blocked(&self, agent: &str, workdir: &Path) -> Result<bool> {
         let progress_file = workdir.join(".agent-progress").join(format!("{agent}.md"));
         if !progress_file.is_file() {
             return Ok(false);
         }
         let content = std::fs::read_to_string(&progress_file)?;
-        Ok(content.contains("## Status: COMPLETED"))
+        Ok(progress_status_blocked(&content))
     }
 
     fn build_prompt(
@@ -144,9 +290,13 @@ impl<'a> AgentRunner<'a> {
         workdir: &Path,
         prd_path: &Path,
         previous_agents: &[String],
-        iteration: u32,
-        max_iterations: u32,
+        meta: IterationMeta,
     ) -> Result<PathBuf> {
+        let IterationMeta {
+            iteration,
+            configured_limit,
+            hard_cap,
+        } = meta;
         let root = &self.config.root_dir;
         let mut prompt = String::new();
 
@@ -231,11 +381,21 @@ impl<'a> AgentRunner<'a> {
 
         // 9. Iteration context
         prompt.push_str("---\n\n# Iteration Context\n\n");
-        prompt.push_str(&format!("- Iteration: {iteration} of {max_iterations}\n"));
+        prompt.push_str(&format!("- Configured iteration budget: {configured_limit} (shown to you as the nominal plan)\n"));
+        prompt.push_str(&format!(
+            "- This run: iteration {iteration} of up to {hard_cap} for this agent\n"
+        ));
         prompt.push_str(&format!("- Agent: {agent}\n"));
         prompt.push_str(&format!("- Working directory: {}\n", workdir.display()));
-        if iteration == max_iterations {
-            prompt.push_str("- **FINAL ITERATION**: You MUST complete all remaining work and mark status as COMPLETED.\n");
+        if iteration > configured_limit {
+            prompt.push_str(
+                "- **Extension phase**: The configured iteration budget is exhausted but the pipeline is still waiting for `## Status: COMPLETED` in your progress file. Finish the remaining checklist items now, or set `## Status: BLOCKED` with concrete blockers.\n",
+            );
+        }
+        if iteration == hard_cap {
+            prompt.push_str(
+                "- **FINAL HARD-STOP ITERATION**: No further runs after this. You MUST set `## Status: COMPLETED` if work is done, or `## Status: BLOCKED` with explicit blockers.\n",
+            );
         }
 
         // Write to temp file
@@ -244,6 +404,53 @@ impl<'a> AgentRunner<'a> {
         std::fs::write(&prompt_path, &prompt)?;
 
         Ok(prompt_path)
+    }
+
+    /// Short **inline** `-p` text for iteration 2+ (`--resume`). Must not be a filesystem path or the
+    /// model tends to `Read` it and stop without updating `.agent-progress/`.
+    fn continuation_prompt_text(
+        &self,
+        agent: &str,
+        workdir: &Path,
+        meta: IterationMeta,
+    ) -> Result<String> {
+        let IterationMeta {
+            iteration,
+            configured_limit,
+            hard_cap,
+        } = meta;
+        let progress_rel = format!(".agent-progress/{agent}.md");
+        let cli = self.provider.cli_name();
+
+        let mut body = String::new();
+        body.push_str("# Ralph loop — continue this session\n\n");
+        body.push_str(
+            "This message is your **entire** `-p` input (inline text, not a file path). **Do not** use Read on any `.pipeline/prompt*` file — there is nothing useful to read there.\n\n",
+        );
+        body.push_str(&format!(
+            "The `{cli}` CLI is running with `--resume`; you already have the PRD, agent instructions, and project context in this session.\n\n",
+        ));
+        body.push_str("## Required actions\n\n");
+        body.push_str(&format!(
+            "1. Open `{progress_rel}` with Read, then **Write** or **Edit** it: real checkboxes, files touched, and when done set a line exactly: `## Status: COMPLETED`.\n",
+        ));
+        body.push_str(&format!(
+            "2. Use **Write**, **Edit**, **MultiEdit**, or **Bash** on real repo paths under `{}` — produce the artifacts your agent role requires.\n",
+            workdir.display()
+        ));
+        body.push_str("3. If impossible, set `## Status: BLOCKED` with explicit blockers.\n\n");
+        body.push_str("## Iteration budget\n\n");
+        body.push_str(&format!(
+            "- Nominal budget: **{configured_limit}**; this is iteration **{iteration}** (hard cap **{hard_cap}**).\n",
+        ));
+        if iteration > configured_limit {
+            body.push_str("- **Extension phase** — finish or BLOCK.\n");
+        }
+        if iteration == hard_cap {
+            body.push_str("- **Final iteration** — COMPLETED or BLOCKED only.\n");
+        }
+
+        Ok(body)
     }
 
     async fn execute_cli(
@@ -328,6 +535,49 @@ impl<'a> AgentRunner<'a> {
     }
 }
 
+/// Abort after this many iterations in a row with no edit to `.agent-progress/{agent}.md`.
+const MAX_STALL_STREAK: u32 = 2;
+
+fn progress_status_completed(snapshot: &str) -> bool {
+    for line in snapshot.lines() {
+        let t = line.trim();
+        if !t.starts_with("##") {
+            continue;
+        }
+        let u = t.to_ascii_uppercase();
+        if u.contains("STATUS") && u.contains("COMPLETED") && !u.contains("IN_PROGRESS") {
+            return true;
+        }
+    }
+    false
+}
+
+fn progress_status_blocked(content: &str) -> bool {
+    for line in content.lines() {
+        let t = line.trim();
+        if !t.starts_with("##") {
+            continue;
+        }
+        let u = t.to_ascii_uppercase();
+        if u.contains("STATUS") && u.contains("BLOCKED") {
+            return true;
+        }
+    }
+    false
+}
+
+/// Extra iterations for **blocking** agents beyond the manifest/config `max_iterations`.
+/// Caps token spend while reducing false "max iterations" failures on large PRDs.
+fn hard_iteration_cap(agent: &str, configured_max: u32) -> u32 {
+    let configured_max = configured_max.max(1);
+    if crate::pipeline::is_blocking(agent) {
+        let scaled = configured_max.saturating_mul(4);
+        scaled.clamp(24, 128)
+    } else {
+        configured_max
+    }
+}
+
 enum InteractiveChoice {
     Continue,
     Skip,
@@ -354,4 +604,24 @@ fn prompt_interactive(agent: &str, iteration: u32) -> Result<InteractiveChoice> 
         1 => InteractiveChoice::Skip,
         _ => InteractiveChoice::Abort,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{progress_status_blocked, progress_status_completed};
+
+    #[test]
+    fn completed_detects_standard_line() {
+        assert!(progress_status_completed("## Status: COMPLETED\n"));
+    }
+
+    #[test]
+    fn completed_rejects_in_progress() {
+        assert!(!progress_status_completed("## Status: IN_PROGRESS\n"));
+    }
+
+    #[test]
+    fn blocked_detects_status_line() {
+        assert!(progress_status_blocked("## Status: BLOCKED\n"));
+    }
 }

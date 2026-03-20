@@ -44,12 +44,18 @@ impl Provider for ClaudeProvider {
     }
 
     fn build_run_args(&self, prompt_file: &Path, opts: &RunOpts) -> Vec<String> {
-        // Pass file path instead of content to avoid CLI parsing "---" (YAML frontmatter) as an option
-        let prompt_arg = prompt_file
-            .to_str()
-            .map(String::from)
-            .unwrap_or_else(|| std::fs::read_to_string(prompt_file).unwrap_or_default());
+        // Inline text avoids `-p /path` where the model only tool-Reads the path and stops.
+        let prompt_arg = if let Some(s) = &opts.prompt_inline {
+            s.clone()
+        } else {
+            // Pass file path instead of content to avoid CLI parsing "---" (YAML frontmatter) as an option
+            prompt_file
+                .to_str()
+                .map(String::from)
+                .unwrap_or_else(|| std::fs::read_to_string(prompt_file).unwrap_or_default())
+        };
 
+        // Docs: `claude -p "..." --resume "$session_id"` — `--resume` comes after `-p`.
         let mut args = vec![
             "-p".into(),
             prompt_arg,
@@ -59,6 +65,10 @@ impl Provider for ClaudeProvider {
             "--output-format".into(),
             opts.output_format.clone(),
         ];
+        if let Some(id) = &opts.resume_session_id {
+            args.push("--resume".into());
+            args.push(id.clone());
+        }
 
         let tools = if opts.allowed_tools.is_empty() {
             &self.allowed_tools
@@ -79,7 +89,7 @@ impl Provider for ClaudeProvider {
     }
 
     fn extract_session_id(&self, lines: &[String]) -> Option<String> {
-        for line in lines.iter().take(5) {
+        for line in lines.iter() {
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(line) {
                 if let Some(id) = v.get("session_id").and_then(|v| v.as_str()) {
                     if !id.is_empty() {

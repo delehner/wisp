@@ -24,6 +24,10 @@ pub struct RunOpts {
     pub verbose: bool,
     pub log_jsonl: Option<std::path::PathBuf>,
     pub log_formatted: Option<std::path::PathBuf>,
+    /// When set, the provider CLI resumes this session (Ralph iteration 2+).
+    pub resume_session_id: Option<String>,
+    /// When set, `-p` uses this string instead of a filesystem path (avoids the model only `Read`-ing a prompt file).
+    pub prompt_inline: Option<String>,
 }
 
 /// Provider-agnostic interface for AI CLI invocations.
@@ -43,7 +47,11 @@ pub trait Provider: Send + Sync {
 
     /// Return a human-readable resume hint for a session.
     fn resume_hint(&self, session_id: &str) -> String {
-        format!("{} --resume {}", self.cli_name(), session_id)
+        format!(
+            "{} -p \"<follow-up>\" --resume {}",
+            self.cli_name(),
+            session_id
+        )
     }
 
     /// Return the auth-check command (for dev container validation).
