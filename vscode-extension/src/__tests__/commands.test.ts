@@ -673,22 +673,6 @@ describe('CommandHandlers with ChatPanel (extensionUri provided)', () => {
     (vscode.workspace.workspaceFolders as unknown) = undefined;
   });
 
-  function makeHandlersWithPanel(cli: WispCli | null) {
-    const mockPanel = makeMockPanel();
-    ChatPanel.createOrShow = jest.fn().mockReturnValue(mockPanel);
-
-    const channel = {
-      appendLine: jest.fn(),
-      show: jest.fn(),
-      dispose: jest.fn(),
-    } as unknown as vscode.OutputChannel;
-
-    const extensionUri = { fsPath: '/ext' } as vscode.Uri;
-    const cliFactory = jest.fn().mockResolvedValue(cli);
-    const handlers = new CommandHandlers(cliFactory, channel, extensionUri);
-    return { handlers, mockPanel, channel };
-  }
-
   it('openChatPanel() calls ChatPanel.createOrShow when extensionUri is set', () => {
     const mockPanel = makeMockPanel();
     ChatPanel.createOrShow = jest.fn().mockReturnValue(mockPanel);
