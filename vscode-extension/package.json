@@ -20,9 +20,128 @@
     "commands": [
       {
         "command": "wisp.showVersion",
-        "title": "Wisp: Show Version"
+        "title": "Show Version",
+        "category": "Wisp"
+      },
+      {
+        "command": "wisp.orchestrate",
+        "title": "Orchestrate",
+        "category": "Wisp",
+        "icon": "$(play)"
+      },
+      {
+        "command": "wisp.pipeline",
+        "title": "Run Pipeline",
+        "category": "Wisp"
+      },
+      {
+        "command": "wisp.run",
+        "title": "Run Agent",
+        "category": "Wisp"
+      },
+      {
+        "command": "wisp.generatePrd",
+        "title": "Generate PRD",
+        "category": "Wisp"
+      },
+      {
+        "command": "wisp.generateContext",
+        "title": "Generate Context",
+        "category": "Wisp"
+      },
+      {
+        "command": "wisp.monitor",
+        "title": "Monitor",
+        "category": "Wisp"
+      },
+      {
+        "command": "wisp.installSkills",
+        "title": "Install Skills",
+        "category": "Wisp"
+      },
+      {
+        "command": "wisp.openChatPanel",
+        "title": "Open Agent Chat",
+        "category": "Wisp"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "wispSidebar",
+          "title": "Wisp",
+          "icon": "resources/wisp.svg"
+        }
+      ]
+    },
+    "views": {
+      "wispSidebar": [
+        {
+          "id": "wispManifests",
+          "name": "Manifests"
+        },
+        {
+          "id": "wispPrds",
+          "name": "PRDs"
+        }
+      ]
+    },
+    "submenus": [
+      {
+        "id": "wisp.submenu",
+        "label": "Wisp"
+      }
+    ],
+    "menus": {
+      "view/item/context": [
+        {
+          "command": "wisp.orchestrate",
+          "when": "view == wispManifests && viewItem == manifestFile",
+          "group": "inline"
+        },
+        {
+          "command": "wisp.orchestrate",
+          "when": "view == wispManifests && viewItem == manifestFile",
+          "group": "navigation"
+        },
+        {
+          "command": "wisp.pipeline",
+          "when": "view == wispPrds && viewItem == prdFile",
+          "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "submenu": "wisp.submenu",
+          "when": "resourceExtname == .json && resourcePath =~ /manifests/",
+          "group": "wisp"
+        },
+        {
+          "submenu": "wisp.submenu",
+          "when": "resourceExtname == .md && resourcePath =~ /prds/",
+          "group": "wisp"
+        }
+      ],
+      "wisp.submenu": [
+        {
+          "command": "wisp.orchestrate",
+          "when": "resourceExtname == .json && resourcePath =~ /manifests/",
+          "group": "navigation"
+        },
+        {
+          "command": "wisp.pipeline",
+          "when": "resourceExtname == .md && resourcePath =~ /prds/",
+          "group": "navigation"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "wisp.orchestrate",
+          "when": "view == wispManifests",
+          "group": "navigation"
+        }
+      ]
+    },
     "configuration": {
       "title": "Wisp",
       "properties": {
@@ -31,6 +150,77 @@
           "default": "",
           "scope": "machine-overridable",
           "description": "Path to the wisp binary. Leave empty to use PATH. This setting cannot be overridden by workspace settings to prevent workspace-level binary hijacking."
+        },
+        "wisp.rootFolder": {
+          "type": "string",
+          "default": "",
+          "description": "Name of the workspace folder containing the Wisp project root (manifests/, prds/). Leave empty for auto-detection."
+        },
+        "wisp.provider": {
+          "type": "string",
+          "default": "claude",
+          "enum": ["claude", "gemini"],
+          "description": "AI provider to use for pipeline execution."
+        },
+        "wisp.maxParallel": {
+          "type": "number",
+          "default": 3,
+          "description": "Maximum number of concurrent PRD pipelines."
+        },
+        "wisp.maxIterations": {
+          "type": "number",
+          "default": 10,
+          "description": "Default maximum Ralph Loop iterations per agent."
+        },
+        "wisp.baseBranch": {
+          "type": "string",
+          "default": "main",
+          "description": "Default base branch for feature branches."
+        },
+        "wisp.workDir": {
+          "type": "string",
+          "default": "",
+          "description": "Directory for cloned repos. Leave empty to use the Wisp default (/tmp/wisp-work)."
+        },
+        "wisp.useDevcontainer": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run agents inside Dev Containers."
+        },
+        "wisp.skipPr": {
+          "type": "boolean",
+          "default": false,
+          "description": "Dry-run mode: skip PR creation."
+        },
+        "wisp.interactive": {
+          "type": "boolean",
+          "default": false,
+          "description": "Pause between agents for review."
+        },
+        "wisp.logDir": {
+          "type": "string",
+          "default": "",
+          "description": "Directory for JSONL log output. Leave empty to use the Wisp default."
+        },
+        "wisp.verbose": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable verbose CLI output."
+        },
+        "wisp.evidenceAgents": {
+          "type": "string",
+          "default": "tester,secops,performance",
+          "description": "Comma-separated list of agents whose reports become PR comments."
+        },
+        "wisp.claudeModel": {
+          "type": "string",
+          "default": "",
+          "description": "Claude model to use (e.g. claude-sonnet-4-6). Leave empty to use the Wisp default."
+        },
+        "wisp.geminiModel": {
+          "type": "string",
+          "default": "",
+          "description": "Gemini model to use (e.g. gemini-2.5-pro). Leave empty to use the Wisp default."
         }
       }
     }

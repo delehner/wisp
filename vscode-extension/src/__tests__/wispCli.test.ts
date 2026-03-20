@@ -1,11 +1,13 @@
 import * as cp from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { PassThrough } from 'node:stream';
 import * as vscode from 'vscode';
 import { WispCli } from '../wispCli';
 
 jest.mock('node:child_process');
 const mockExec = cp.exec as jest.MockedFunction<typeof cp.exec>;
+const mockSpawn = cp.spawn as jest.MockedFunction<typeof cp.spawn>;
 type ExecCallback = (error: Error | null, stdout: string, stderr: string) => void;
 
 describe('WispCli.resolve()', () => {
@@ -106,6 +108,146 @@ describe('WispCli.resolve()', () => {
     );
 
     Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+  });
+});
+
+describe('WispCli.run()', () => {
+  let closeHandlers: Array<(code: number | null) => void>;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    closeHandlers = [];
+  });
+
+  function fireClose(code: number | null) {
+    closeHandlers.forEach((h) => h(code));
+  }
+
+  function makeMockProc() {
+    const stdout = new PassThrough();
+    const stderr = new PassThrough();
+    const kill = jest.fn();
+    const proc = {
+      stdout,
+      stderr,
+      stdin: null,
+      kill,
+      on: jest.fn((event: string, cb: (...args: unknown[]) => void) => {
+        if (event === 'close') closeHandlers.push(cb as (code: number | null) => void);
+      }),
+    };
+    mockSpawn.mockReturnValue(proc as unknown as cp.ChildProcess);
+    return { stdout, stderr, kill };
+  }
+
+  function makeCliInstance(): WispCli {
+    return new (WispCli as unknown as new (path: string) => WispCli)('/usr/bin/wisp');
+  }
+
+  it('sends SIGTERM to spawned process when cancellation token fires', async () => {
+    const { stdout, stderr, kill } = makeMockProc();
+
+    let onCancel: (() => void) | undefined;
+    const token: vscode.CancellationToken = {
+      isCancellationRequested: false,
+      onCancellationRequested: jest.fn((cb) => {
+        onCancel = cb as () => void;
+        return { dispose: jest.fn() };
+      }),
+    };
+
+    const cli = makeCliInstance();
+    const runPromise = cli.run(['test'], '/tmp', jest.fn(), jest.fn(), { cancellationToken: token });
+
+    onCancel?.();
+    expect(kill).toHaveBeenCalledWith('SIGTERM');
+
+    stdout.end();
+    stderr.end();
+    fireClose(null);
+    await runPromise;
+  });
+
+  it('disposes the cancellation subscription when process closes', async () => {
+    const { stdout, stderr } = makeMockProc();
+    const disposeSpy = jest.fn();
+
+    const token: vscode.CancellationToken = {
+      isCancellationRequested: false,
+      onCancellationRequested: jest.fn(() => ({ dispose: disposeSpy })),
+    };
+
+    const cli = makeCliInstance();
+    const runPromise = cli.run(['test'], '/tmp', jest.fn(), jest.fn(), { cancellationToken: token });
+
+    stdout.end();
+    stderr.end();
+    fireClose(0);
+    await runPromise;
+
+    expect(disposeSpy).toHaveBeenCalled();
+  });
+
+  it('resolves with the exit code from the process', async () => {
+    const { stdout, stderr } = makeMockProc();
+
+    const cli = makeCliInstance();
+    const runPromise = cli.run(['test'], '/tmp', jest.fn(), jest.fn());
+
+    stdout.end();
+    stderr.end();
+    fireClose(42);
+    const code = await runPromise;
+
+    expect(code).toBe(42);
+  });
+
+  it('resolves with 1 when process exits with null code', async () => {
+    const { stdout, stderr } = makeMockProc();
+
+    const cli = makeCliInstance();
+    const runPromise = cli.run(['test'], '/tmp', jest.fn(), jest.fn());
+
+    stdout.end();
+    stderr.end();
+    fireClose(null);
+    const code = await runPromise;
+
+    expect(code).toBe(1);
+  });
+
+  it('calls onStdout callback for each stdout line', async () => {
+    const { stdout, stderr } = makeMockProc();
+    const onStdout = jest.fn();
+
+    const cli = makeCliInstance();
+    const runPromise = cli.run(['test'], '/tmp', onStdout, jest.fn());
+
+    stdout.write('hello\n');
+    stdout.write('world\n');
+    stdout.end();
+    stderr.end();
+    fireClose(0);
+    await runPromise;
+
+    expect(onStdout).toHaveBeenCalledWith('hello');
+    expect(onStdout).toHaveBeenCalledWith('world');
+  });
+
+  it('calls onStderr callback for each stderr line', async () => {
+    const { stdout, stderr } = makeMockProc();
+    const onStderr = jest.fn();
+
+    const cli = makeCliInstance();
+    const runPromise = cli.run(['test'], '/tmp', jest.fn(), onStderr);
+
+    stderr.write('error line\n');
+    stdout.end();
+    stderr.end();
+    fireClose(1);
+    await runPromise;
+
+    expect(onStderr).toHaveBeenCalledWith('error line');
   });
 });
 

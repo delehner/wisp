@@ -6,6 +6,8 @@ const INSTALL_URL = 'https://github.com/delehner/wisp#installation';
 
 export interface RunOptions {
   outputChannel?: vscode.OutputChannel;
+  cancellationToken?: vscode.CancellationToken;
+  env?: Record<string, string>;
 }
 
 export interface CaptureResult {
@@ -15,6 +17,8 @@ export interface CaptureResult {
 }
 
 export class WispCli {
+  private proc: cp.ChildProcess | undefined;
+
   private constructor(private readonly binaryPath: string) {}
 
   static async resolve(): Promise<WispCli | null> {
@@ -60,7 +64,16 @@ export class WispCli {
     opts?: RunOptions,
   ): Promise<number> {
     return new Promise((resolve, reject) => {
-      const proc = cp.spawn(this.binaryPath, args, { cwd });
+      const mergedEnv = opts?.env ? { ...process.env, ...opts.env } : process.env;
+      const proc = cp.spawn(this.binaryPath, args, { cwd, env: mergedEnv });
+      this.proc = proc;
+
+      if (opts?.cancellationToken) {
+        const cancelSub = opts.cancellationToken.onCancellationRequested(() => {
+          proc.kill('SIGTERM');
+        });
+        proc.on('close', () => cancelSub.dispose());
+      }
 
       const rlOut = readline.createInterface({ input: proc.stdout });
       rlOut.on('line', (line) => {
@@ -75,11 +88,18 @@ export class WispCli {
       });
 
       proc.on('error', reject);
-      proc.on('close', (code) => resolve(code ?? 1));
+      proc.on('close', (code) => {
+        this.proc = undefined;
+        resolve(code ?? 1);
+      });
     });
   }
 
-  async runCapture(args: string[], cwd: string): Promise<CaptureResult> {
+  write(data: string): void {
+    this.proc?.stdin?.write(data);
+  }
+
+  async runCapture(args: string[], cwd: string, opts?: RunOptions): Promise<CaptureResult> {
     const stdoutLines: string[] = [];
     const stderrLines: string[] = [];
 
@@ -88,6 +108,7 @@ export class WispCli {
       cwd,
       (l) => stdoutLines.push(l),
       (l) => stderrLines.push(l),
+      opts,
     );
 
     return {
