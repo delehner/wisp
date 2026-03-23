@@ -59,7 +59,7 @@ flowchart TD
         L6["6. Architecture Doc\n(if exists, for non-architect agents)"]
         L7["7. Design Doc\n(if exists, for developer/tester/reviewer)"]
         L8["8. Project context file\n(CLAUDE.md or GEMINI.md,\nif exists in target repo)"]
-        L9["9. Iteration Context\n(iteration N of M, working directory)"]
+        L9["9. Iteration Context\n(iteration N of M, repository root for tools;\ncontainer path when using Dev Containers)"]
 
         L1 --- L2 --- L3 --- L4 --- L5 --- L6 --- L7 --- L8 --- L9
     end

@@ -35,6 +35,14 @@ struct IterationMeta {
     hard_cap: u32,
 }
 
+/// Path the provider CLI must use for Write/Edit/Bash inside a Dev Container (`remoteWorkspaceFolder`).
+/// Falls back to the host checkout path when not containerized.
+fn agent_repo_root_display(dev_container: Option<&DevContainer>, workdir: &Path) -> String {
+    dev_container
+        .map(|dc| dc.workspace_folder().to_string())
+        .unwrap_or_else(|| workdir.display().to_string())
+}
+
 pub struct AgentRunner<'a> {
     config: &'a Config,
     provider: &'a dyn Provider,
@@ -78,6 +86,7 @@ impl<'a> AgentRunner<'a> {
         }
 
         let mut stall_streak = 0u32;
+        let agent_repo_root = agent_repo_root_display(dev_container, workdir);
 
         for iteration in 1..=hard_cap {
             if self.is_completed(agent, workdir)? {
@@ -135,7 +144,7 @@ impl<'a> AgentRunner<'a> {
                     session = %sid,
                     "resuming provider session (Ralph iteration > 1)"
                 );
-                let text = self.continuation_prompt_text(agent, workdir, meta)?;
+                let text = self.continuation_prompt_text(agent, workdir, meta, &agent_repo_root)?;
                 (None, Some(text))
             } else {
                 if iteration > 1 {
@@ -145,7 +154,14 @@ impl<'a> AgentRunner<'a> {
                             "missing prior .session file — cold-starting with full prompt (no --resume)"
                         );
                 }
-                let p = self.build_prompt(agent, workdir, prd_path, previous_agents, meta)?;
+                let p = self.build_prompt(
+                    agent,
+                    workdir,
+                    prd_path,
+                    previous_agents,
+                    meta,
+                    &agent_repo_root,
+                )?;
                 (Some(p), None)
             };
 
@@ -329,6 +345,7 @@ impl<'a> AgentRunner<'a> {
         prd_path: &Path,
         previous_agents: &[String],
         meta: IterationMeta,
+        agent_repo_root: &str,
     ) -> Result<PathBuf> {
         let IterationMeta {
             iteration,
@@ -424,7 +441,15 @@ impl<'a> AgentRunner<'a> {
             "- This run: iteration {iteration} of up to {hard_cap} for this agent\n"
         ));
         prompt.push_str(&format!("- Agent: {agent}\n"));
-        prompt.push_str(&format!("- Working directory: {}\n", workdir.display()));
+        prompt.push_str(&format!(
+            "- Repository root (use this for all Write/Edit/Bash absolute paths): {agent_repo_root}\n"
+        ));
+        let host_root = workdir.display().to_string();
+        if host_root != agent_repo_root {
+            prompt.push_str(&format!(
+                "- Pipeline host checkout (not visible as the same path inside the Dev Container — do not use for file tools): {host_root}\n"
+            ));
+        }
         if iteration > configured_limit {
             prompt.push_str(
                 "- **Extension phase**: The configured iteration budget is exhausted but the pipeline is still waiting for `## Status: COMPLETED` in your progress file. Finish the remaining checklist items now, or set `## Status: BLOCKED` with concrete blockers.\n",
@@ -451,6 +476,7 @@ impl<'a> AgentRunner<'a> {
         agent: &str,
         workdir: &Path,
         meta: IterationMeta,
+        agent_repo_root: &str,
     ) -> Result<String> {
         let IterationMeta {
             iteration,
@@ -474,8 +500,15 @@ impl<'a> AgentRunner<'a> {
         ));
         body.push_str(&format!(
             "2. Use **Write**, **Edit**, **MultiEdit**, or **Bash** on real repo paths under `{}` — produce the artifacts your agent role requires.\n",
-            workdir.display()
+            agent_repo_root
         ));
+        let host_root = workdir.display().to_string();
+        if host_root != agent_repo_root {
+            body.push_str(&format!(
+                "   Do not use the host checkout path `{}` inside the container — it is not the bind-mounted workspace.\n",
+                host_root
+            ));
+        }
         body.push_str("3. If impossible, set `## Status: BLOCKED` with explicit blockers.\n\n");
         body.push_str("## Iteration budget\n\n");
         body.push_str(&format!(

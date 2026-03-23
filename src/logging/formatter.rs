@@ -229,6 +229,25 @@ fn truncate_str(s: &str, max_len: usize) -> String {
     if s.len() <= max_len {
         s.to_string()
     } else {
-        format!("{}... ({} chars total)", &s[..max_len], s.len())
+        let mut end = max_len;
+        while end > 0 && !s.is_char_boundary(end) {
+            end -= 1;
+        }
+        format!("{}... ({} chars total)", &s[..end], s.len())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::truncate_str;
+
+    #[test]
+    fn truncate_str_does_not_split_multibyte_char() {
+        // Byte 500 would fall inside a UTF-8 em dash (U+2014, 3 bytes)
+        let s = format!("{}—suffix", "x".repeat(497));
+        assert!(s.len() > 500);
+        let out = truncate_str(&s, 500);
+        assert!(out.contains("..."));
+        assert!(out.ends_with("chars total)"));
     }
 }
