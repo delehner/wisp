@@ -233,6 +233,28 @@ describe('WispCli proc error event', () => {
     expect(result.stdout).toContain('session-abc');
     expect(result.stderr).toContain('warn: something');
   });
+
+  it('run() resolves to 1 when process closes with null exit code', async () => {
+    let closeCallback: ((code: number | null) => void) | undefined;
+
+    jest.spyOn(cp, 'spawn').mockReturnValue({
+      stdout: new PassThrough(),
+      stderr: new PassThrough(),
+      on: jest.fn((event: string, cb: (code: number | null) => void) => {
+        if (event === 'close') closeCallback = cb;
+      }),
+      kill: jest.fn(),
+    } as unknown as cp.ChildProcess);
+
+    const cli = await WispCli.resolve();
+    expect(cli).not.toBeNull();
+
+    const runPromise = cli!.run(['orchestrate'], '/tmp', jest.fn(), jest.fn());
+    closeCallback?.(null);
+
+    const code = await runPromise;
+    expect(code).toBe(1);
+  });
 });
 
 describe('package.json activationEvents', () => {

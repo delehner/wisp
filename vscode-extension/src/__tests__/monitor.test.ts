@@ -58,6 +58,20 @@ describe('registerMonitorCommand', () => {
     );
   });
 
+  it('returns early without spawning when WispCli.resolve() returns null', async () => {
+    mockExec.mockImplementation((_cmd, callback: unknown) => {
+      (callback as ExecCallback)(new Error('not found'), '', '');
+      return {} as cp.ChildProcess;
+    });
+    (vscode.window.showInformationMessage as jest.Mock).mockResolvedValue(undefined);
+
+    registerMonitorCommand(context, outputChannel, statusBar, jest.fn(), jest.fn());
+    const [[, handler]] = (vscode.commands.registerCommand as jest.Mock).mock.calls;
+    await handler();
+
+    expect(cp.spawn).not.toHaveBeenCalled();
+  });
+
   it('shows informational message when no sessions exist', async () => {
     // spawn returns empty stdout → runCapture returns empty stdout string
     const spawnMock = makeSpawnMock('');

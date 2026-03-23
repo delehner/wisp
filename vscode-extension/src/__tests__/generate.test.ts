@@ -107,6 +107,23 @@ describe('registerGeneratePrdCommand', () => {
     spawnMock.mockRestore();
   });
 
+  it('returns early without spawning when WispCli.resolve() returns null after inputs collected', async () => {
+    (vscode.window.showInputBox as jest.Mock)
+      .mockResolvedValueOnce('A new feature')
+      .mockResolvedValueOnce('');
+    mockExec.mockImplementation((_cmd, callback: unknown) => {
+      (callback as ExecCallback)(new Error('not found'), '', '');
+      return {} as cp.ChildProcess;
+    });
+    (vscode.window.showInformationMessage as jest.Mock).mockResolvedValue(undefined);
+
+    registerGeneratePrdCommand(context, outputChannel, statusBar, jest.fn(), jest.fn());
+    const [[, handler]] = (vscode.commands.registerCommand as jest.Mock).mock.calls;
+    await handler();
+
+    expect(cp.spawn).not.toHaveBeenCalled();
+  });
+
   it('returns early without spawning when description input is cancelled', async () => {
     (vscode.window.showInputBox as jest.Mock).mockResolvedValueOnce(undefined);
 
@@ -190,6 +207,23 @@ describe('registerGenerateContextCommand', () => {
     await handler();
 
     expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Wisp: No workspace folder open.');
+    expect(cp.spawn).not.toHaveBeenCalled();
+  });
+
+  it('returns early without spawning when WispCli.resolve() returns null after inputs collected', async () => {
+    (vscode.window.showInputBox as jest.Mock)
+      .mockResolvedValueOnce('https://github.com/org/repo.git')
+      .mockResolvedValueOnce('main');
+    mockExec.mockImplementation((_cmd, callback: unknown) => {
+      (callback as ExecCallback)(new Error('not found'), '', '');
+      return {} as cp.ChildProcess;
+    });
+    (vscode.window.showInformationMessage as jest.Mock).mockResolvedValue(undefined);
+
+    registerGenerateContextCommand(context, outputChannel, statusBar, jest.fn(), jest.fn());
+    const [[, handler]] = (vscode.commands.registerCommand as jest.Mock).mock.calls;
+    await handler();
+
     expect(cp.spawn).not.toHaveBeenCalled();
   });
 
