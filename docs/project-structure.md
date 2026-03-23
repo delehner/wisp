@@ -20,7 +20,7 @@ flowchart TD
     Root --> DevC[".devcontainer/\nDev Container configs"]
     Root --> Docs["docs/\nDocumentation"]
     Root --> Config["config/\nSettings templates"]
-    Root --> Workflows[".github/workflows/\nCI and release"]
+    Root --> Workflows[".github/workflows/\nCI, Rust release, and VSCode publish"]
     Root --> VSCodeExt["vscode-extension/\nVS Code extension"]
 
     Src --> Main["main.rs\nEntry point, CLI dispatch"]
@@ -63,6 +63,7 @@ flowchart TD
 
     Workflows --> CI["ci.yml\nBuild, test, clippy, fmt"]
     Workflows --> Release["release.yml\nCross-compile, GitHub Releases, Homebrew"]
+    Workflows --> PublishVSCode["publish-vscode.yml\nVSCode extension publish on vscode-v* tags"]
 ```
 
 ## Component Relationships
@@ -168,7 +169,10 @@ flowchart LR
 | `src/logging/monitor.rs` | Real-time log tailing (notify-based) | Changing monitoring |
 | `scripts/install.sh` | Binary download installer (GitHub Releases) | Changing install path, platforms |
 | `vscode-extension/` | VS Code / Cursor extension (TypeScript, esbuild, Jest) | Changing IDE integration |
-| `vscode-extension/README.md` | Local build, test, package (`.vsix`) before publish | Extension developer workflow |
+| `vscode-extension/README.md` | Marketplace listing: features, quick start, configuration, contributor guide | Extension release or feature changes |
+| `docs/vscode-extension.md` | VS Code extension feature guide: commands, configuration, activation, troubleshooting | Extension feature changes |
+| `docs/vscode-install.md` | End-user installation guide: Marketplace, VSIX, build from source | Install options or prerequisites change |
+| `docs/vscode-publish.md` | Maintainer publishing guide: one-time setup, release process, PAT rotation | Publish workflow or secrets change |
 | `agents/_base-system.md` | Shared instructions for all agents | Changing universal agent behavior |
 | `agents/*/prompt.md` | Per-agent instructions and completion criteria | Modifying agent behavior |
 | `manifests/*.json` | Execution plans: epics, subtasks, repos, contexts | Adding projects or changing plans |
@@ -184,6 +188,7 @@ flowchart LR
 | `.devcontainer/post-start.sh` | Container start hook | Changing container startup |
 | `.github/workflows/ci.yml` | Build, test, clippy, fmt | Changing CI steps |
 | `.github/workflows/release.yml` | Cross-compile, GitHub Releases, Homebrew | Changing release process |
+| `.github/workflows/publish-vscode.yml` | VS Code extension publish on `vscode-v*` tags: lint → test → version validate → vsce package → Marketplace publish → GitHub Release upload → Open VSX (optional) | Changing extension publish process |
 | `.mcp.json` | MCP server connections | Adding/removing integrations |
 | `.env.example` | Environment variable reference | Adding new config options |
 | `docs/configuration.md` | `.env` and `WISP_ROOT_DIR` for Homebrew/curl | Changing install config |

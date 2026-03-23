@@ -1,11 +1,21 @@
-# Wisp VS Code extension
+# Wisp for VS Code
 
-Run wisp pipelines from the VS Code command palette — no terminal required. All wisp CLI commands are available as palette entries with interactive input prompts, real-time streaming output, and a status bar indicator.
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/delehner.wisp?label=VS%20Code%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=delehner.wisp)
+
+Run [Wisp](https://github.com/delehner/wisp) AI pipelines directly from VS Code — no terminal switching required. All Wisp CLI commands are available from the Command Palette with interactive prompts, real-time streaming output, and a status bar indicator.
 
 ## Prerequisites
 
-- Node.js 20+ (for `npm ci` / tooling)
-- A built **`wisp` binary** on your `PATH`, or configure **`wisp.binaryPath`** in VS Code settings after install
+- **VS Code 1.85 or later**
+- A built **`wisp` binary** on your `PATH`, or configure **`wisp.binaryPath`** in VS Code settings. See the [Installation Guide](https://github.com/delehner/wisp/blob/main/docs/vscode-install.md) for how to install the CLI.
+
+## Quick Start
+
+1. Install this extension from the Marketplace (or [install from VSIX / source](https://github.com/delehner/wisp/blob/main/docs/vscode-install.md)).
+2. Open a folder that contains a `manifests/` or `prds/` directory so the extension activates automatically.
+3. Open the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`) and run **Wisp: Show Version**.
+
+You should see the `wisp` version string. If the binary is not found, set `wisp.binaryPath` (see [Configuration](#configuration)) or follow the [Installation Guide](https://github.com/delehner/wisp/blob/main/docs/vscode-install.md#troubleshooting).
 
 ## Commands
 
@@ -27,21 +37,51 @@ All commands are available via the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+
 | `wisp.showOutput` | Wisp: Show Output | Bring the Wisp output channel into focus |
 | `wisp.showVersion` | Wisp: Show Version | Display the installed wisp binary version |
 
+Explorer toolbar and context menus also expose **Refresh**, **Open File**, **Run Orchestrate**, **Run Orchestrate (this epic only)**, and **Run Pipeline** when you use the **Wisp Explorer** view in the Activity Bar.
+
 ## Features
 
-- **Real-time streaming output** — all pipeline output appears line-by-line in a dedicated "Wisp" Output Channel as it is emitted; no buffering
+- **Wisp Explorer** — Activity Bar tree for workspace `manifests/*.json` and `prds/**/*.md`, with refresh and context actions to run orchestrate or pipeline from a node
+- **Real-time streaming output** — pipeline output appears line-by-line in a dedicated "Wisp" Output Channel; no buffering
 - **Status bar indicator** — shows `$(sync~spin) Wisp: Running` during active pipelines and `$(check) Wisp: Idle` otherwise; click to open the Output Channel
 - **File pickers** — manifest commands filter to `**/manifests/*.json`; PRD commands filter to `**/prds/**/*.md`
 - **Process cancellation** — `wisp.stopPipeline` sends SIGTERM to the running process and resets the status bar
-- **Injection-safe** — all child process arguments are passed as array entries to `child_process.spawn`; no shell string interpolation
+- **Injection-safe** — child process arguments are passed as arrays to `child_process.spawn`; no shell string interpolation
 
 ## Configuration
 
 | Setting | Type | Scope | Description |
 |---------|------|-------|-------------|
-| `wisp.binaryPath` | string | Machine | Absolute path to the wisp binary. Leave empty to use the binary found on `PATH`. |
+| `wisp.binaryPath` | string | Machine | Absolute path to the wisp binary. Leave empty to use the binary found on `PATH`. Cannot be overridden by workspace settings. |
 
-## Build and test (before GitHub / PR)
+```jsonc
+// settings.json (User or Machine settings)
+{
+  "wisp.binaryPath": "/usr/local/bin/wisp"
+}
+```
+
+**Security:** `wisp.binaryPath` is machine-scoped so a repository’s `.vscode/settings.json` cannot point the extension at an untrusted binary.
+
+## Documentation
+
+- [Installation Guide](https://github.com/delehner/wisp/blob/main/docs/vscode-install.md) — Marketplace, VSIX, or from source
+- [Feature Guide](https://github.com/delehner/wisp/blob/main/docs/vscode-extension.md) — commands, configuration, troubleshooting
+- [Publishing Guide](https://github.com/delehner/wisp/blob/main/docs/vscode-publish.md) — maintainers: releases and PAT setup
+
+## Troubleshooting
+
+**Binary not found** — Add `wisp` to your `PATH`, or set `wisp.binaryPath` in User Settings. See the [Installation Guide](https://github.com/delehner/wisp/blob/main/docs/vscode-install.md#troubleshooting).
+
+**Commands don't appear in the Command Palette** — The extension activates when the workspace contains `manifests/*.json` or `prds/**/*.md` files. Open a Wisp project folder, or search for "Wisp" in the Command Palette to trigger activation.
+
+---
+
+## For contributors and maintainers
+
+**Node.js 20+** is required only for `npm ci`, tests, and packaging — not for end users installing from the Marketplace.
+
+### Build and test (before GitHub / PR)
 
 From the **repository root** (Rust CLI):
 
@@ -62,7 +102,7 @@ npm run lint
 
 CI runs the same checks (see `.github/workflows/ci.yml`).
 
-## Try it in the editor
+### Try it in the editor
 
 1. Open the **`vscode-extension`** folder in VS Code or Cursor (File → Open Folder).
 2. Run **Run → Start Debugging** (F5) to launch an **Extension Development Host** with this extension loaded.
@@ -70,7 +110,7 @@ CI runs the same checks (see `.github/workflows/ci.yml`).
 
 Ensure the `wisp` binary is on `PATH` in the host, or set **Wisp: Binary Path** (`wisp.binaryPath`) in User Settings.
 
-## Package a `.vsix` (local install, no Marketplace)
+### Package a `.vsix` (local install, no Marketplace)
 
 ```bash
 cd vscode-extension
@@ -79,12 +119,16 @@ npm run package
 
 Install the generated `wisp-0.1.0.vsix` via **Extensions → … → Install from VSIX…**.
 
-## Scripts
+### Publish
 
-| Script      | Action                          |
-|------------|----------------------------------|
-| `compile`  | esbuild bundle → `out/extension.js` |
-| `watch`    | Rebuild on file changes          |
-| `test`     | Jest unit tests (mocked `vscode`) |
-| `lint`     | ESLint on `src/**/*.ts`          |
-| `package`  | `vsce package` → `.vsix`         |
+Publishing is automated via `.github/workflows/publish-vscode.yml`. Push a `vscode-v*` tag to trigger it. See the [Publishing Guide](https://github.com/delehner/wisp/blob/main/docs/vscode-publish.md) for one-time setup and release steps.
+
+### Scripts
+
+| Script | Action |
+|--------|--------|
+| `compile` | esbuild bundle → `out/extension.js` |
+| `watch` | Rebuild on file changes |
+| `test` | Jest unit tests (mocked `vscode`) |
+| `lint` | ESLint on `src/**/*.ts` |
+| `package` | `vsce package` → `.vsix` |

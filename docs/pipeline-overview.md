@@ -383,6 +383,14 @@ flowchart LR
 
 **Blocking** — If an agent ends in failure or max iterations without completion, the pipeline **stops** only for **blocking** agents. **Non-blocking** agents log a warning and the next agent runs. Non-blocking set is defined in `src/pipeline/mod.rs` (`NON_BLOCKING_AGENTS`): currently designer, migration, accessibility, performance, dependency, infrastructure, rollback, and documentation. All other agents (architect, developer, tester, secops, devops, reviewer, …) still abort the pipeline on failure or incomplete max iterations.
 
+## Running from VS Code
+
+The Wisp VS Code extension lets you invoke the same CLI subcommands directly from the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`) without switching to a terminal. Each command in the extension maps 1:1 to a `wisp` CLI subcommand — the extension spawns the `wisp` binary as a subprocess, so behavior, output, and configuration are identical to running the command in a terminal.
+
+For example, **Wisp: Show Version** in the Command Palette is equivalent to `wisp --version` on the command line.
+
+See the [VS Code Extension Feature Guide](vscode-extension.md) for all available commands, configuration, and activation details.
+
 ## CLI Reference
 
 ### Subcommands

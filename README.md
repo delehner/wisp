@@ -204,7 +204,7 @@ Per-agent overrides: `ARCHITECT_MODEL`, `DEVELOPER_MAX_ITERATIONS`, etc. For **`
 ├── manifests/                — Manifest JSON files
 ├── scripts/install.sh        — Binary download installer
 ├── .devcontainer/            — Dev Container configs (72 lines of shell — only remaining shell)
-├── .github/workflows/        — CI + release automation
+├── .github/workflows/        — CI, Rust release, and VSCode extension publish automation
 └── docs/                     — Architecture documentation
 ```
 
@@ -257,6 +257,12 @@ See `docs/` for detailed guides:
 - [Prerequisites](docs/prerequisites.md) — required tools, auth setup
 - [Configuration](docs/configuration.md) — `.env` and `WISP_ROOT_DIR` for Homebrew/curl installs
 - [MCP Integrations](docs/mcp-integrations.md) — Notion, Figma, Slack, Jira
+
+### VS Code Extension
+
+- [VS Code Extension Feature Guide](docs/vscode-extension.md) — commands, configuration, sidebar, troubleshooting
+- [Installing the VS Code Extension](docs/vscode-install.md) — Marketplace, VSIX, and build-from-source install options
+- [Publishing the VS Code Extension](docs/vscode-publish.md) — maintainer guide: PAT setup, release process, rotation
 
 ## License
 
