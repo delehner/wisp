@@ -293,4 +293,51 @@ describe('registerUpdateCommand', () => {
 
     spawnMock.mockRestore();
   });
+
+  it('shows error notification when exit code is non-zero', async () => {
+    const spawnMock = makeSpawnMock(1);
+
+    registerUpdateCommand(context, outputChannel, statusBar, jest.fn(), jest.fn());
+    const [[, handler]] = (vscode.commands.registerCommand as jest.Mock).mock.calls;
+    await handler();
+
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+      expect.stringContaining('exit code 1'),
+    );
+
+    spawnMock.mockRestore();
+  });
+
+  it('returns early when WispCli.resolve() returns null', async () => {
+    // Force resolve to fail
+    mockExec.mockImplementation((_cmd, callback: unknown) => {
+      (callback as ExecCallback)(new Error('not found'), '', '');
+      return {} as cp.ChildProcess;
+    });
+    (vscode.window.showInformationMessage as jest.Mock).mockResolvedValue(undefined);
+
+    registerUpdateCommand(context, outputChannel, statusBar, jest.fn(), jest.fn());
+    const [[, handler]] = (vscode.commands.registerCommand as jest.Mock).mock.calls;
+    await handler();
+
+    expect(vscode.window.withProgress).not.toHaveBeenCalled();
+  });
+
+  it('falls back to process.cwd() when no workspace folder is open', async () => {
+    (vscode.workspace as unknown as { workspaceFolders: undefined }).workspaceFolders = undefined;
+
+    const spawnMock = makeSpawnMock(0);
+
+    registerUpdateCommand(context, outputChannel, statusBar, jest.fn(), jest.fn());
+    const [[, handler]] = (vscode.commands.registerCommand as jest.Mock).mock.calls;
+    await handler();
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      expect.any(String),
+      ['update'],
+      expect.objectContaining({ cwd: process.cwd() }),
+    );
+
+    spawnMock.mockRestore();
+  });
 });
