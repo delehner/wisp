@@ -56,7 +56,8 @@ export class WispTreeDataProvider implements vscode.TreeDataProvider<WispTreeIte
     if (element instanceof EpicItem) {
       return element.subtasks.map((subtask: SubtaskJson) => {
         const repoUrl = subtask.repositories?.[0]?.url ?? '';
-        return new SubtaskItem(subtask.prd, repoUrl, element.manifestFsPath);
+        const branch = subtask.repositories?.[0]?.branch ?? 'main';
+        return new SubtaskItem(subtask.prd, repoUrl, element.manifestFsPath, branch);
       });
     }
 

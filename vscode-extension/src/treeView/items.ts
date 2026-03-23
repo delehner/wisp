@@ -60,6 +60,7 @@ export class SubtaskItem extends WispTreeItem {
     public readonly prdPath: string,
     public readonly repoUrl: string,
     public readonly manifestFsPath: string,
+    public readonly branch: string = 'main',
   ) {
     const label = prdPath.split('/').pop() ?? prdPath;
     super(label, vscode.TreeItemCollapsibleState.None, CONTEXT_VALUES.subtask);

@@ -48,14 +48,17 @@ describe('registerPipelineCommand', () => {
     );
   });
 
-  it('builds correct args: pipeline --prd --repo --branch', async () => {
+  it('builds correct args: pipeline --prd --repo --branch --max-iterations (no context, no agents)', async () => {
     (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([
       { fsPath: '/workspace/prds/feat/prd.md' },
     ]);
     (vscode.window.showQuickPick as jest.Mock).mockResolvedValue('/workspace/prds/feat/prd.md');
     (vscode.window.showInputBox as jest.Mock)
-      .mockResolvedValueOnce('https://github.com/org/repo.git')
-      .mockResolvedValueOnce('main');
+      .mockResolvedValueOnce('https://github.com/org/repo.git') // repoUrl
+      .mockResolvedValueOnce('main')                            // branch
+      .mockResolvedValueOnce('')                                // context (empty = skip)
+      .mockResolvedValueOnce('2')                               // max-iterations
+      .mockResolvedValueOnce('');                               // agents (empty = skip)
 
     const spawnMock = makeSpawnMock();
 
@@ -73,7 +76,75 @@ describe('registerPipelineCommand', () => {
         'https://github.com/org/repo.git',
         '--branch',
         'main',
+        '--max-iterations',
+        '2',
       ],
+      expect.any(Object),
+    );
+
+    spawnMock.mockRestore();
+  });
+
+  it('includes --context when context dir is provided', async () => {
+    (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([
+      { fsPath: '/workspace/prds/feat/prd.md' },
+    ]);
+    (vscode.window.showQuickPick as jest.Mock).mockResolvedValue('/workspace/prds/feat/prd.md');
+    (vscode.window.showInputBox as jest.Mock)
+      .mockResolvedValueOnce('https://github.com/org/repo.git') // repoUrl
+      .mockResolvedValueOnce('main')                            // branch
+      .mockResolvedValueOnce('./contexts/my-repo')              // context (has value)
+      .mockResolvedValueOnce('2')                               // max-iterations
+      .mockResolvedValueOnce('');                               // agents (empty = skip)
+
+    const spawnMock = makeSpawnMock();
+
+    registerPipelineCommand(context, outputChannel, statusBar, jest.fn(), jest.fn());
+    const [[, handler]] = (vscode.commands.registerCommand as jest.Mock).mock.calls;
+    await handler();
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      expect.any(String),
+      [
+        'pipeline',
+        '--prd',
+        '/workspace/prds/feat/prd.md',
+        '--repo',
+        'https://github.com/org/repo.git',
+        '--branch',
+        'main',
+        '--max-iterations',
+        '2',
+        '--context',
+        './contexts/my-repo',
+      ],
+      expect.any(Object),
+    );
+
+    spawnMock.mockRestore();
+  });
+
+  it('includes --agents when agents override is provided', async () => {
+    (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([
+      { fsPath: '/workspace/prds/feat/prd.md' },
+    ]);
+    (vscode.window.showQuickPick as jest.Mock).mockResolvedValue('/workspace/prds/feat/prd.md');
+    (vscode.window.showInputBox as jest.Mock)
+      .mockResolvedValueOnce('https://github.com/org/repo.git') // repoUrl
+      .mockResolvedValueOnce('main')                            // branch
+      .mockResolvedValueOnce('')                                // context (empty)
+      .mockResolvedValueOnce('2')                               // max-iterations
+      .mockResolvedValueOnce('architect,developer');            // agents (has value)
+
+    const spawnMock = makeSpawnMock();
+
+    registerPipelineCommand(context, outputChannel, statusBar, jest.fn(), jest.fn());
+    const [[, handler]] = (vscode.commands.registerCommand as jest.Mock).mock.calls;
+    await handler();
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.arrayContaining(['--agents', 'architect,developer']),
       expect.any(Object),
     );
 
@@ -124,8 +195,11 @@ describe('registerPipelineCommand', () => {
     ]);
     (vscode.window.showQuickPick as jest.Mock).mockResolvedValue('/workspace/prds/feat/prd.md');
     (vscode.window.showInputBox as jest.Mock)
-      .mockResolvedValueOnce('https://github.com/org/repo.git')
-      .mockResolvedValueOnce('main');
+      .mockResolvedValueOnce('https://github.com/org/repo.git') // repoUrl
+      .mockResolvedValueOnce('main')                            // branch
+      .mockResolvedValueOnce('')                                // context
+      .mockResolvedValueOnce('2')                               // max-iterations
+      .mockResolvedValueOnce('');                               // agents
     mockExec.mockImplementation((_cmd, callback: unknown) => {
       (callback as ExecCallback)(new Error('not found'), '', '');
       return {} as cp.ChildProcess;
@@ -146,7 +220,10 @@ describe('registerPipelineCommand', () => {
     (vscode.window.showQuickPick as jest.Mock).mockResolvedValue('/workspace/prds/feat/prd.md');
     (vscode.window.showInputBox as jest.Mock)
       .mockResolvedValueOnce('https://github.com/org/repo.git')
-      .mockResolvedValueOnce(''); // user clears the branch field → branch || 'main'
+      .mockResolvedValueOnce('') // user clears the branch field → branch || 'main'
+      .mockResolvedValueOnce('') // context (empty)
+      .mockResolvedValueOnce('2') // max-iterations
+      .mockResolvedValueOnce(''); // agents (empty)
 
     const spawnMock = makeSpawnMock();
 
@@ -164,6 +241,8 @@ describe('registerPipelineCommand', () => {
         'https://github.com/org/repo.git',
         '--branch',
         'main',
+        '--max-iterations',
+        '2',
       ],
       expect.any(Object),
     );

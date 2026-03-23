@@ -22,6 +22,24 @@ export function registerOrchestrateCommand(
       return;
     }
 
+    const rawIterations = await vscode.window.showInputBox({
+      prompt: 'Max iterations per agent (--max-iterations)',
+      value: '2',
+    });
+    if (rawIterations === undefined) {
+      return;
+    }
+    const maxIterations = rawIterations || '2';
+
+    const rawParallel = await vscode.window.showInputBox({
+      prompt: 'Max parallel pipelines (--max-parallel)',
+      value: '4',
+    });
+    if (rawParallel === undefined) {
+      return;
+    }
+    const maxParallel = rawParallel || '4';
+
     const cli = await WispCli.resolve();
     if (!cli) {
       return;
@@ -29,7 +47,7 @@ export function registerOrchestrateCommand(
 
     await runWithOutput(
       cli,
-      ['orchestrate', '--manifest', manifestPath],
+      ['orchestrate', '--manifest', manifestPath, '--max-iterations', maxIterations, '--max-parallel', maxParallel],
       cwd,
       outputChannel,
       statusBar,
