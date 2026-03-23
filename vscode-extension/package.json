@@ -69,8 +69,8 @@
         "wisp.binaryPath": {
           "type": "string",
           "default": "",
-          "scope": "machine-overridable",
-          "description": "Path to the wisp binary. Leave empty to use PATH. This setting cannot be overridden by workspace settings to prevent workspace-level binary hijacking."
+          "scope": "machine",
+          "description": "Path to the wisp binary. Leave empty to use PATH. This is a machine-scoped setting and cannot be overridden by workspace settings to prevent workspace-level binary hijacking."
         }
       }
     }
