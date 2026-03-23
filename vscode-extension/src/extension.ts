@@ -102,9 +102,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       if (!cli) {
         return;
       }
+      const rawIterations = await vscode.window.showInputBox({
+        prompt: 'Max iterations per agent',
+        value: '2',
+      });
+      if (rawIterations === undefined) {
+        return;
+      }
+      const maxIterations = rawIterations || '2';
       await runWithOutput(
         cli,
-        ['orchestrate', '--manifest', manifestPath],
+        ['orchestrate', '--manifest', manifestPath, '--max-iterations', maxIterations],
         cwd,
         outputChannel!,
         statusBar!,
@@ -143,7 +151,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(
     vscode.commands.registerCommand(
       'wisp.explorer.runPipeline',
-      async (prdPath: string, repoUrl: string) => {
+      async (prdPath: string, repoUrl: string, branch: string) => {
         const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         if (!cwd) {
           vscode.window.showErrorMessage('Wisp AI: No workspace folder open.');
@@ -153,9 +161,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         if (!cli) {
           return;
         }
+        const rawIterations = await vscode.window.showInputBox({
+          prompt: 'Max iterations per agent',
+          value: '2',
+        });
+        if (rawIterations === undefined) {
+          return;
+        }
+        const maxIterations = rawIterations || '2';
         await runWithOutput(
           cli,
-          ['pipeline', '--prd', prdPath, '--repo', repoUrl],
+          ['pipeline', '--prd', prdPath, '--repo', repoUrl, '--branch', branch || 'main', '--max-iterations', maxIterations],
           cwd,
           outputChannel!,
           statusBar!,

@@ -135,6 +135,20 @@ describe('WispTreeDataProvider', () => {
       expect((children[0] as SubtaskItem).prdPath).toBe('prds/01-feature.md');
       expect((children[0] as SubtaskItem).repoUrl).toBe('https://github.com/org/repo');
     });
+
+    it('extracts branch from repositories[0].branch, falls back to main', async () => {
+      const epic = new EpicItem('Epic B', '/ws/manifests/test.json', [
+        { prd: 'prds/01.md', repositories: [{ url: 'https://github.com/org/repo', branch: 'develop' }] },
+        { prd: 'prds/02.md', repositories: [{ url: 'https://github.com/org/repo' }] },
+        { prd: 'prds/03.md', repositories: [] },
+      ]);
+
+      const children = await provider.getChildren(epic);
+
+      expect((children[0] as SubtaskItem).branch).toBe('develop');
+      expect((children[1] as SubtaskItem).branch).toBe('main');
+      expect((children[2] as SubtaskItem).branch).toBe('main');
+    });
   });
 
   describe('legacy key support', () => {
@@ -224,7 +238,7 @@ describe('WispTreeDataProvider', () => {
 
   describe('getChildren(unknown element)', () => {
     it('returns empty array for unrecognised element types', async () => {
-      const orphan = new SubtaskItem('prds/task.md', '', '/ws/manifests/m.json');
+      const orphan = new SubtaskItem('prds/task.md', '', '/ws/manifests/m.json', 'main');
       const children = await provider.getChildren(orphan);
       expect(children).toHaveLength(0);
     });
@@ -300,7 +314,7 @@ describe('WispTreeDataProvider', () => {
 
   describe('SubtaskItem label fallback', () => {
     it('uses full prdPath as label when path has no slash', () => {
-      const item = new SubtaskItem('task.md', 'https://github.com/org/repo', '/ws/m.json');
+      const item = new SubtaskItem('task.md', 'https://github.com/org/repo', '/ws/m.json', 'main');
       expect(item.label).toBe('task.md');
     });
   });

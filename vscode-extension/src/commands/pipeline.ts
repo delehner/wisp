@@ -45,20 +45,57 @@ export function registerPipelineCommand(
       return;
     }
 
+    const contextDir = await vscode.window.showInputBox({
+      prompt: 'Context directory (optional, press Enter to skip)',
+      placeHolder: './contexts/my-repo',
+      value: '',
+    });
+    if (contextDir === undefined) {
+      return;
+    }
+
+    const rawIterations = await vscode.window.showInputBox({
+      prompt: 'Max iterations per agent (--max-iterations)',
+      value: '2',
+    });
+    if (rawIterations === undefined) {
+      return;
+    }
+    const maxIterations = rawIterations || '2';
+
+    const agents = await vscode.window.showInputBox({
+      prompt: 'Agents to run, comma-separated (optional, press Enter to skip)',
+      placeHolder: 'architect,developer,tester',
+      value: '',
+    });
+    if (agents === undefined) {
+      return;
+    }
+
     const cli = await WispCli.resolve();
     if (!cli) {
       return;
     }
 
-    await runWithOutput(
-      cli,
-      ['pipeline', '--prd', prdPath, '--repo', repoUrl, '--branch', branch || 'main'],
-      cwd,
-      outputChannel,
-      statusBar,
-      onActivate,
-      onDone,
-    );
+    const args = [
+      'pipeline',
+      '--prd',
+      prdPath,
+      '--repo',
+      repoUrl,
+      '--branch',
+      branch || 'main',
+      '--max-iterations',
+      maxIterations,
+    ];
+    if (contextDir) {
+      args.push('--context', contextDir);
+    }
+    if (agents) {
+      args.push('--agents', agents);
+    }
+
+    await runWithOutput(cli, args, cwd, outputChannel, statusBar, onActivate, onDone);
   });
   context.subscriptions.push(cmd);
 }

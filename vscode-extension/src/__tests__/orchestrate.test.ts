@@ -48,11 +48,14 @@ describe('registerOrchestrateCommand', () => {
     );
   });
 
-  it('builds correct args: orchestrate --manifest <path>', async () => {
+  it('builds correct args: orchestrate --manifest --max-iterations --max-parallel', async () => {
     (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([
       { fsPath: '/workspace/manifests/test.json' },
     ]);
     (vscode.window.showQuickPick as jest.Mock).mockResolvedValue('/workspace/manifests/test.json');
+    (vscode.window.showInputBox as jest.Mock)
+      .mockResolvedValueOnce('2')  // max-iterations
+      .mockResolvedValueOnce('4'); // max-parallel
 
     const spawnMock = makeSpawnMock();
 
@@ -62,7 +65,31 @@ describe('registerOrchestrateCommand', () => {
 
     expect(spawnMock).toHaveBeenCalledWith(
       expect.any(String),
-      ['orchestrate', '--manifest', '/workspace/manifests/test.json'],
+      ['orchestrate', '--manifest', '/workspace/manifests/test.json', '--max-iterations', '2', '--max-parallel', '4'],
+      expect.any(Object),
+    );
+
+    spawnMock.mockRestore();
+  });
+
+  it('uses defaults when max-iterations and max-parallel inputs are empty', async () => {
+    (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([
+      { fsPath: '/workspace/manifests/test.json' },
+    ]);
+    (vscode.window.showQuickPick as jest.Mock).mockResolvedValue('/workspace/manifests/test.json');
+    (vscode.window.showInputBox as jest.Mock)
+      .mockResolvedValueOnce('')   // empty → default '2'
+      .mockResolvedValueOnce('');  // empty → default '4'
+
+    const spawnMock = makeSpawnMock();
+
+    registerOrchestrateCommand(context, outputChannel, statusBar, jest.fn(), jest.fn());
+    const [[, handler]] = (vscode.commands.registerCommand as jest.Mock).mock.calls;
+    await handler();
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      expect.any(String),
+      ['orchestrate', '--manifest', '/workspace/manifests/test.json', '--max-iterations', '2', '--max-parallel', '4'],
       expect.any(Object),
     );
 
@@ -80,11 +107,28 @@ describe('registerOrchestrateCommand', () => {
     expect(cp.spawn).not.toHaveBeenCalled();
   });
 
+  it('returns early without spawning when max-iterations prompt is cancelled', async () => {
+    (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([
+      { fsPath: '/workspace/manifests/test.json' },
+    ]);
+    (vscode.window.showQuickPick as jest.Mock).mockResolvedValue('/workspace/manifests/test.json');
+    (vscode.window.showInputBox as jest.Mock).mockResolvedValueOnce(undefined); // max-iterations cancelled
+
+    registerOrchestrateCommand(context, outputChannel, statusBar, jest.fn(), jest.fn());
+    const [[, handler]] = (vscode.commands.registerCommand as jest.Mock).mock.calls;
+    await handler();
+
+    expect(cp.spawn).not.toHaveBeenCalled();
+  });
+
   it('returns early without spawning when WispCli.resolve() returns null after manifest is picked', async () => {
     (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([
       { fsPath: '/workspace/manifests/test.json' },
     ]);
     (vscode.window.showQuickPick as jest.Mock).mockResolvedValue('/workspace/manifests/test.json');
+    (vscode.window.showInputBox as jest.Mock)
+      .mockResolvedValueOnce('2')  // max-iterations
+      .mockResolvedValueOnce('4'); // max-parallel
     mockExec.mockImplementation((_cmd, callback: unknown) => {
       (callback as ExecCallback)(new Error('not found'), '', '');
       return {} as cp.ChildProcess;

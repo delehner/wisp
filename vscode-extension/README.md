@@ -121,14 +121,49 @@ Install the generated `wisp-ai-<version>.vsix` via **Extensions → … → Inst
 
 ### Publish
 
-Publishing is automated via `.github/workflows/publish-vscode.yml`. Push a `vscode-v*` tag to trigger it. See the [Publishing Guide](https://github.com/delehner/wisp/blob/main/docs/vscode-publish.md) for one-time setup and release steps.
+| Script      | Action                          |
+|------------|----------------------------------|
+| `compile`  | esbuild bundle → `out/extension.js` |
+| `watch`    | Rebuild on file changes          |
+| `test`     | Jest unit tests (mocked `vscode`) |
+| `lint`     | ESLint on `src/**/*.ts`          |
+| `package`  | `vsce package` → `.vsix`         |
 
-### Scripts
+## Publishing to the VS Code Marketplace
 
-| Script | Action |
-|--------|--------|
-| `compile` | esbuild bundle → `out/extension.js` |
-| `watch` | Rebuild on file changes |
-| `test` | Jest unit tests (mocked `vscode`) |
-| `lint` | ESLint on `src/**/*.ts` |
-| `package` | `vsce package` → `.vsix` |
+Extension releases are automated via `.github/workflows/publish-vscode.yml` and are **independent of Rust CLI releases** (`v*` tags). The extension uses `vscode-v*` tags.
+
+### Prerequisites
+
+- `VSCE_PAT` secret configured in the GitHub repository settings (Azure DevOps Personal Access Token with **Marketplace → Manage** scope). Rotate annually — set expiry to 1 year when creating.
+- Publisher `delehner` verified at [marketplace.visualstudio.com](https://marketplace.visualstudio.com/manage).
+- (Optional) `OVSX_PAT` secret for Open VSX Registry publishing.
+
+### Release steps
+
+1. Update `version` in `vscode-extension/package.json` to the new version (e.g. `0.2.0`).
+2. Commit and push the version bump.
+3. Tag and push:
+   ```bash
+   git tag vscode-v0.2.0
+   git push origin vscode-v0.2.0
+   ```
+4. The workflow automatically:
+   - Validates the tag version matches `package.json`
+   - Runs `npm ci`, `npm run compile`, `npm run lint`, `npm test`
+   - Packages the `.vsix` with `npx @vscode/vsce package`
+   - Publishes to the VS Code Marketplace via `npx @vscode/vsce publish`
+   - Creates a GitHub Release named `VSCode Extension v<version>` with the `.vsix` attached
+   - (If `OVSX_PAT` is set) Publishes to Open VSX Registry (non-blocking)
+
+### Pre-release tags
+
+A tag like `vscode-v1.0.0-beta` (contains `-`) is automatically marked as a pre-release on GitHub. The Marketplace publish step still runs — use `vsce publish --pre-release` manually if you need a Marketplace pre-release flag.
+
+### Sideloading without the Marketplace
+
+Download the `.vsix` from the GitHub Release assets and install via:
+
+```
+Extensions → … → Install from VSIX…
+```

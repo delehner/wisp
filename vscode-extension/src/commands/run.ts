@@ -38,20 +38,35 @@ export function registerRunCommand(
       return;
     }
 
+    const rawIterations = await vscode.window.showInputBox({
+      prompt: 'Max iterations (--max-iterations)',
+      value: '2',
+    });
+    if (rawIterations === undefined) {
+      return;
+    }
+    const maxIterations = rawIterations || '2';
+
+    const model = await vscode.window.showInputBox({
+      prompt: 'Model override (optional, press Enter to skip)',
+      placeHolder: 'claude-opus-4-5, sonnet, ...',
+      value: '',
+    });
+    if (model === undefined) {
+      return;
+    }
+
     const cli = await WispCli.resolve();
     if (!cli) {
       return;
     }
 
-    await runWithOutput(
-      cli,
-      ['run', '--agent', agent, '--workdir', workdir, '--prd', prdPath],
-      cwd,
-      outputChannel,
-      statusBar,
-      onActivate,
-      onDone,
-    );
+    const args = ['run', '--agent', agent, '--workdir', workdir, '--prd', prdPath, '--max-iterations', maxIterations];
+    if (model) {
+      args.push('--model', model);
+    }
+
+    await runWithOutput(cli, args, cwd, outputChannel, statusBar, onActivate, onDone);
   });
   context.subscriptions.push(cmd);
 }
