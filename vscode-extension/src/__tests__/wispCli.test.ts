@@ -161,6 +161,80 @@ describe('WispCli cancel() and isRunning', () => {
   });
 });
 
+describe('WispStatusBar', () => {
+  it('dispose() calls item.dispose without throwing', () => {
+    const { WispStatusBar } = require('../statusBar');
+    const bar = new WispStatusBar();
+    expect(() => bar.dispose()).not.toThrow();
+  });
+});
+
+describe('WispCli proc error event', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+      get: jest.fn().mockReturnValue('/usr/local/bin/wisp'),
+    });
+  });
+
+  it('rejects the run() promise on proc error event', async () => {
+    let errorCallback: ((err: Error) => void) | undefined;
+
+    jest.spyOn(cp, 'spawn').mockReturnValue({
+      stdout: new PassThrough(),
+      stderr: new PassThrough(),
+      on: jest.fn((event: string, cb: (arg: unknown) => void) => {
+        if (event === 'error') errorCallback = cb as (err: Error) => void;
+      }),
+      kill: jest.fn(),
+    } as unknown as cp.ChildProcess);
+
+    const cli = await WispCli.resolve();
+    expect(cli).not.toBeNull();
+
+    const runPromise = cli!.run(['orchestrate'], '/tmp', jest.fn(), jest.fn());
+    expect(cli!.isRunning).toBe(true);
+
+    const fakeError = new Error('spawn ENOENT');
+    errorCallback?.(fakeError);
+
+    await expect(runPromise).rejects.toThrow('spawn ENOENT');
+    expect(cli!.isRunning).toBe(false);
+  });
+
+  it('runCapture() returns stdout/stderr/code from run()', async () => {
+    const stdout = new PassThrough();
+    const stderr = new PassThrough();
+    let closeCallback: ((code: number | null) => void) | undefined;
+
+    jest.spyOn(cp, 'spawn').mockReturnValue({
+      stdout,
+      stderr,
+      on: jest.fn((event: string, cb: (code: number | null) => void) => {
+        if (event === 'close') closeCallback = cb;
+      }),
+      kill: jest.fn(),
+    } as unknown as cp.ChildProcess);
+
+    const cli = await WispCli.resolve();
+    expect(cli).not.toBeNull();
+
+    const capturePromise = cli!.runCapture(['logs', 'list'], '/tmp');
+
+    // Emit lines then close
+    setImmediate(() => {
+      stdout.push('session-abc\n');
+      stderr.push('warn: something\n');
+      closeCallback?.(0);
+    });
+
+    const result = await capturePromise;
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain('session-abc');
+    expect(result.stderr).toContain('warn: something');
+  });
+});
+
 describe('package.json activationEvents', () => {
   const pkg = JSON.parse(
     readFileSync(join(__dirname, '../../package.json'), 'utf8'),
