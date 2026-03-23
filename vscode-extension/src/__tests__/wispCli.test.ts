@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import * as vscode from 'vscode';
 import { WispCli } from '../wispCli';
+import { WispStatusBar } from '../statusBar';
 
 jest.mock('node:child_process');
 const mockExec = cp.exec as jest.MockedFunction<typeof cp.exec>;
@@ -163,7 +164,6 @@ describe('WispCli cancel() and isRunning', () => {
 
 describe('WispStatusBar', () => {
   it('dispose() calls item.dispose without throwing', () => {
-    const { WispStatusBar } = require('../statusBar');
     const bar = new WispStatusBar();
     expect(() => bar.dispose()).not.toThrow();
   });

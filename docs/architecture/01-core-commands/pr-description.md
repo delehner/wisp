@@ -27,15 +27,15 @@ Implements all wisp CLI commands as VS Code command palette entries with interac
 
 ## Testing
 
-- Unit tests: 75 tests across 8 test suites (all pass)
-- New test files: `statusBar.test.ts`, `commandUtils.test.ts`, `orchestrate.test.ts`, `pipeline.test.ts`, `run.test.ts`, `generate.test.ts`, `monitor.test.ts`
-- Extended: `wispCli.test.ts` (cancel/isRunning + contributes.commands declaration checks)
+- Unit tests: 76 tests across 7 test suites (all pass)
+- New test files: `commandUtils.test.ts`, `orchestrate.test.ts`, `pipeline.test.ts`, `run.test.ts`, `generate.test.ts`, `monitor.test.ts`
+- Extended: `wispCli.test.ts` (cancel/isRunning, proc error event, runCapture, statusBar.dispose)
 - Strategy: arg construction and guard logic tested — not VS Code UI interaction internals
-- Coverage: 93.6% statements, 80% branches
+- Coverage: 97.2% statements / 100% functions / 83.1% branches
 
 ## Checklist
 
-- [x] Tests pass (75/75)
+- [x] Tests pass (76/76)
 - [x] Build succeeds
 - [x] TypeScript strict mode passes (`tsc --noEmit`)
 - [x] No linter errors
@@ -48,3 +48,4 @@ Implements all wisp CLI commands as VS Code command palette entries with interac
 - `wisp.generatePrd` skips `--interactive` mode per PRD spec (open question); uses `--description` flag only
 - Output Channel is created once in `activate()` and reused across all command invocations
 - `wisp.stopPipeline` sends SIGTERM; if the child process ignores SIGTERM, a subsequent SIGKILL could be added in a follow-up
+- Reviewer fix: replaced `require('../statusBar')` in `wispCli.test.ts` with a proper ES import to satisfy `@typescript-eslint/no-var-requires`
