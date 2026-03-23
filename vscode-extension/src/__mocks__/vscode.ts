@@ -1,3 +1,6 @@
+// Minimal VS Code API mock used by Jest tests.
+// Add here as needed when new tests require additional VS Code APIs.
+
 class TreeItem {
   label: string;
   collapsibleState: number;
@@ -61,6 +64,7 @@ const vscode = {
       show: jest.fn(),
       dispose: jest.fn(),
     })),
+    createWebviewPanel: jest.fn(),
     showInformationMessage: jest.fn(),
     showErrorMessage: jest.fn(),
     showWarningMessage: jest.fn(),
@@ -74,6 +78,7 @@ const vscode = {
       dispose: jest.fn(),
     })),
     createTreeView: jest.fn(() => ({ dispose: jest.fn() })),
+    createTerminal: jest.fn(() => ({ sendText: jest.fn(), show: jest.fn() })),
     withProgress: jest.fn((_opts: unknown, task: () => Promise<unknown>) => task()),
   },
   commands: {
@@ -102,6 +107,15 @@ const vscode = {
   Uri: {
     parse: jest.fn((url: string) => ({ toString: () => url, fsPath: url })),
     file: jest.fn((path: string) => ({ toString: () => `file://${path}`, fsPath: path })),
+    joinPath: jest.fn((_base: unknown, ...segments: string[]) => ({
+      toString: () => segments.join('/'),
+    })),
+  },
+  ViewColumn: {
+    One: 1,
+    Two: 2,
+    Three: 3,
+    Beside: 2,
   },
   ExtensionContext: jest.fn(),
   StatusBarAlignment: {
@@ -118,6 +132,9 @@ const vscode = {
   MarkdownString,
   TreeItemCollapsibleState,
   EventEmitter,
+  Disposable: class {
+    dispose = jest.fn();
+  },
 };
 
 export = vscode;
