@@ -262,6 +262,20 @@ describe('registerInstallSkillsCommand', () => {
     expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Wisp: No workspace folder open.');
     expect(cp.spawn).not.toHaveBeenCalled();
   });
+
+  it('returns early when WispCli.resolve() returns null', async () => {
+    mockExec.mockImplementation((_cmd, callback: unknown) => {
+      (callback as ExecCallback)(new Error('not found'), '', '');
+      return {} as cp.ChildProcess;
+    });
+    (vscode.window.showInformationMessage as jest.Mock).mockResolvedValue(undefined);
+
+    registerInstallSkillsCommand(context, outputChannel, statusBar, jest.fn(), jest.fn());
+    const [[, handler]] = (vscode.commands.registerCommand as jest.Mock).mock.calls;
+    await handler();
+
+    expect(cp.spawn).not.toHaveBeenCalled();
+  });
 });
 
 describe('registerUpdateCommand', () => {

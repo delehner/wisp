@@ -118,6 +118,27 @@ describe('registerPipelineCommand', () => {
     expect(cp.spawn).not.toHaveBeenCalled();
   });
 
+  it('returns early without spawning when WispCli.resolve() returns null after inputs collected', async () => {
+    (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([
+      { fsPath: '/workspace/prds/feat/prd.md' },
+    ]);
+    (vscode.window.showQuickPick as jest.Mock).mockResolvedValue('/workspace/prds/feat/prd.md');
+    (vscode.window.showInputBox as jest.Mock)
+      .mockResolvedValueOnce('https://github.com/org/repo.git')
+      .mockResolvedValueOnce('main');
+    mockExec.mockImplementation((_cmd, callback: unknown) => {
+      (callback as ExecCallback)(new Error('not found'), '', '');
+      return {} as cp.ChildProcess;
+    });
+    (vscode.window.showInformationMessage as jest.Mock).mockResolvedValue(undefined);
+
+    registerPipelineCommand(context, outputChannel, statusBar, jest.fn(), jest.fn());
+    const [[, handler]] = (vscode.commands.registerCommand as jest.Mock).mock.calls;
+    await handler();
+
+    expect(cp.spawn).not.toHaveBeenCalled();
+  });
+
   it('validates repo URL — rejects invalid URL', async () => {
     (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([
       { fsPath: '/workspace/prds/feat/prd.md' },

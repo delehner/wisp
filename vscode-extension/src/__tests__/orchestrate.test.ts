@@ -80,6 +80,24 @@ describe('registerOrchestrateCommand', () => {
     expect(cp.spawn).not.toHaveBeenCalled();
   });
 
+  it('returns early without spawning when WispCli.resolve() returns null after manifest is picked', async () => {
+    (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([
+      { fsPath: '/workspace/manifests/test.json' },
+    ]);
+    (vscode.window.showQuickPick as jest.Mock).mockResolvedValue('/workspace/manifests/test.json');
+    mockExec.mockImplementation((_cmd, callback: unknown) => {
+      (callback as ExecCallback)(new Error('not found'), '', '');
+      return {} as cp.ChildProcess;
+    });
+    (vscode.window.showInformationMessage as jest.Mock).mockResolvedValue(undefined);
+
+    registerOrchestrateCommand(context, outputChannel, statusBar, jest.fn(), jest.fn());
+    const [[, handler]] = (vscode.commands.registerCommand as jest.Mock).mock.calls;
+    await handler();
+
+    expect(cp.spawn).not.toHaveBeenCalled();
+  });
+
   it('shows error when no workspace folder is open', async () => {
     (vscode.workspace as unknown as { workspaceFolders: undefined }).workspaceFolders = undefined;
 
