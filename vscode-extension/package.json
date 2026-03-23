@@ -45,13 +45,48 @@
           "command": "wisp.explorer.refresh",
           "when": "view == wispExplorer",
           "group": "navigation"
+        },
+        {
+          "command": "wisp.explorer.generateContext",
+          "when": "view == wispExplorer",
+          "group": "navigation"
+        }
+      ],
+      "view/item/inline": [
+        {
+          "command": "wisp.explorer.orchestrate",
+          "when": "viewItem == wispManifest && view == wispExplorer",
+          "group": "inline"
+        },
+        {
+          "command": "wisp.explorer.generatePrd",
+          "when": "viewItem == wispManifest && view == wispExplorer",
+          "group": "inline"
+        },
+        {
+          "command": "wisp.explorer.orchestrateEpic",
+          "when": "viewItem == wispEpic && view == wispExplorer",
+          "group": "inline"
+        },
+        {
+          "command": "wisp.explorer.runPipeline",
+          "when": "viewItem == wispSubtask && view == wispExplorer",
+          "group": "inline"
+        },
+        {
+          "command": "wisp.explorer.runPipelineFromPrd",
+          "when": "viewItem == wispPrd && view == wispExplorer",
+          "group": "inline"
         }
       ],
       "view/item/context": [
         {
           "command": "wisp.explorer.orchestrate",
-          "when": "viewItem == wispManifest",
-          "group": "inline"
+          "when": "viewItem == wispManifest"
+        },
+        {
+          "command": "wisp.explorer.generatePrd",
+          "when": "viewItem == wispManifest"
         },
         {
           "command": "wisp.explorer.openFile",
@@ -59,17 +94,23 @@
         },
         {
           "command": "wisp.explorer.orchestrateEpic",
-          "when": "viewItem == wispEpic",
-          "group": "inline"
+          "when": "viewItem == wispEpic"
         },
         {
           "command": "wisp.explorer.runPipeline",
-          "when": "viewItem == wispSubtask",
-          "group": "inline"
+          "when": "viewItem == wispSubtask"
+        },
+        {
+          "command": "wisp.explorer.runPipelineFromPrd",
+          "when": "viewItem == wispPrd"
         },
         {
           "command": "wisp.explorer.openFile",
           "when": "viewItem == wispPrd"
+        },
+        {
+          "command": "wisp.explorer.generateContext",
+          "when": "view == wispExplorer"
         }
       ]
     },
@@ -141,6 +182,21 @@
         "command": "wisp.explorer.runPipeline",
         "title": "Run Pipeline",
         "icon": "$(run)"
+      },
+      {
+        "command": "wisp.explorer.runPipelineFromPrd",
+        "title": "Run Pipeline",
+        "icon": "$(run)"
+      },
+      {
+        "command": "wisp.explorer.generatePrd",
+        "title": "Generate PRDs",
+        "icon": "$(add)"
+      },
+      {
+        "command": "wisp.explorer.generateContext",
+        "title": "Generate Context",
+        "icon": "$(database)"
       }
     ],
     "configuration": {

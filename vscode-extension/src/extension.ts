@@ -4,7 +4,7 @@ import { WispStatusBar } from './statusBar';
 import { registerOrchestrateCommand } from './commands/orchestrate';
 import { registerPipelineCommand } from './commands/pipeline';
 import { registerRunCommand } from './commands/run';
-import { registerGeneratePrdCommand, registerGenerateContextCommand } from './commands/generate';
+import { registerGeneratePrdCommand, registerGenerateContextCommand, promptGeneratePrdArgs } from './commands/generate';
 import { registerMonitorCommand } from './commands/monitor';
 import { registerInstallSkillsCommand, registerUpdateCommand, runWithOutput } from './commands/utils';
 import { WispTreeDataProvider } from './treeView/provider';
@@ -180,6 +180,143 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         );
       },
     ),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'wisp.explorer.runPipelineFromPrd',
+      async (item: { fsPath: string }) => {
+        const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (!cwd) {
+          vscode.window.showErrorMessage('Wisp AI: No workspace folder open.');
+          return;
+        }
+        const repoUrl = await vscode.window.showInputBox({
+          prompt: 'Repository URL',
+          placeHolder: 'https://github.com/org/repo.git',
+          validateInput: (val) =>
+            val.startsWith('https://') || val.startsWith('git@')
+              ? undefined
+              : 'Must start with https:// or git@',
+        });
+        if (!repoUrl) {
+          return;
+        }
+        const branch = await vscode.window.showInputBox({
+          prompt: 'Branch',
+          value: 'main',
+        });
+        if (branch === undefined) {
+          return;
+        }
+        const contextPath = await vscode.window.showInputBox({
+          prompt: 'Context path (optional, press Enter to skip)',
+          value: '',
+        });
+        if (contextPath === undefined) {
+          return;
+        }
+        const rawIterations = await vscode.window.showInputBox({
+          prompt: 'Max iterations per agent',
+          value: '2',
+        });
+        if (rawIterations === undefined) {
+          return;
+        }
+        const cli = await WispCli.resolve();
+        if (!cli) {
+          return;
+        }
+        const maxIterations = rawIterations || '2';
+        const args = [
+          'pipeline',
+          '--prd',
+          item.fsPath,
+          '--repo',
+          repoUrl,
+          '--branch',
+          branch || 'main',
+          '--max-iterations',
+          maxIterations,
+        ];
+        if (contextPath) {
+          args.push('--context', contextPath);
+        }
+        await runWithOutput(cli, args, cwd, outputChannel!, statusBar!, onActivate, onDone);
+      },
+    ),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'wisp.explorer.generatePrd',
+      async (item: { fsPath: string }) => {
+        const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (!cwd) {
+          vscode.window.showErrorMessage('Wisp AI: No workspace folder open.');
+          return;
+        }
+        const args = await promptGeneratePrdArgs(cwd, item.fsPath);
+        if (!args) {
+          return;
+        }
+        const cli = await WispCli.resolve();
+        if (!cli) {
+          return;
+        }
+        await runWithOutput(cli, args, cwd, outputChannel!, statusBar!, onActivate, onDone);
+      },
+    ),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('wisp.explorer.generateContext', async () => {
+      const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      if (!cwd) {
+        vscode.window.showErrorMessage('Wisp AI: No workspace folder open.');
+        return;
+      }
+      const repoUrl = await vscode.window.showInputBox({
+        prompt: 'Repository URL',
+        placeHolder: 'https://github.com/org/repo.git',
+        validateInput: (val) =>
+          val.startsWith('https://') || val.startsWith('git@')
+            ? undefined
+            : 'Must start with https:// or git@',
+      });
+      if (!repoUrl) {
+        return;
+      }
+      const branch = await vscode.window.showInputBox({
+        prompt: 'Branch to analyze',
+        value: 'main',
+      });
+      if (branch === undefined) {
+        return;
+      }
+      const repoName = repoUrl.split('/').pop()?.replace(/\.git$/, '') ?? 'repo';
+      const output = await vscode.window.showInputBox({
+        prompt: 'Output directory for context skills',
+        value: `./contexts/${repoName}`,
+        validateInput: (val) => (val.trim() ? undefined : 'Output directory is required'),
+      });
+      if (output === undefined) {
+        return;
+      }
+      const cli = await WispCli.resolve();
+      if (!cli) {
+        return;
+      }
+      await runWithOutput(
+        cli,
+        ['generate', 'context', '--repo', repoUrl, '--branch', branch || 'main', '--output', output],
+        cwd,
+        outputChannel!,
+        statusBar!,
+        onActivate,
+        onDone,
+      );
+    }),
   );
 }
 
