@@ -160,7 +160,7 @@ flowchart LR
 | `src/pipeline/runner.rs` | Single PRD × repo pipeline; per-agent Dev Container by default (`reuse_devcontainer` opt-in) | Changing pipeline flow |
 | `src/pipeline/agent.rs` | Ralph Loop; provider CLI with null stdin (headless); JSONL tail + hints on non-zero exit; Claude auth fail-fast from JSONL; `devcontainer exec` when Dev Container enabled | Changing iteration logic |
 | `src/pipeline/devcontainer.rs` | Serialized `devcontainer up` (avoids parallel feature-download races); streaming `exec` (same `--config` as `up`) / stop; host→container path rewrite | Changing container behavior |
-| `src/git/mod.rs` | Clone, branch, stash-before-rebase, rebase, stash pop, commit-ahead check, push | Changing git workflow |
+| `src/git/mod.rs` | Clone, branch, stash-before-rebase (includes untracked), fetch/verify `origin/<base>`, rebase, stash pop, commit-ahead check, push | Changing git workflow |
 | `src/git/pr.rs` | `gh pr create` (validates `HEAD` vs expected feature branch, explicit `--head`), evidence comments | Changing PR creation |
 | `src/context/mod.rs` | Skill assembly, frontmatter stripping | Changing context format |
 | `src/logging/mod.rs` | Tracing setup | Changing log config |

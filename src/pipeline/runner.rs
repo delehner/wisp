@@ -167,6 +167,15 @@ pub async fn run(
             )
         })?;
 
+    git::fetch_origin_branch(&workdir, target).await?;
+    if !git::origin_remote_branch_exists(&workdir, target).await? {
+        anyhow::bail!(
+            "`origin/{target}` is missing after `git fetch origin {target}`. \
+             For stacked work, push the parent feature branch (or merge its PR) before this subtask so the PR base exists on the remote.",
+            target = target
+        );
+    }
+
     let stashed = git::stash_workspace_if_dirty(&workdir).await?;
 
     let rebased = git::rebase_onto_latest(&workdir, target).await?;
