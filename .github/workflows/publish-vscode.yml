@@ -72,11 +72,31 @@ jobs:
           fi
           echo "PKG_VERSION=$PKG_VERSION" >> "$GITHUB_ENV"
 
+      # Marketplace allows only major.minor.patch (no semver prerelease labels). Pre-releases use
+      # `vsce --pre-release`; odd minor = pre-release per https://code.visualstudio.com/api/working-with-extensions/publishing-extension#prerelease-extensions
       - name: Package extension
-        run: npx vsce package
+        shell: bash
+        run: |
+          set -euo pipefail
+          minor=$(node -p "parseInt(require('./package.json').version.split('.')[1] || '0', 10)")
+          if [ $((minor % 2)) -eq 1 ]; then
+            npx vsce package --pre-release
+          else
+            npx vsce package
+          fi
 
       - name: Publish to VS Code Marketplace
-        run: npx vsce publish --pat ${{ secrets.VSCE_PAT }}
+        shell: bash
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          set -euo pipefail
+          minor=$(node -p "parseInt(require('./package.json').version.split('.')[1] || '0', 10)")
+          if [ $((minor % 2)) -eq 1 ]; then
+            npx vsce publish --pre-release --pat "${VSCE_PAT}"
+          else
+            npx vsce publish --pat "${VSCE_PAT}"
+          fi
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2

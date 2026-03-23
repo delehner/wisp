@@ -2,7 +2,7 @@
   "name": "wisp",
   "displayName": "Wisp",
   "description": "Run Wisp AI pipelines directly from your IDE",
-  "version": "0.1.0-alpha.3",
+  "version": "0.1.1",
   "publisher": "delehner",
   "engines": {
     "vscode": "^1.85.0"
