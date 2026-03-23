@@ -9,7 +9,31 @@ permissions:
   contents: write
 
 jobs:
+  # Path filters on `push.tags` are unreliable (tag-only pushes often skip them). Gate on the
+  # tagged commit actually touching vscode-extension/ instead.
+  extension-changed:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.check.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check tagged commit touches vscode-extension/
+        id: check
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git show --pretty=format: --name-only --no-renames "${{ github.sha }}" |
+            grep -qE '^vscode-extension/'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Skipping publish: ${{ github.ref_name }} points at a commit with no changes under vscode-extension/." >> "$GITHUB_STEP_SUMMARY"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
   publish:
+    needs: extension-changed
+    if: needs.extension-changed.outputs.changed == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
