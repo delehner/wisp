@@ -257,7 +257,7 @@ pub struct GeneratePrdArgs {
     #[arg(long)]
     pub output: PathBuf,
 
-    /// Output path for the manifest JSON
+    /// Full path to the manifest JSON file (a `.json` extension is added if missing or non-JSON)
     #[arg(long)]
     pub manifest: PathBuf,
 

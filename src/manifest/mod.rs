@@ -102,15 +102,34 @@ impl Manifest {
     }
 }
 
+/// Ensures `wisp generate prd` tells the model (and post-processing) to use a `.json` manifest path.
+pub fn normalize_generate_prd_manifest_path(path: &Path) -> PathBuf {
+    match path.extension().and_then(|e| e.to_str()) {
+        Some("json") => path.to_path_buf(),
+        _ => path.with_extension("json"),
+    }
+}
+
 /// After `wisp generate prd`, stamp `max_iterations` and `agent_max_iterations` from the
 /// current [`Config`] (env / CLI) so the manifest is self-describing. Overwrites those keys.
 pub fn inject_iteration_defaults(path: &Path, config: &Config) -> Result<()> {
     let base_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let path = if path.is_relative() {
+    let mut path = if path.is_relative() {
         base_dir.join(path)
     } else {
         path.to_path_buf()
     };
+
+    if !path.is_file() {
+        let with_json = path.with_extension("json");
+        if with_json.is_file() {
+            tracing::info!(
+                manifest_path = %with_json.display(),
+                "using manifest path with .json extension for iteration injection"
+            );
+            path = with_json;
+        }
+    }
 
     let content = std::fs::read_to_string(&path).with_context(|| {
         format!(
@@ -207,5 +226,29 @@ mod tests {
         }"#;
         let m2: Manifest = serde_json::from_str(json_legacy).unwrap();
         assert_eq!(m2.epics[0].subtasks.len(), 1);
+    }
+
+    #[test]
+    fn normalize_generate_prd_manifest_path_adds_json() {
+        assert_eq!(
+            normalize_generate_prd_manifest_path(Path::new("manifests/foo")),
+            PathBuf::from("manifests/foo.json")
+        );
+    }
+
+    #[test]
+    fn normalize_generate_prd_manifest_path_keeps_json() {
+        assert_eq!(
+            normalize_generate_prd_manifest_path(Path::new("manifests/foo.json")),
+            PathBuf::from("manifests/foo.json")
+        );
+    }
+
+    #[test]
+    fn normalize_generate_prd_manifest_path_replaces_non_json_ext() {
+        assert_eq!(
+            normalize_generate_prd_manifest_path(Path::new("manifests/foo.txt")),
+            PathBuf::from("manifests/foo.json")
+        );
     }
 }

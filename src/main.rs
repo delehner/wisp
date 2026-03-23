@@ -252,6 +252,8 @@ async fn run_generate_prd(args: &cli::GeneratePrdArgs, config: &Config) -> Resul
     let provider = provider::create_provider(config);
     let root = &config.root_dir;
 
+    let manifest_path = crate::manifest::normalize_generate_prd_manifest_path(&args.manifest);
+
     std::fs::create_dir_all(&args.output)?;
 
     // Build prompt from prd-generator agent
@@ -287,7 +289,7 @@ async fn run_generate_prd(args: &cli::GeneratePrdArgs, config: &Config) -> Resul
     prompt.push_str(&format!(
         "\nOutput PRD files to: {}\nOutput manifest to: {}\n",
         args.output.display(),
-        args.manifest.display()
+        manifest_path.display()
     ));
 
     // Write prompt to temp file and run
@@ -323,7 +325,7 @@ async fn run_generate_prd(args: &cli::GeneratePrdArgs, config: &Config) -> Resul
         anyhow::bail!("PRD generation failed with exit code {exit_code}");
     }
 
-    crate::manifest::inject_iteration_defaults(&args.manifest, config)?;
+    crate::manifest::inject_iteration_defaults(&manifest_path, config)?;
 
     tracing::info!("PRD generation complete");
     Ok(())
