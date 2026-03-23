@@ -157,10 +157,10 @@ flowchart LR
 | `src/provider/gemini.rs` | Gemini CLI flags, session extraction | Changing Gemini invocation |
 | `src/pipeline/mod.rs` | Agent ordering, blocking classification | Changing agent sequence |
 | `src/pipeline/orchestrator.rs` | Parallel epics by default (`--sequential-epics` opt-in), per-epic workdir, sequential subtasks per epic, wave stacking, shared concurrency cap | Changing orchestration logic |
-| `src/pipeline/runner.rs` | Single PRD × repo pipeline; per-agent Dev Container by default (`reuse_devcontainer` opt-in) | Changing pipeline flow |
-| `src/pipeline/agent.rs` | Ralph Loop; provider CLI with null stdin (headless); JSONL tail + hints on non-zero exit; Claude auth fail-fast from JSONL; `devcontainer exec` when Dev Container enabled | Changing iteration logic |
+| `src/pipeline/runner.rs` | Single PRD × repo pipeline; stash-if-dirty before feature-branch checkout and before rebase; optional push of feature branch with 0 commits when orchestration needs `origin/<branch>` for stacked follow-ups; per-agent Dev Container by default (`reuse_devcontainer` opt-in) | Changing pipeline flow |
+| `src/pipeline/agent.rs` | Ralph Loop; provider CLI with null stdin (headless); JSONL tail + hints on non-zero exit; Claude auth and rate-limit / quota fail-fast from JSONL; `devcontainer exec` when Dev Container enabled | Changing iteration logic |
 | `src/pipeline/devcontainer.rs` | Serialized `devcontainer up` (avoids parallel feature-download races); streaming `exec` (same `--config` as `up`) / stop; host→container path rewrite | Changing container behavior |
-| `src/git/mod.rs` | Clone, branch, stash-before-rebase (includes untracked), fetch/verify `origin/<base>`, rebase, stash pop, commit-ahead check, push | Changing git workflow |
+| `src/git/mod.rs` | Clone, branch, stash-before-rebase (includes untracked), `ls-remote` / fetch `origin/<base>`, rebase, push with rebase-on-reject retry, stash pop, commit-ahead check | Changing git workflow |
 | `src/git/pr.rs` | `gh pr create` (validates `HEAD` vs expected feature branch, explicit `--head`), evidence comments | Changing PR creation |
 | `src/context/mod.rs` | Skill assembly, frontmatter stripping | Changing context format |
 | `src/logging/mod.rs` | Tracing setup | Changing log config |

@@ -262,6 +262,9 @@ impl<'a> AgentRunner<'a> {
                     if let Some(msg) = claude_container_auth_fatal_message(&jsonl_hints) {
                         return Ok(AgentOutcome::Failed(msg));
                     }
+                    if let Some(msg) = claude_rate_limit_fatal_message(&jsonl_hints) {
+                        return Ok(AgentOutcome::Failed(msg));
+                    }
                 }
             }
 
@@ -767,6 +770,26 @@ fn claude_container_auth_fatal_message(hints: &[String]) -> Option<String> {
     )
 }
 
+/// When Claude JSONL reports quota / rate limit exhaustion, fail fast (not a Ralph stall).
+fn claude_rate_limit_fatal_message(hints: &[String]) -> Option<String> {
+    let blob = hints.join(" ").to_lowercase();
+    let is_limited = blob.contains("rate_limit")
+        || blob.contains("rate limit")
+        || blob.contains("hit your limit")
+        || blob.contains("usage limit")
+        || blob.contains("quota exceeded");
+    if !is_limited {
+        return None;
+    }
+    Some(
+        "Claude API usage or rate limit reached (JSONL: rate_limit / quota). \
+         Wait until the limit resets (see the provider message for time), reduce parallel epics, \
+         upgrade your plan, or switch API key / account. \
+         This is not a Ralph stall — the agent could not run because of provider limits."
+            .to_string(),
+    )
+}
+
 fn progress_status_completed(snapshot: &str) -> bool {
     for line in snapshot.lines() {
         let t = line.trim();
@@ -840,8 +863,9 @@ mod tests {
     use crate::cli::ProviderKind;
 
     use super::{
-        claude_container_auth_fatal_message, diagnose_failed_jsonl_log, extract_jsonl_error_hints,
-        progress_status_blocked, progress_status_completed, read_utf8_tail,
+        claude_container_auth_fatal_message, claude_rate_limit_fatal_message,
+        diagnose_failed_jsonl_log, extract_jsonl_error_hints, progress_status_blocked,
+        progress_status_completed, read_utf8_tail,
     };
 
     #[test]
@@ -897,5 +921,16 @@ mod tests {
         let msg = claude_container_auth_fatal_message(&hints).unwrap();
         assert!(msg.contains("ANTHROPIC_API_KEY"));
         assert!(msg.contains("prerequisites"));
+    }
+
+    #[test]
+    fn claude_rate_limit_fatal_message_from_hints() {
+        let hints = vec![
+            r#"error: "rate_limit""#.to_string(),
+            "result: You've hit your limit · resets 6pm (UTC)".to_string(),
+        ];
+        let msg = claude_rate_limit_fatal_message(&hints).unwrap();
+        assert!(msg.contains("rate limit"));
+        assert!(msg.contains("Ralph stall"));
     }
 }

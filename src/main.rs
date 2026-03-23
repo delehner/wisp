@@ -66,6 +66,7 @@ async fn main() -> Result<()> {
                 reuse_devcontainer: args.reuse_devcontainer || config.reuse_devcontainer,
                 interactive: config.interactive,
                 stack_on: args.stack_on.clone(),
+                push_branch_for_downstream_stack: false,
                 evidence_agents: args.evidence_agents.clone(),
                 work_dir: args.work_dir.clone(),
             };

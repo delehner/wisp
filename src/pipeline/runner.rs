@@ -29,6 +29,8 @@ pub struct PipelineRunConfig {
     pub reuse_devcontainer: bool,
     pub interactive: bool,
     pub stack_on: Option<String>,
+    /// When true (orchestrator only), push the feature branch after a run with 0 commits so a later stacked unit can use `origin/<branch>` as PR base.
+    pub push_branch_for_downstream_stack: bool,
     pub evidence_agents: Vec<String>,
     pub work_dir: PathBuf,
 }
@@ -71,9 +73,16 @@ pub async fn run(
     )
     .await?;
 
-    // Set up branch
-    let feature_branch = if was_empty {
-        run_config.base_branch.clone()
+    // Dirty trees (sequential epics on a shared workdir, agent edits, or failed `stash pop`) block
+    // `git checkout` during branch setup — stash first, like the pre-rebase path.
+    let stashed_for_branch = if !was_empty {
+        git::stash_workspace_if_dirty(&workdir).await?
+    } else {
+        false
+    };
+
+    let feature_branch_result: Result<String> = if was_empty {
+        Ok(run_config.base_branch.clone())
     } else {
         let branch = prd
             .working_branch
@@ -90,8 +99,32 @@ pub async fn run(
             .clone()
             .unwrap_or_else(|| format!("origin/{}", run_config.base_branch));
         git::create_feature_branch(&workdir, &branch, Some(&start_point)).await?;
-        branch
+        Ok(branch)
     };
+
+    if stashed_for_branch {
+        if feature_branch_result.is_ok() {
+            info!("restoring stashed workspace changes after feature branch checkout");
+        } else {
+            warn!("feature branch setup failed — restoring stashed workspace changes");
+        }
+        git::pop_latest_stash(&workdir).await;
+    }
+
+    let feature_branch = feature_branch_result?;
+
+    if !was_empty {
+        if let Some(parent) = run_config.stack_on.as_deref() {
+            if !run_config.skip_pr && !git::origin_branch_exists_on_remote(&workdir, parent).await?
+            {
+                anyhow::bail!(
+                    "`origin/{target}` does not exist on the remote (see `git ls-remote --heads origin {target}`). \
+                     For stacked work, push the parent feature branch (or merge its PR) before this subtask so the PR base exists on GitHub.",
+                    target = parent
+                );
+            }
+        }
+    }
 
     // Write feature branch marker for orchestrator stacking
     let pipeline_dir = workdir.join(".pipeline");
@@ -167,14 +200,14 @@ pub async fn run(
             )
         })?;
 
-    git::fetch_origin_branch(&workdir, target).await?;
-    if !git::origin_remote_branch_exists(&workdir, target).await? {
+    if !git::origin_branch_exists_on_remote(&workdir, target).await? {
         anyhow::bail!(
-            "`origin/{target}` is missing after `git fetch origin {target}`. \
-             For stacked work, push the parent feature branch (or merge its PR) before this subtask so the PR base exists on the remote.",
+            "`origin/{target}` does not exist on the remote (see `git ls-remote --heads origin {target}`). \
+             For stacked work, push the parent feature branch (or merge its PR) before this subtask so the PR base exists on GitHub.",
             target = target
         );
     }
+    git::fetch_origin_branch(&workdir, target).await?;
 
     let stashed = git::stash_workspace_if_dirty(&workdir).await?;
 
@@ -185,6 +218,13 @@ pub async fn run(
 
     let commits_ahead = git::commits_ahead_of_remote_branch(&workdir, target).await?;
     if commits_ahead == 0 {
+        if run_config.push_branch_for_downstream_stack && !run_config.skip_pr {
+            info!(
+                branch = %feature_branch,
+                "pushing feature branch for downstream stacked work (no commits — skipping PR)"
+            );
+            git::push_head_to_origin_with_rebase_retry(&workdir, &feature_branch).await?;
+        }
         warn!(
             base = %target,
             branch = %feature_branch,

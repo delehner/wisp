@@ -33,7 +33,7 @@ Iteration **1** runs `claude -p <assembled-prompt.md>` (or `gemini` equivalent) 
 Without resume, each iteration was a **new** session given only the prompt path; models often issued a single `Read` on that file and stopped — producing identical-looking logs and no progress toward `## Status: COMPLETED`.
 
 ### Stall detection
-If `.agent-progress/<agent>.md` is **unchanged** (after normalizing whitespace) for **two consecutive iterations**, the loop returns **failed** with a clear `Ralph stall` message instead of running until the hard iteration cap. That stops token burn when the model never updates its progress file.
+If `.agent-progress/<agent>.md` is **unchanged** (after normalizing whitespace) for **two consecutive iterations**, the loop returns **failed** with a clear `Ralph stall` message instead of running until the hard iteration cap. That stops token burn when the model never updates its progress file. **Provider hard failures** (e.g. Claude JSONL `not logged in` or `rate_limit`) are detected on non-zero CLI exit and fail immediately with a dedicated message so they are not mislabeled as a stall.
 
 ### Filesystem as Memory
 Progress, decisions, and artifacts are written to `.agent-progress/<agent>.md` and `docs/architecture/`. Each iteration reads this file to understand what's already been done.

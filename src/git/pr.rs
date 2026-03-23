@@ -25,13 +25,7 @@ pub async fn create_pull_request(
         );
     }
 
-    // Push
-    info!("pushing branch to origin");
-    let (code, _, stderr) =
-        exec_capture("git", &["push", "-u", "origin", "HEAD"], Some(workdir)).await?;
-    if code != 0 {
-        anyhow::bail!("git push failed: {stderr}");
-    }
+    super::push_head_to_origin_with_rebase_retry(workdir, head_branch).await?;
 
     // Read PR description if available
     let pr_desc_path = workdir

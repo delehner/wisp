@@ -39,6 +39,8 @@ struct WorkUnit {
     context: Option<PathBuf>,
     agents: Vec<String>,
     stack_on: Option<String>,
+    /// Push feature branch when this run produces no PR (0 commits) so downstream stacked work has `origin/<branch>`.
+    push_branch_for_downstream_stack: bool,
     label: String,
 }
 
@@ -177,7 +179,7 @@ pub async fn run(args: &OrchestrateArgs, config: &Config) -> Result<()> {
 async fn execute_epic(epic: &Epic, ctx: EpicRunCtx<'_>) -> Result<()> {
     let mut last_branch_by_repo: HashMap<String, String> = HashMap::new();
 
-    for prd_entry in &epic.subtasks {
+    for (subtask_idx, prd_entry) in epic.subtasks.iter().enumerate() {
         let mut work_units = build_work_units_for_prd(prd_entry, ctx.global_agents)?;
 
         if work_units.is_empty() {
@@ -190,6 +192,8 @@ async fn execute_epic(epic: &Epic, ctx: EpicRunCtx<'_>) -> Result<()> {
                 unit.stack_on = Some(branch.clone());
             }
         }
+
+        annotate_push_for_downstream_stack(epic, subtask_idx, &mut work_units);
 
         let needs_stacking = detect_same_repo_conflicts(&work_units);
 
@@ -234,6 +238,32 @@ async fn execute_epic(epic: &Epic, ctx: EpicRunCtx<'_>) -> Result<()> {
     Ok(())
 }
 
+/// Sets [`WorkUnit::push_branch_for_downstream_stack`] when another unit will stack on this branch:
+/// a later entry for the same repo in this subtask (stacking waves), or a later epic subtask that uses the same repo.
+fn annotate_push_for_downstream_stack(
+    epic: &Epic,
+    subtask_idx: usize,
+    work_units: &mut [WorkUnit],
+) {
+    let n = work_units.len();
+    let mut later_same_repo_in_prd = vec![false; n];
+    for idx in 0..n {
+        let repo = repo_name_from_url(&work_units[idx].repo_url);
+        later_same_repo_in_prd[idx] = work_units[idx + 1..]
+            .iter()
+            .any(|u| repo_name_from_url(&u.repo_url) == repo);
+    }
+    for (idx, unit) in work_units.iter_mut().enumerate() {
+        let repo = repo_name_from_url(&unit.repo_url);
+        let later_subtask_same_repo = epic.subtasks[subtask_idx + 1..].iter().any(|p| {
+            p.repositories
+                .iter()
+                .any(|r| repo_name_from_url(&r.url) == repo)
+        });
+        unit.push_branch_for_downstream_stack = later_same_repo_in_prd[idx] || later_subtask_same_repo;
+    }
+}
+
 fn build_work_units_for_prd(
     prd_entry: &PrdEntry,
     global_agents: &[String],
@@ -273,6 +303,7 @@ fn build_work_units_for_prd(
             context: repo.context.clone(),
             agents,
             stack_on: None,
+            push_branch_for_downstream_stack: false,
             label: format!("{prd_name} x {repo_name}"),
         });
     }
@@ -409,6 +440,7 @@ async fn execute_units(
                 reuse_devcontainer: config.reuse_devcontainer,
                 interactive,
                 stack_on: unit.stack_on.clone(),
+                push_branch_for_downstream_stack: unit.push_branch_for_downstream_stack,
                 evidence_agents,
                 work_dir: pipeline_work_dir,
             };
@@ -478,6 +510,7 @@ async fn execute_single_unit(
         reuse_devcontainer: config.reuse_devcontainer,
         interactive: args.interactive,
         stack_on: unit.stack_on.clone(),
+        push_branch_for_downstream_stack: unit.push_branch_for_downstream_stack,
         evidence_agents: args.evidence_agents.clone(),
         work_dir: pipeline_work_dir,
     };
@@ -486,4 +519,82 @@ async fn execute_single_unit(
 
     info!(unit = %unit.label, "complete");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::manifest::{Epic, PrdEntry, Repository};
+
+    fn unit(repo_suffix: &str) -> WorkUnit {
+        WorkUnit {
+            prd_path: PathBuf::from("a.md"),
+            repo_url: format!("https://github.com/o/{repo_suffix}"),
+            branch: "main".into(),
+            context: None,
+            agents: vec![],
+            stack_on: None,
+            push_branch_for_downstream_stack: false,
+            label: repo_suffix.to_string(),
+        }
+    }
+
+    #[test]
+    fn annotate_later_wave_same_repo_sets_push_on_first_only() {
+        let epic = Epic {
+            name: None,
+            description: None,
+            subtasks: vec![PrdEntry {
+                prd: PathBuf::from("a.md"),
+                agents: None,
+                repositories: vec![Repository {
+                    url: "https://github.com/o/r".into(),
+                    branch: "main".into(),
+                    context: None,
+                    agents: None,
+                }],
+            }],
+        };
+        let mut wu = vec![unit("r"), unit("r")];
+        annotate_push_for_downstream_stack(&epic, 0, &mut wu);
+        assert!(wu[0].push_branch_for_downstream_stack);
+        assert!(!wu[1].push_branch_for_downstream_stack);
+    }
+
+    #[test]
+    fn annotate_later_epic_subtask_sets_push_on_first_subtask_only() {
+        let epic = Epic {
+            name: None,
+            description: None,
+            subtasks: vec![
+                PrdEntry {
+                    prd: PathBuf::from("a.md"),
+                    agents: None,
+                    repositories: vec![Repository {
+                        url: "https://github.com/o/wisp".into(),
+                        branch: "main".into(),
+                        context: None,
+                        agents: None,
+                    }],
+                },
+                PrdEntry {
+                    prd: PathBuf::from("b.md"),
+                    agents: None,
+                    repositories: vec![Repository {
+                        url: "https://github.com/o/wisp".into(),
+                        branch: "main".into(),
+                        context: None,
+                        agents: None,
+                    }],
+                },
+            ],
+        };
+        let mut first = vec![unit("wisp")];
+        annotate_push_for_downstream_stack(&epic, 0, &mut first);
+        assert!(first[0].push_branch_for_downstream_stack);
+
+        let mut second = vec![unit("wisp")];
+        annotate_push_for_downstream_stack(&epic, 1, &mut second);
+        assert!(!second[0].push_branch_for_downstream_stack);
+    }
 }
