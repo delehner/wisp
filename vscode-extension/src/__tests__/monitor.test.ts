@@ -50,6 +50,23 @@ describe('registerMonitorCommand', () => {
     ];
   });
 
+  it('falls back to process.cwd() when no workspace folder is open', async () => {
+    (vscode.workspace as unknown as { workspaceFolders: undefined }).workspaceFolders = undefined;
+
+    // WispCli.resolve() fails → command returns early; the important thing is no crash
+    mockExec.mockImplementation((_cmd, callback: unknown) => {
+      (callback as ExecCallback)(new Error('not found'), '', '');
+      return {} as cp.ChildProcess;
+    });
+    (vscode.window.showInformationMessage as jest.Mock).mockResolvedValue(undefined);
+
+    registerMonitorCommand(context, outputChannel, statusBar, jest.fn(), jest.fn());
+    const [[, handler]] = (vscode.commands.registerCommand as jest.Mock).mock.calls;
+    await handler();
+
+    expect(cp.spawn).not.toHaveBeenCalled();
+  });
+
   it('registers wisp.monitor command', () => {
     registerMonitorCommand(context, outputChannel, statusBar, jest.fn(), jest.fn());
     expect(vscode.commands.registerCommand).toHaveBeenCalledWith(

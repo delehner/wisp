@@ -375,4 +375,22 @@ describe('registerUpdateCommand', () => {
 
     expect(vscode.window.withProgress).not.toHaveBeenCalled();
   });
+
+  it('falls back to process.cwd() when no workspace folder is open', async () => {
+    (vscode.workspace as unknown as { workspaceFolders: undefined }).workspaceFolders = undefined;
+    const spawnMock = makeSpawnMock(0);
+
+    registerUpdateCommand(context, outputChannel, statusBar, jest.fn(), jest.fn());
+    const [[, handler]] = (vscode.commands.registerCommand as jest.Mock).mock.calls;
+    await handler();
+
+    // Command should still run using process.cwd() as the working directory
+    expect(spawnMock).toHaveBeenCalledWith(
+      expect.any(String),
+      ['update'],
+      expect.objectContaining({ cwd: process.cwd() }),
+    );
+
+    spawnMock.mockRestore();
+  });
 });

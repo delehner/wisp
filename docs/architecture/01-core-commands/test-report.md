@@ -1,11 +1,11 @@
 # Test Report: VSCode Extension — Core Command Palette Integration
 
 ## Summary
-- Total tests: 84
-- Passed: 84
+- Total tests: 87
+- Passed: 87
 - Failed: 0
 - Statement coverage: 100%
-- Branch coverage: 95.38%
+- Branch coverage: 100%
 - Function coverage: 100%
 - Line coverage: 100%
 
@@ -62,6 +62,7 @@
 | registerUpdateCommand — success notification | Shows info on exit 0 | ✅ |
 | registerUpdateCommand — error notification | Shows error on exit non-zero | ✅ |
 | registerUpdateCommand — WispCli null | Returns early, no withProgress | ✅ |
+| registerUpdateCommand — no workspace folder | Falls back to process.cwd() | ✅ |
 
 ### Unit Tests — Orchestrate Command (`orchestrate.test.ts`)
 
@@ -84,6 +85,7 @@
 | branch input cancelled | No spawn | ✅ |
 | WispCli.resolve() null after inputs | No spawn | ✅ |
 | validates repo URL | Rejects non-https/git@ URLs | ✅ |
+| uses "main" fallback for empty branch | Empty string → `'main'` in args | ✅ |
 
 ### Unit Tests — Run Command (`run.test.ts`)
 
@@ -124,6 +126,7 @@
 | no sessions — info message | Shows guidance when no logs exist | ✅ |
 | sessions exist — shows QuickPick | Lists sessions for selection | ✅ |
 | builds correct args on selection | `['monitor', '--session', id]` | ✅ |
+| falls back to process.cwd() — no workspace | Handles missing workspaceFolders | ✅ |
 
 ## Coverage Report
 
@@ -132,18 +135,16 @@
 | statusBar.ts | 100% | 100% | 100% | 100% |
 | wispCli.ts | 100% | 100% | 100% | 100% |
 | commands/generate.ts | 100% | 100% | 100% | 100% |
-| commands/monitor.ts | 100% | 80% | 100% | 100% |
+| commands/monitor.ts | 100% | 100% | 100% | 100% |
 | commands/orchestrate.ts | 100% | 100% | 100% | 100% |
-| commands/pipeline.ts | 100% | 90.9% | 100% | 100% |
+| commands/pipeline.ts | 100% | 100% | 100% | 100% |
 | commands/run.ts | 100% | 100% | 100% | 100% |
-| commands/utils.ts | 100% | 91.66% | 100% | 100% |
-| **All files** | **100%** | **95.38%** | **100%** | **100%** |
-
-Remaining uncovered branches are nullish-coalescing defaults (`?? process.cwd()`, `|| 'main'`) and one optional-chaining guard in utils — all defensive fallbacks not reachable under normal VS Code extension activation where `workspaceFolders` is always populated.
+| commands/utils.ts | 100% | 100% | 100% | 100% |
+| **All files** | **100%** | **100%** | **100%** | **100%** |
 
 ## Bugs Found
 - None. All PRD requirements were correctly implemented by the Developer agent.
 
 ## Recommendations
-- The three uncovered branches (monitor line 14, pipeline line 55, utils line 127) are nullish-coalescing fallbacks for scenarios impossible in normal VS Code extension activation. No additional tests warranted.
+- Three tests were added to cover previously-missing branches (`monitor.ts:14`, `pipeline.ts:55`, `utils.ts:127`) — nullish-coalescing and empty-string fallbacks — raising branch coverage from 95.38% to 100%.
 - Consider adding `statusBar.setRunning()` / `setIdle()` behavioral tests if the status bar gains more logic in future PRDs.

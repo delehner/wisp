@@ -139,6 +139,38 @@ describe('registerPipelineCommand', () => {
     expect(cp.spawn).not.toHaveBeenCalled();
   });
 
+  it('uses "main" as fallback when branch input is empty string', async () => {
+    (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([
+      { fsPath: '/workspace/prds/feat/prd.md' },
+    ]);
+    (vscode.window.showQuickPick as jest.Mock).mockResolvedValue('/workspace/prds/feat/prd.md');
+    (vscode.window.showInputBox as jest.Mock)
+      .mockResolvedValueOnce('https://github.com/org/repo.git')
+      .mockResolvedValueOnce(''); // user clears the branch field
+
+    const spawnMock = makeSpawnMock();
+
+    registerPipelineCommand(context, outputChannel, statusBar, jest.fn(), jest.fn());
+    const [[, handler]] = (vscode.commands.registerCommand as jest.Mock).mock.calls;
+    await handler();
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      expect.any(String),
+      [
+        'pipeline',
+        '--prd',
+        '/workspace/prds/feat/prd.md',
+        '--repo',
+        'https://github.com/org/repo.git',
+        '--branch',
+        'main',
+      ],
+      expect.any(Object),
+    );
+
+    spawnMock.mockRestore();
+  });
+
   it('validates repo URL — rejects invalid URL', async () => {
     (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([
       { fsPath: '/workspace/prds/feat/prd.md' },
