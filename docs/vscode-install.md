@@ -1,4 +1,4 @@
-# Installing the Wisp VS Code Extension
+# Installing the Wisp AI VS Code Extension
 
 ## Prerequisites
 
@@ -14,7 +14,7 @@ Before installing the extension, ensure you have:
 1. Open VS Code.
 2. Open the Extensions view: `Cmd+Shift+P` / `Ctrl+Shift+P` → **Extensions: Install Extensions**, or click the Extensions icon in the Activity Bar.
 3. Search for **Wisp**.
-4. Click **Install** on the Wisp extension by `delehner`.
+4. Click **Install** on the **Wisp AI** extension by `delehner`.
 
 The extension activates automatically once installed.
 
@@ -22,7 +22,7 @@ The extension activates automatically once installed.
 
 Use this method to install a specific version downloaded from GitHub Releases, or to sideload a build that has not yet been published to the Marketplace.
 
-1. Download the `.vsix` file from [GitHub Releases](https://github.com/delehner/wisp/releases) — look for assets named `wisp-cli-X.Y.Z.vsix`.
+1. Download the `.vsix` file from [GitHub Releases](https://github.com/delehner/wisp/releases) — look for assets named `wisp-ai-X.Y.Z.vsix`.
 2. Open VS Code.
 3. Open the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`).
 4. Run **Extensions: Install from VSIX...**.
@@ -47,7 +47,7 @@ npm run compile
 npm run package
 ```
 
-This produces a `wisp-cli-X.Y.Z.vsix` file in `vscode-extension/`. Install it using Method 2 above.
+This produces a `wisp-ai-X.Y.Z.vsix` file in `vscode-extension/`. Install it using Method 2 above.
 
 ## Verification
 
@@ -55,7 +55,7 @@ After installing the extension, verify it is working:
 
 1. Open a folder that contains a `manifests/` or `prds/` directory (or any wisp workspace).
 2. Open the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`).
-3. Run **Wisp: Show Version**.
+3. Run **Wisp AI: Show Version**.
 
 You should see the wisp CLI version string in the output panel. If the command succeeds, the extension is correctly finding your `wisp` binary and is ready to use.
 
@@ -87,8 +87,8 @@ Open VS Code User Settings (`Cmd+,` / `Ctrl+,`), search for `wisp.binaryPath`, a
 **Checks:**
 - Ensure the extension is installed and enabled: open the Extensions view and confirm Wisp shows as enabled.
 - The extension activates when the workspace contains `manifests/*.json` or `prds/**/*.md` files, or when any `wisp.*` command is explicitly invoked. Open a wisp project folder to trigger automatic activation.
-- Check the VS Code Output panel (View → Output → select "Wisp" from the dropdown) for activation errors.
+- Check the VS Code Output panel (View → Output → select "Wisp AI" from the dropdown) for activation errors.
 
 ### Wrong version shown
 
-If **Wisp: Show Version** shows an older version than expected, `wisp.binaryPath` may be pointing to a stale binary. Clear the setting to use `PATH`, or update `wisp.binaryPath` to the correct binary location.
+If **Wisp AI: Show Version** shows an older version than expected, `wisp.binaryPath` may be pointing to a stale binary. Clear the setting to use `PATH`, or update `wisp.binaryPath` to the correct binary location.

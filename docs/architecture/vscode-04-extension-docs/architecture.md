@@ -2,7 +2,7 @@
 
 ## Overview
 
-This PRD adds comprehensive user-facing documentation for the Wisp VS Code extension. It is a **docs-only PRD** — no TypeScript or Rust source changes. The deliverables are three new markdown files under `docs/`, a rewritten `vscode-extension/README.md`, and targeted updates to four existing docs.
+This PRD adds comprehensive user-facing documentation for the Wisp AI VS Code extension. It is a **docs-only PRD** — no TypeScript or Rust source changes. The deliverables are three new markdown files under `docs/`, a rewritten `vscode-extension/README.md`, and targeted updates to four existing docs.
 
 Engineers discovering Wisp via the VS Code Marketplace currently have no documentation. Existing CLI users do not know the extension exists. This work closes that gap.
 
@@ -30,11 +30,11 @@ This PRD introduces no new software components. All changes are documentation:
 ```mermaid
 flowchart LR
     User["User\n(Command Palette)"]
-    Ext["Wisp Extension\n(VS Code)"]
+    Ext["Wisp AI\n(VS Code)"]
     Binary["wisp binary\n(PATH or wisp.binaryPath)"]
     Output["Terminal / Notification\n(command output)"]
 
-    User -->|"Cmd+Shift+P → Wisp: ..."| Ext
+    User -->|"Cmd+Shift+P → Wisp AI: ..."| Ext
     Ext -->|"spawn process"| Binary
     Binary -->|"stdout/stderr"| Output
 ```
@@ -136,10 +136,10 @@ Ordered tasks for the Developer agent (documentation only — no source code):
 
 3. **Create `docs/vscode-install.md`**
    - Prerequisites: VS Code ≥ 1.85, wisp CLI on PATH (link to `docs/prerequisites.md`)
-   - Method 1 — Marketplace: search "Wisp" in Extensions view, click Install
+   - Method 1 — Marketplace: search "Wisp AI" in Extensions view, click Install
    - Method 2 — VSIX sideload: download from GitHub Releases, Extensions → … → Install from VSIX…
    - Method 3 — Build from source: `npm ci && npm run compile && npm run package` then Install from VSIX
-   - Verification: run "Wisp: Show Version" from command palette, confirm version output
+   - Verification: run "Wisp AI: Show Version" from command palette, confirm version output
    - Troubleshooting: binary not found → set `wisp.binaryPath`; extension not activating → check activation triggers (manifests/, prds/)
 
 4. **Create `docs/vscode-publish.md`**
@@ -155,7 +155,7 @@ Ordered tasks for the Developer agent (documentation only — no source code):
    - Title: `# Wisp for VS Code`
    - Tagline + VS Code Marketplace version badge
    - Feature list: all commands, sidebar tree view (if present), binary auto-detection
-   - Quick start: install → run "Wisp: Show Version" to verify
+   - Quick start: install → run "Wisp AI: Show Version" to verify
    - Configuration: `wisp.binaryPath` with example
    - Requirements: VS Code ≥ 1.85, wisp CLI on PATH
    - Links (absolute GitHub URLs): `https://github.com/delehner/wisp/blob/main/docs/vscode-install.md`, `https://github.com/delehner/wisp/blob/main/docs/vscode-extension.md`
@@ -195,8 +195,8 @@ Follow these conventions from existing docs:
 - Headers: `##` for sections, `###` for subsections — no `#` except the document title
 - Code blocks: fenced with language tag (` ```bash `, ` ```mermaid `)
 - Tables: GitHub-flavored markdown; pipe-aligned columns
-- Prose: "VS Code" (with space), "wisp" (lowercase CLI), "Wisp" (capital extension)
+- Prose: "VS Code" (with space), "wisp" (lowercase CLI), "Wisp AI" (extension product name)
 - No HTML elements
 - Mermaid diagrams: `flowchart TD` or `flowchart LR` consistent with `pipeline-overview.md` and `project-structure.md`
-- Command palette invocations: bold, e.g., **Wisp: Show Version**
+- Command palette invocations: bold, e.g., **Wisp AI: Show Version** (prefix matches `package.json` titles)
 - Agent table format reference: `docs/adding-agents.md` step 2 — use the same column structure for the commands table

@@ -1,6 +1,6 @@
-# Publishing the Wisp VS Code Extension
+# Publishing the Wisp AI VS Code Extension
 
-This guide is for maintainers who need to publish a new version of the Wisp VS Code extension to the VS Code Marketplace and GitHub Releases. Publishing is fully automated via `.github/workflows/publish-vscode.yml` — pushing a version tag is all that is required after the one-time setup.
+This guide is for maintainers who need to publish a new version of the Wisp AI VS Code extension to the VS Code Marketplace and GitHub Releases. Publishing is fully automated via `.github/workflows/publish-vscode.yml` — pushing a version tag is all that is required after the one-time setup.
 
 For the full release runbook including rollback steps, see `docs/architecture/marketplace-publish/devops.md`.
 
@@ -82,7 +82,7 @@ A green check means the extension is live on the Marketplace. A red failure mean
 
 ### Step 4: Verify the publish
 
-- **VS Code Marketplace:** Search for "Wisp" in the Extensions view of VS Code, or visit [marketplace.visualstudio.com](https://marketplace.visualstudio.com) and search for the extension. The new version should appear within a few minutes of a successful publish.
+- **VS Code Marketplace:** Search for "Wisp AI" in the Extensions view of VS Code, or visit [marketplace.visualstudio.com](https://marketplace.visualstudio.com) and search for the extension. The new version should appear within a few minutes of a successful publish.
 - **GitHub Releases:** The workflow creates a release named `VSCode Extension vX.Y.Z` with the `.vsix` file attached. Tags containing a hyphen (e.g., `vscode-v0.2.0-beta`) are automatically marked as pre-release.
 
 ## PAT Rotation

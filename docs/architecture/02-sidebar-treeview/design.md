@@ -5,7 +5,7 @@
 ### Primary Flow — Browse & Open PRD
 1. User opens VS Code with a wisp workspace
 2. Wisp icon appears in the Activity Bar (left sidebar)
-3. User clicks the Wisp icon → "Wisp Explorer" panel slides open
+3. User clicks the Wisp AI icon → "Wisp AI Explorer" panel slides open
 4. Two collapsed sections appear: **Manifests** (auto-expanded) and **PRDs**
 5. User expands a manifest node → sees epics as children
 6. User expands an epic → sees subtask nodes (PRD filename + target repo)

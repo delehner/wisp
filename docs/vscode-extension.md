@@ -1,19 +1,19 @@
 # VS Code Extension Feature Guide
 
-> This document tracks the latest released version of the Wisp extension. The command list reflects what is registered in `vscode-extension/package.json`.
+> This document tracks the latest released version of the Wisp AI extension. The command list reflects what is registered in `vscode-extension/package.json`.
 
-The Wisp extension for VS Code lets you invoke the `wisp` CLI directly from the Command Palette without switching to a terminal. Each command maps 1:1 to a `wisp` CLI subcommand, spawned as a subprocess.
+The Wisp AI extension for VS Code lets you invoke the `wisp` CLI directly from the Command Palette without switching to a terminal. Each command maps 1:1 to a `wisp` CLI subcommand, spawned as a subprocess.
 
 ## How It Works
 
 ```mermaid
 flowchart LR
     User["User\n(Command Palette)"]
-    Ext["Wisp Extension\n(VS Code)"]
+    Ext["Wisp AI\n(VS Code)"]
     Binary["wisp binary\n(PATH or wisp.binaryPath)"]
     Output["Terminal / Notification\n(command output)"]
 
-    User -->|"Cmd+Shift+P → Wisp: ..."| Ext
+    User -->|"Cmd+Shift+P → Wisp AI: ..."| Ext
     Ext -->|"spawn subprocess"| Binary
     Binary -->|"stdout / stderr"| Output
 ```
@@ -22,9 +22,9 @@ The extension finds the `wisp` binary by checking `wisp.binaryPath` first, then 
 
 ## Getting Started
 
-1. **Install the extension** — search "Wisp" in the Extensions view (`Cmd+Shift+P` → **Extensions: Install Extensions**) and click Install. Or see [Installation Guide](vscode-install.md) for VSIX and source install options.
+1. **Install the extension** — search "Wisp AI" in the Extensions view (`Cmd+Shift+P` → **Extensions: Install Extensions**) and click Install. Or see [Installation Guide](vscode-install.md) for VSIX and source install options.
 2. **Open a wisp workspace** — open a folder that contains a `manifests/` directory or `prds/` directory. This triggers the extension to activate.
-3. **Verify the extension works** — open the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`) and run **Wisp: Show Version**. You should see the `wisp` version string in the output.
+3. **Verify the extension works** — open the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`) and run **Wisp AI: Show Version**. You should see the `wisp` version string in the output.
 
 If the command reports that the binary is not found, set `wisp.binaryPath` in your VS Code settings (see [Configuration](#configuration) below).
 
@@ -32,7 +32,7 @@ If the command reports that the binary is not found, set `wisp.binaryPath` in yo
 
 | Command ID | Title | Description | How to Invoke |
 |------------|-------|-------------|---------------|
-| `wisp.showVersion` | **Wisp: Show Version** | Runs `wisp --version` and displays the output | Command Palette → **Wisp: Show Version** |
+| `wisp.showVersion` | **Wisp AI: Show Version** | Runs `wisp --version` and displays the output | Command Palette → **Wisp AI: Show Version** |
 
 > Commands for `orchestrate`, `pipeline`, `run`, `generate`, `monitor`, and others will be added as PRD 01 work lands. This table reflects the current `package.json`.
 
@@ -87,4 +87,4 @@ No manual activation step is needed for normal use.
 
 **Symptom:** Wisp commands do not appear in the Command Palette.
 
-**Fix:** The extension activates when a workspace contains `manifests/` or `prds/` directories, or when any `wisp.*` command is invoked. If neither condition is met, open the folder that contains your wisp workspace, or trigger activation by searching for "Wisp" in the Command Palette.
+**Fix:** The extension activates when a workspace contains `manifests/` or `prds/` directories, or when any `wisp.*` command is invoked. If neither condition is met, open the folder that contains your wisp workspace, or trigger activation by searching for "Wisp AI" in the Command Palette.

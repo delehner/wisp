@@ -17,7 +17,7 @@ export function registerPipelineCommand(
   const cmd = vscode.commands.registerCommand('wisp.pipeline', async () => {
     const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (!cwd) {
-      vscode.window.showErrorMessage('Wisp: No workspace folder open.');
+      vscode.window.showErrorMessage('Wisp AI: No workspace folder open.');
       return;
     }
 

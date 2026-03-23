@@ -37,7 +37,7 @@ describe('registerMonitorCommand', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     context = { subscriptions: { push: jest.fn() } } as unknown as vscode.ExtensionContext;
-    outputChannel = vscode.window.createOutputChannel('Wisp');
+    outputChannel = vscode.window.createOutputChannel('Wisp AI');
     statusBar = new WispStatusBar();
 
     mockExec.mockImplementation((_cmd, callback: unknown) => {

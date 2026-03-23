@@ -44,7 +44,7 @@ Then run `cargo build --release` in the repo root, or `cargo install wisp` to in
 
 If you use VS Code or Cursor, you can run Wisp commands directly from the Command Palette without switching to a terminal. The extension is a thin launcher on top of the CLI — you still need the `wisp` binary installed first.
 
-See [Installing the Wisp VS Code Extension](vscode-install.md) for installation options (Marketplace, VSIX, or build from source).
+See [Installing the Wisp AI VS Code Extension](vscode-install.md) for installation options (Marketplace, VSIX, or build from source).
 
 ## Recommended
 

@@ -126,7 +126,7 @@ describe('runWithOutput() — stdout/stderr piping', () => {
     } as unknown as cp.ChildProcess);
 
     const cli = await WispCli.resolve();
-    const outputChannel = vscode.window.createOutputChannel('Wisp');
+    const outputChannel = vscode.window.createOutputChannel('Wisp AI');
     const statusBar = new WispStatusBar();
 
     const runPromise = runWithOutput(cli!, ['orchestrate'], '/tmp', outputChannel, statusBar);
@@ -163,7 +163,7 @@ describe('runWithOutput() — already-running guard', () => {
     } as unknown as cp.ChildProcess);
 
     const cli = await WispCli.resolve();
-    const outputChannel = vscode.window.createOutputChannel('Wisp');
+    const outputChannel = vscode.window.createOutputChannel('Wisp AI');
     const statusBar = new WispStatusBar();
 
     // Start first run (don't await — process stays open)
@@ -174,7 +174,7 @@ describe('runWithOutput() — already-running guard', () => {
     const code = await runWithOutput(cli!, ['orchestrate'], '/tmp', outputChannel, statusBar);
 
     expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(
-      'A Wisp pipeline is already running.',
+      'A Wisp AI pipeline is already running.',
     );
     expect(code).toBe(1);
 
@@ -193,7 +193,7 @@ describe('registerInstallSkillsCommand', () => {
     jest.clearAllMocks();
     resolvedCli();
     context = { subscriptions: { push: jest.fn() } } as unknown as vscode.ExtensionContext;
-    outputChannel = vscode.window.createOutputChannel('Wisp');
+    outputChannel = vscode.window.createOutputChannel('Wisp AI');
     statusBar = new WispStatusBar();
     (vscode.workspace as unknown as { workspaceFolders: { uri: { fsPath: string } }[] }).workspaceFolders = [
       { uri: { fsPath: '/workspace' } },
@@ -232,7 +232,7 @@ describe('registerInstallSkillsCommand', () => {
     await handler();
 
     expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
-      'Wisp: Skills installed successfully.',
+      'Wisp AI: Skills installed successfully.',
     );
 
     spawnMock.mockRestore();
@@ -259,7 +259,7 @@ describe('registerInstallSkillsCommand', () => {
     const [[, handler]] = (vscode.commands.registerCommand as jest.Mock).mock.calls;
     await handler();
 
-    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Wisp: No workspace folder open.');
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Wisp AI: No workspace folder open.');
     expect(cp.spawn).not.toHaveBeenCalled();
   });
 
@@ -287,7 +287,7 @@ describe('registerUpdateCommand', () => {
     jest.clearAllMocks();
     resolvedCli();
     context = { subscriptions: { push: jest.fn() } } as unknown as vscode.ExtensionContext;
-    outputChannel = vscode.window.createOutputChannel('Wisp');
+    outputChannel = vscode.window.createOutputChannel('Wisp AI');
     statusBar = new WispStatusBar();
     (vscode.workspace as unknown as { workspaceFolders: { uri: { fsPath: string } }[] }).workspaceFolders = [
       { uri: { fsPath: '/workspace' } },
@@ -341,7 +341,7 @@ describe('registerUpdateCommand', () => {
     await handler();
 
     expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
-      'Wisp: Updated successfully.',
+      'Wisp AI: Updated successfully.',
     );
 
     spawnMock.mockRestore();

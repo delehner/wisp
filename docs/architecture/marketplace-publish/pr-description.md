@@ -1,6 +1,6 @@
 ## Summary
 
-- Adds `.github/workflows/publish-vscode.yml` — a GitHub Actions workflow that automatically publishes the Wisp VS Code extension to the VS Code Marketplace when a `vscode-v*` tag is pushed
+- Adds `.github/workflows/publish-vscode.yml` — a GitHub Actions workflow that automatically publishes the Wisp AI VS Code extension to the VS Code Marketplace when a `vscode-v*` tag is pushed
 - Mirrors the existing `release.yml` pattern for the Rust binary, giving maintainers an independent release path for the extension
 - Adds release runbook, test report, and updated documentation for the new publish process
 

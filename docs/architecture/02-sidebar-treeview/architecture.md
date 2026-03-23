@@ -2,7 +2,7 @@
 
 ## Overview
 
-Add a Wisp Explorer panel to the VS Code Activity Bar with a tree view showing the workspace's manifests and PRDs. Users can browse epics, subtasks, and PRD files, launch pipelines from context menus, and open PRDs in the editor with a click — without touching the file system or command line.
+Add a Wisp AI Explorer panel to the VS Code Activity Bar with a tree view showing the workspace's manifests and PRDs. Users can browse epics, subtasks, and PRD files, launch pipelines from context menus, and open PRDs in the editor with a click — without touching the file system or command line.
 
 This feature is entirely additive: it extends `vscode-extension/` with a new `src/treeView/` module, new commands, and `package.json` contribution points. It depends on PRD 01's commands being registered (`wisp.orchestrate`, `wisp.pipeline`).
 
@@ -205,14 +205,14 @@ Internally creates two watchers:
 // contributes.viewsContainers.activitybar
 {
   "id": "wisp-explorer",
-  "title": "Wisp Explorer",
+  "title": "Wisp AI Explorer",
   "icon": "resources/wisp-icon.svg"
 }
 
 // contributes.views["wisp-explorer"]
 {
   "id": "wispExplorer",
-  "name": "Wisp Explorer",
+  "name": "Wisp AI Explorer",
   "when": "true"
 }
 

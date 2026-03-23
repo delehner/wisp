@@ -55,7 +55,7 @@ git push origin vscode-v0.2.0
 The `publish-vscode.yml` workflow triggers automatically and:
 1. Runs compile + lint + test (CI gate)
 2. Validates tag version matches `package.json`
-3. Packages the extension (`wisp-cli-0.2.0.vsix`)
+3. Packages the extension (`wisp-ai-0.2.0.vsix`)
 4. Publishes to VS Code Marketplace
 5. Creates GitHub Release with VSIX attached
 6. Publishes to Open VSX (if `OVSX_PAT` is configured)
@@ -63,8 +63,8 @@ The `publish-vscode.yml` workflow triggers automatically and:
 ### Post-Deploy Verification
 
 - [ ] GitHub Actions run completes green: `https://github.com/delehner/wisp/actions/workflows/publish-vscode.yml`
-- [ ] Extension appears on Marketplace: search "Wisp" at [marketplace.visualstudio.com](https://marketplace.visualstudio.com)
-- [ ] GitHub Release created with `wisp-cli-<version>.vsix` attached: `https://github.com/delehner/wisp/releases`
+- [ ] Extension appears on Marketplace: search "Wisp AI" at [marketplace.visualstudio.com](https://marketplace.visualstudio.com)
+- [ ] GitHub Release created with `wisp-ai-<version>.vsix` attached: `https://github.com/delehner/wisp/releases`
 - [ ] Version shown in VS Code Extensions panel matches the published version
 
 ### Rollback Steps
@@ -72,7 +72,7 @@ The `publish-vscode.yml` workflow triggers automatically and:
 VS Code Marketplace does not support unpublishing a specific version — only the entire extension can be unpublished. For a bad release:
 
 1. **Fix forward**: bump `package.json` to a patch version (e.g., `0.2.1`), fix the issue, tag `vscode-v0.2.1`
-2. **Emergency unpublish** (last resort): `npx vsce unpublish delehner.wisp-cli` — removes the extension entirely from the Marketplace; use only if the release causes security or data-loss issues
+2. **Emergency unpublish** (last resort): `npx vsce unpublish delehner.wisp-ai` — removes the extension entirely from the Marketplace; use only if the release causes security or data-loss issues
 3. **GitHub Release**: delete or mark the GitHub Release as pre-release via the Releases UI; the VSIX remains downloadable but is de-emphasized
 
 ## Monitoring & Alerts

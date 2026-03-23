@@ -11,11 +11,11 @@ export class WispStatusBar {
   }
 
   setRunning(): void {
-    this.item.text = '$(sync~spin) Wisp: Running';
+    this.item.text = '$(sync~spin) Wisp AI: Running';
   }
 
   setIdle(): void {
-    this.item.text = '$(check) Wisp: Idle';
+    this.item.text = '$(check) Wisp AI: Idle';
   }
 
   dispose(): void {

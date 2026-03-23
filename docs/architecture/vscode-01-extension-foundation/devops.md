@@ -35,12 +35,12 @@ Both jobs run on `push` to `main` and on all `pull_request` events matching the 
 - [ ] `npm audit` reports 0 vulnerabilities in `vscode-extension/`
 - [ ] Bundle size check: `out/extension.js` < 500 KB (baseline: ~4.6 KB)
 - [ ] `npm run package` produces a `.vsix` file without errors
-- [ ] Manual smoke-test: Install `.vsix` in VSCode, open a workspace with a `manifests/` folder, verify extension activates and `Wisp: Show Version` command appears in the command palette
+- [ ] Manual smoke-test: Install `.vsix` in VSCode, open a workspace with a `manifests/` folder, verify extension activates and `Wisp AI: Show Version` command appears in the command palette
 
 ### Deploy Steps (Extension Release)
 
 1. Bump `version` in `vscode-extension/package.json` following semver
-2. Run `cd vscode-extension && npm run package` to produce `wisp-cli-<version>.vsix`
+2. Run `cd vscode-extension && npm run package` to produce `wisp-ai-<version>.vsix`
 3. For marketplace publishing (future):
    ```bash
    cd vscode-extension
@@ -52,8 +52,8 @@ Both jobs run on `push` to `main` and on all `pull_request` events matching the 
 
 - Install the published `.vsix` (or marketplace version) in a clean VSCode profile
 - Open a workspace containing a `manifests/` folder
-- Confirm extension activates (status bar or output channel "Wisp" appears)
-- Run `Wisp: Show Version` from the command palette:
+- Confirm extension activates (status bar or output channel **Wisp AI** appears)
+- Run `Wisp AI: Show Version` from the command palette:
   - If `wisp` is installed: notification shows version string
   - If `wisp` is not installed: notification shows "Wisp binary not found. Install it?" with "Install" button
 

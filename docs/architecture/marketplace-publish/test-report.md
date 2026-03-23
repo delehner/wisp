@@ -31,7 +31,7 @@ GitHub Actions workflows cannot be unit-tested — they are validated by executi
 |---------------------|--------|---------|
 | `softprops/action-gh-release@v2` creates release for the tag | ✅ | Line 58 |
 | Release title: `VSCode Extension v<version>` | ✅ | `name: "VSCode Extension v${{ env.PKG_VERSION }}"` line 60 |
-| VSIX file (`wisp-cli-*.vsix`) attached to release | ✅ | `files: vscode-extension/wisp-cli-*.vsix` |
+| VSIX file (`wisp-ai-*.vsix`) attached to release | ✅ | `files: vscode-extension/wisp-ai-*.vsix` |
 | Pre-release flag set for tags with suffix (e.g. `-beta`) | ✅ | `prerelease: ${{ contains(github.ref_name, '-') }}` line 62 |
 
 ### FR-3: Open VSX Publish (Optional)
@@ -39,7 +39,7 @@ GitHub Actions workflows cannot be unit-tested — they are validated by executi
 | Acceptance Criterion | Status | Evidence |
 |---------------------|--------|---------|
 | Step runs only when `secrets.OVSX_PAT != ''` | ✅ | `if: secrets.OVSX_PAT != ''` line 66 |
-| Uses `ovsx publish` with the packaged VSIX | ✅ | `npx ovsx publish wisp-cli-*.vsix` |
+| Uses `ovsx publish` with the packaged VSIX | ✅ | `npx ovsx publish wisp-ai-*.vsix` |
 | Step failure does not block overall workflow | ✅ | `continue-on-error: true` line 67 |
 
 ### FR-4: Version Validation
@@ -93,7 +93,7 @@ Expected:
 - Workflow triggers automatically
 - All CI steps (compile, lint, test) pass
 - Version validation passes (tag `0.1.0-test` matches `package.json`)
-- `vsce package` produces `wisp-cli-0.1.0-test.vsix`
+- `vsce package` produces `wisp-ai-0.1.0-test.vsix`
 - `vsce publish` publishes to Marketplace (or fails with PAT/publisher error if fork publisher is not configured — that is acceptable; the step must be reached)
 - GitHub Release `VSCode Extension v0.1.0-test` is created with the VSIX attached
 - Release is **not** marked as pre-release (no `-` suffix)

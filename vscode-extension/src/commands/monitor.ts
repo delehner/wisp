@@ -27,7 +27,7 @@ export function registerMonitorCommand(
 
     if (sessions.length === 0) {
       vscode.window.showInformationMessage(
-        'Wisp: No log sessions found. Run a pipeline first, then use "Wisp: Monitor Logs".',
+        'Wisp AI: No log sessions found. Run a pipeline first, then use "Wisp AI: Monitor Logs".',
       );
       return;
     }

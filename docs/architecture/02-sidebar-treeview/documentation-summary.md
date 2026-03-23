@@ -1,13 +1,13 @@
-# Documentation Summary: Wisp Explorer Sidebar Tree View
+# Documentation Summary: Wisp AI Explorer Sidebar Tree View
 
 ## Documentation Updated
 
 | File | Section | Change |
 |------|---------|--------|
-| `vscode-extension/README.md` | Features | Added Wisp Explorer bullet as first feature |
+| `vscode-extension/README.md` | Features | Added Wisp AI Explorer bullet as first feature |
 | `vscode-extension/README.md` | Commands | Replaced flat command table with two sections: "Command Palette" (unchanged) and "Explorer Context Menu Commands" (5 new commands) |
-| `vscode-extension/README.md` | Wisp Explorer | Added new section with tree structure diagram, click/right-click behavior, and refresh description |
-| `vscode-extension/CHANGELOG.md` | [Unreleased] | Added new section documenting Wisp Explorer sidebar, context menus, auto-refresh, and refresh button |
+| `vscode-extension/README.md` | Wisp AI Explorer | Added new section with tree structure diagram, click/right-click behavior, and refresh description |
+| `vscode-extension/CHANGELOG.md` | [Unreleased] | Added new section documenting Wisp AI Explorer sidebar, context menus, auto-refresh, and refresh button |
 
 ## Documentation Created
 
@@ -20,10 +20,10 @@
 ```markdown
 ### Added
 
-- **Wisp Explorer sidebar** — Activity Bar panel with Manifests and PRDs sections
+- **Wisp AI Explorer sidebar** — Activity Bar panel with Manifests and PRDs sections
 - **Context menus** on manifest, epic, subtask, and PRD nodes
 - **Auto-refresh** via file system watcher (500 ms debounce)
-- **Refresh button** in the Wisp Explorer toolbar
+- **Refresh button** in the Wisp AI Explorer toolbar
 ```
 
 ## Link Verification

@@ -27,7 +27,7 @@ describe('registerOrchestrateCommand', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     context = { subscriptions: { push: jest.fn() } } as unknown as vscode.ExtensionContext;
-    outputChannel = vscode.window.createOutputChannel('Wisp');
+    outputChannel = vscode.window.createOutputChannel('Wisp AI');
     statusBar = new WispStatusBar();
 
     mockExec.mockImplementation((_cmd, callback: unknown) => {
@@ -106,7 +106,7 @@ describe('registerOrchestrateCommand', () => {
     await handler();
 
     expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
-      'Wisp: No workspace folder open.',
+      'Wisp AI: No workspace folder open.',
     );
   });
 });

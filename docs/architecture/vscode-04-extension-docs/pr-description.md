@@ -2,7 +2,7 @@
 
 ## Summary
 
-Adds comprehensive documentation for the Wisp VS Code extension: a feature guide, an installation guide, and a maintainer publishing guide. Updates the Marketplace README and four existing docs to reference the extension alongside the CLI.
+Adds comprehensive documentation for the Wisp AI VS Code extension: a feature guide, an installation guide, and a maintainer publishing guide. Updates the Marketplace README and four existing docs to reference the extension alongside the CLI.
 
 This is a docs-only PR — no TypeScript or Rust source changes.
 
@@ -42,7 +42,7 @@ This is a docs-only PR — no TypeScript or Rust source changes.
 - [x] `CLAUDE.md` key docs list updated
 - [x] Absolute GitHub URLs used in `vscode-extension/README.md`
 - [x] "VS Code" (with space) used consistently in prose
-- [x] "wisp" (lowercase) for CLI, "Wisp" (capitalized) for extension product
+- [x] "wisp" (lowercase) for CLI, "Wisp AI" for extension product name
 
 ## Review Notes
 

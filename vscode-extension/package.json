@@ -1,8 +1,8 @@
 {
-  "name": "wisp-cli",
-  "displayName": "Wisp",
-  "description": "Run Wisp AI pipelines directly from your IDE",
-  "version": "0.1.2",
+  "name": "wisp-ai",
+  "displayName": "Wisp AI",
+  "description": "Run Wisp AI pipelines from your IDE — Command Palette, explorer, and live output for the wisp CLI",
+  "version": "0.1.3",
   "publisher": "delehner",
   "repository": {
     "type": "git",
@@ -25,7 +25,7 @@
       "activitybar": [
         {
           "id": "wisp-explorer",
-          "title": "Wisp Explorer",
+          "title": "Wisp AI",
           "icon": "resources/wisp-icon.svg"
         }
       ]
@@ -34,7 +34,7 @@
       "wisp-explorer": [
         {
           "id": "wispExplorer",
-          "name": "Wisp Explorer",
+          "name": "Wisp AI Explorer",
           "when": "true"
         }
       ]
@@ -76,47 +76,47 @@
     "commands": [
       {
         "command": "wisp.showVersion",
-        "title": "Wisp: Show Version"
+        "title": "Wisp AI: Show Version"
       },
       {
         "command": "wisp.orchestrate",
-        "title": "Wisp: Orchestrate Manifest"
+        "title": "Wisp AI: Orchestrate Manifest"
       },
       {
         "command": "wisp.pipeline",
-        "title": "Wisp: Run Pipeline"
+        "title": "Wisp AI: Run Pipeline"
       },
       {
         "command": "wisp.run",
-        "title": "Wisp: Run Agent"
+        "title": "Wisp AI: Run Agent"
       },
       {
         "command": "wisp.generatePrd",
-        "title": "Wisp: Generate PRDs"
+        "title": "Wisp AI: Generate PRDs"
       },
       {
         "command": "wisp.generateContext",
-        "title": "Wisp: Generate Context"
+        "title": "Wisp AI: Generate Context"
       },
       {
         "command": "wisp.monitor",
-        "title": "Wisp: Monitor Logs"
+        "title": "Wisp AI: Monitor Logs"
       },
       {
         "command": "wisp.installSkills",
-        "title": "Wisp: Install Skills"
+        "title": "Wisp AI: Install Skills"
       },
       {
         "command": "wisp.update",
-        "title": "Wisp: Update"
+        "title": "Wisp AI: Update"
       },
       {
         "command": "wisp.stopPipeline",
-        "title": "Wisp: Stop Pipeline"
+        "title": "Wisp AI: Stop Pipeline"
       },
       {
         "command": "wisp.showOutput",
-        "title": "Wisp: Show Output"
+        "title": "Wisp AI: Show Output"
       },
       {
         "command": "wisp.explorer.refresh",
@@ -144,7 +144,7 @@
       }
     ],
     "configuration": {
-      "title": "Wisp",
+      "title": "Wisp AI",
       "properties": {
         "wisp.binaryPath": {
           "type": "string",

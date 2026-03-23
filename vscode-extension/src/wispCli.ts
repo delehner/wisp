@@ -43,7 +43,7 @@ export class WispCli {
     }
 
     const action = await vscode.window.showInformationMessage(
-      'Wisp binary not found. Install it?',
+      'Wisp AI: The wisp CLI was not found. Install it?',
       'Install',
     );
     if (action === 'Install') {

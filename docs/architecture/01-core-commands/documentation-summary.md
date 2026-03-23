@@ -22,7 +22,7 @@
 - Streaming output to dedicated Output Channel
 - Status bar indicator (Running/Idle) with click-to-reveal
 - File pickers for manifests and PRDs with workspace search and manual fallback
-- Process cancellation via "Wisp: Stop Pipeline"
+- Process cancellation via "Wisp AI: Stop Pipeline"
 - Concurrent pipeline guard (warning if pipeline already active)
 
 ## Link Verification

@@ -1,6 +1,6 @@
 ## Summary
 
-Adds a Wisp Explorer panel to the VS Code Activity Bar with a hierarchical tree view showing manifests, epics, subtasks, and PRD files. Users can browse the project structure, launch orchestrate/pipeline commands from context menus, click PRD nodes to open them in the editor, and auto-refresh the view when manifest or PRD files change.
+Adds a Wisp AI Explorer panel to the VS Code Activity Bar with a hierarchical tree view showing manifests, epics, subtasks, and PRD files. Users can browse the project structure, launch orchestrate/pipeline commands from context menus, click PRD nodes to open them in the editor, and auto-refresh the view when manifest or PRD files change.
 
 ## Changes
 
@@ -33,7 +33,7 @@ Adds a Wisp Explorer panel to the VS Code Activity Bar with a hierarchical tree 
 
 Manual verification expected:
 - Activity Bar shows Wisp W-chevron icon
-- "Wisp Explorer" view appears with "Manifests" and "PRDs" section nodes
+- "Wisp AI Explorer" view appears with "Manifests" and "PRDs" section nodes
 - Manifest `.json` files expand to show epics → subtasks
 - Malformed JSON shows `⚠ Invalid JSON` error node
 - PRD `.md` files grouped by subdirectory; click opens file in editor

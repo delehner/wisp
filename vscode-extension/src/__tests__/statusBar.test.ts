@@ -12,7 +12,7 @@ describe('WispStatusBar', () => {
 
   it('initializes with idle text and shows the item', () => {
     new WispStatusBar();
-    expect(mockItem.text).toBe('$(check) Wisp: Idle');
+    expect(mockItem.text).toBe('$(check) Wisp AI: Idle');
     expect(mockItem.show).toHaveBeenCalled();
   });
 
@@ -24,14 +24,14 @@ describe('WispStatusBar', () => {
   it('setRunning() sets spinning indicator text', () => {
     const bar = new WispStatusBar();
     bar.setRunning();
-    expect(mockItem.text).toBe('$(sync~spin) Wisp: Running');
+    expect(mockItem.text).toBe('$(sync~spin) Wisp AI: Running');
   });
 
   it('setIdle() restores idle indicator text', () => {
     const bar = new WispStatusBar();
     bar.setRunning();
     bar.setIdle();
-    expect(mockItem.text).toBe('$(check) Wisp: Idle');
+    expect(mockItem.text).toBe('$(check) Wisp AI: Idle');
   });
 
   it('dispose() delegates to the underlying status bar item', () => {

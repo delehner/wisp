@@ -24,7 +24,7 @@ function onDone(): void {
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-  outputChannel = vscode.window.createOutputChannel('Wisp');
+  outputChannel = vscode.window.createOutputChannel('Wisp AI');
   context.subscriptions.push(outputChannel);
 
   statusBar = new WispStatusBar();
@@ -37,7 +37,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
     const result = await cli.runCapture(['--version'], process.cwd());
     const version = result.stdout.trim() || result.stderr.trim();
-    vscode.window.showInformationMessage(`Wisp version: ${version}`);
+    vscode.window.showInformationMessage(`Wisp AI · wisp ${version}`);
   });
   context.subscriptions.push(showVersion);
 
@@ -51,9 +51,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       activeCli.cancel();
       activeCli = null;
       statusBar?.setIdle();
-      vscode.window.showInformationMessage('Wisp: Pipeline stopped.');
+      vscode.window.showInformationMessage('Wisp AI: Pipeline stopped.');
     } else {
-      vscode.window.showInformationMessage('Wisp: No pipeline is currently running.');
+      vscode.window.showInformationMessage('Wisp AI: No pipeline is currently running.');
     }
   });
   context.subscriptions.push(stopPipeline);
@@ -95,7 +95,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('wisp.explorer.orchestrate', async (manifestPath: string) => {
       const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
       if (!cwd) {
-        vscode.window.showErrorMessage('Wisp: No workspace folder open.');
+        vscode.window.showErrorMessage('Wisp AI: No workspace folder open.');
         return;
       }
       const cli = await WispCli.resolve();
@@ -120,7 +120,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       async (manifestPath: string, epicName: string) => {
         const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         if (!cwd) {
-          vscode.window.showErrorMessage('Wisp: No workspace folder open.');
+          vscode.window.showErrorMessage('Wisp AI: No workspace folder open.');
           return;
         }
         const cli = await WispCli.resolve();
@@ -146,7 +146,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       async (prdPath: string, repoUrl: string) => {
         const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         if (!cwd) {
-          vscode.window.showErrorMessage('Wisp: No workspace folder open.');
+          vscode.window.showErrorMessage('Wisp AI: No workspace folder open.');
           return;
         }
         const cli = await WispCli.resolve();

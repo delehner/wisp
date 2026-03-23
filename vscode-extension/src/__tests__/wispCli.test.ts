@@ -55,7 +55,7 @@ describe('WispCli.resolve()', () => {
 
     expect(cli).toBeNull();
     expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
-      'Wisp binary not found. Install it?',
+      'Wisp AI: The wisp CLI was not found. Install it?',
       'Install',
     );
   });

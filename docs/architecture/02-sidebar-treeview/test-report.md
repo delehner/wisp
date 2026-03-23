@@ -65,7 +65,7 @@ All 75 tests from `wispCli`, `statusBar`, `commandUtils`, `orchestrate`, `pipeli
 
 ## Bugs Found
 None. All PRD acceptance criteria verified against implementation:
-- FR-1: Wisp Explorer view registered in `extension.ts` with correct viewsContainer and `wispSection` contextValue
+- FR-1: Wisp AI Explorer view registered in `extension.ts` with correct viewsContainer and `wispSection` contextValue
 - FR-2: Manifest nodes parse `name`, fall back to filename, show epics; malformed JSON → ErrorItem
 - FR-3: PRD folder grouping by immediate subdirectory; click-to-open via `wisp.explorer.openFile` command on `PrdFileItem`
 - FR-4: Context menu `when` clauses in `package.json` use `wispManifest`, `wispEpic`, `wispSubtask` values set by `CONTEXT_VALUES`

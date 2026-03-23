@@ -9,7 +9,7 @@ This feature extends the wisp VSCode extension scaffold to expose all 9 wisp CLI
 ### Components
 
 - **`WispCli`** (`src/wispCli.ts`): Binary resolution (config override → `which`/`where` → install prompt), child process lifecycle (`run()`, `runCapture()`, `cancel()`), `isRunning` guard. Extended with `cancel(): void` and `get isRunning(): boolean` for FR-10.
-- **`WispStatusBar`** (`src/statusBar.ts`): Wraps `vscode.StatusBarItem`. `setRunning()` shows spinner + "Wisp: Running"; `setIdle()` shows check + "Wisp: Idle". Click reveals Output Channel.
+- **`WispStatusBar`** (`src/statusBar.ts`): Wraps `vscode.StatusBarItem`. `setRunning()` shows spinner + "Wisp AI: Running"; `setIdle()` shows check + "Wisp AI: Idle". Click reveals Output Channel.
 - **`commands/orchestrate.ts`**: FR-1 — manifest file picker → `wisp orchestrate --manifest <path>`.
 - **`commands/pipeline.ts`**: FR-2 — PRD picker + repo URL + branch inputs → `wisp pipeline --prd --repo --branch`.
 - **`commands/run.ts`**: FR-3 — agent QuickPick (14 agents) + workdir + PRD picker → `wisp run --agent --workdir --prd`.

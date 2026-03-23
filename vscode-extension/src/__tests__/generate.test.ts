@@ -27,7 +27,7 @@ describe('registerGeneratePrdCommand', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     context = { subscriptions: { push: jest.fn() } } as unknown as vscode.ExtensionContext;
-    outputChannel = vscode.window.createOutputChannel('Wisp');
+    outputChannel = vscode.window.createOutputChannel('Wisp AI');
     statusBar = new WispStatusBar();
 
     mockExec.mockImplementation((_cmd, callback: unknown) => {
@@ -141,7 +141,7 @@ describe('registerGeneratePrdCommand', () => {
     const [[, handler]] = (vscode.commands.registerCommand as jest.Mock).mock.calls;
     await handler();
 
-    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Wisp: No workspace folder open.');
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Wisp AI: No workspace folder open.');
     expect(cp.spawn).not.toHaveBeenCalled();
   });
 });
@@ -154,7 +154,7 @@ describe('registerGenerateContextCommand', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     context = { subscriptions: { push: jest.fn() } } as unknown as vscode.ExtensionContext;
-    outputChannel = vscode.window.createOutputChannel('Wisp');
+    outputChannel = vscode.window.createOutputChannel('Wisp AI');
     statusBar = new WispStatusBar();
 
     mockExec.mockImplementation((_cmd, callback: unknown) => {
@@ -206,7 +206,7 @@ describe('registerGenerateContextCommand', () => {
     const [[, handler]] = (vscode.commands.registerCommand as jest.Mock).mock.calls;
     await handler();
 
-    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Wisp: No workspace folder open.');
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Wisp AI: No workspace folder open.');
     expect(cp.spawn).not.toHaveBeenCalled();
   });
 

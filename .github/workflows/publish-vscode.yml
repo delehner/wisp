@@ -102,7 +102,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: "VSCode Extension v${{ env.PKG_VERSION }}"
-          files: vscode-extension/wisp-cli-*.vsix
+          files: vscode-extension/wisp-ai-*.vsix
           prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: false
 
@@ -116,4 +116,4 @@ jobs:
             echo "Skipping Open VSX: OVSX_PAT secret is not set."
             exit 0
           fi
-          npx ovsx publish wisp-cli-*.vsix --pat "${OVSX_PAT}"
+          npx ovsx publish wisp-ai-*.vsix --pat "${OVSX_PAT}"

@@ -59,7 +59,7 @@ export async function runWithOutput(
   onDone?: () => void,
 ): Promise<number> {
   if (cli.isRunning) {
-    vscode.window.showWarningMessage('A Wisp pipeline is already running.');
+    vscode.window.showWarningMessage('A Wisp AI pipeline is already running.');
     return 1;
   }
 
@@ -91,7 +91,7 @@ export function registerInstallSkillsCommand(
   const cmd = vscode.commands.registerCommand('wisp.installSkills', async () => {
     const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (!cwd) {
-      vscode.window.showErrorMessage('Wisp: No workspace folder open.');
+      vscode.window.showErrorMessage('Wisp AI: No workspace folder open.');
       return;
     }
     const cli = await WispCli.resolve();
@@ -108,9 +108,9 @@ export function registerInstallSkillsCommand(
       onDone,
     );
     if (code === 0) {
-      vscode.window.showInformationMessage('Wisp: Skills installed successfully.');
+      vscode.window.showInformationMessage('Wisp AI: Skills installed successfully.');
     } else {
-      vscode.window.showErrorMessage(`Wisp: Install skills failed (exit code ${code}).`);
+      vscode.window.showErrorMessage(`Wisp AI: Install skills failed (exit code ${code}).`);
     }
   });
   context.subscriptions.push(cmd);
@@ -130,7 +130,7 @@ export function registerUpdateCommand(
       return;
     }
     await vscode.window.withProgress(
-      { location: vscode.ProgressLocation.Notification, title: 'Wisp: Updating…', cancellable: false },
+      { location: vscode.ProgressLocation.Notification, title: 'Wisp AI: Updating…', cancellable: false },
       async () => {
         const code = await runWithOutput(
           cli,
@@ -142,9 +142,9 @@ export function registerUpdateCommand(
           onDone,
         );
         if (code === 0) {
-          vscode.window.showInformationMessage('Wisp: Updated successfully.');
+          vscode.window.showInformationMessage('Wisp AI: Updated successfully.');
         } else {
-          vscode.window.showErrorMessage(`Wisp: Update failed (exit code ${code}).`);
+          vscode.window.showErrorMessage(`Wisp AI: Update failed (exit code ${code}).`);
         }
       },
     );
