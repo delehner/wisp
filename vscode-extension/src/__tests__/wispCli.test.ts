@@ -1,8 +1,10 @@
 import * as cp from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { PassThrough } from 'node:stream';
 import * as vscode from 'vscode';
 import { WispCli } from '../wispCli';
+import { WispStatusBar } from '../statusBar';
 
 jest.mock('node:child_process');
 const mockExec = cp.exec as jest.MockedFunction<typeof cp.exec>;
@@ -109,6 +111,152 @@ describe('WispCli.resolve()', () => {
   });
 });
 
+describe('WispCli cancel() and isRunning', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+      get: jest.fn().mockReturnValue('/usr/local/bin/wisp'),
+    });
+  });
+
+  it('isRunning returns false before run() is called', async () => {
+    const cli = await WispCli.resolve();
+    expect(cli).not.toBeNull();
+    expect(cli!.isRunning).toBe(false);
+  });
+
+  it('cancel() is a noop when not running', async () => {
+    const cli = await WispCli.resolve();
+    expect(() => cli!.cancel()).not.toThrow();
+  });
+
+  it('cancel() sends SIGTERM and sets isRunning to false', async () => {
+    const killMock = jest.fn();
+    let closeCallback: ((code: number | null) => void) | undefined;
+
+    jest.spyOn(cp, 'spawn').mockReturnValue({
+      stdout: new PassThrough(),
+      stderr: new PassThrough(),
+      on: jest.fn((event: string, cb: (code: number | null) => void) => {
+        if (event === 'close') {
+          closeCallback = cb;
+        }
+      }),
+      kill: killMock,
+    } as unknown as cp.ChildProcess);
+
+    const cli = await WispCli.resolve();
+    expect(cli).not.toBeNull();
+
+    // Start run but don't await — process stays open
+    const runPromise = cli!.run(['orchestrate'], '/tmp', jest.fn(), jest.fn());
+
+    expect(cli!.isRunning).toBe(true);
+    cli!.cancel();
+    expect(killMock).toHaveBeenCalledWith('SIGTERM');
+    expect(cli!.isRunning).toBe(false);
+
+    // Resolve the promise so the test doesn't hang
+    closeCallback?.(0);
+    await runPromise;
+  });
+});
+
+describe('WispStatusBar', () => {
+  it('dispose() calls item.dispose without throwing', () => {
+    const bar = new WispStatusBar();
+    expect(() => bar.dispose()).not.toThrow();
+  });
+});
+
+describe('WispCli proc error event', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+      get: jest.fn().mockReturnValue('/usr/local/bin/wisp'),
+    });
+  });
+
+  it('rejects the run() promise on proc error event', async () => {
+    let errorCallback: ((err: Error) => void) | undefined;
+
+    jest.spyOn(cp, 'spawn').mockReturnValue({
+      stdout: new PassThrough(),
+      stderr: new PassThrough(),
+      on: jest.fn((event: string, cb: (arg: unknown) => void) => {
+        if (event === 'error') errorCallback = cb as (err: Error) => void;
+      }),
+      kill: jest.fn(),
+    } as unknown as cp.ChildProcess);
+
+    const cli = await WispCli.resolve();
+    expect(cli).not.toBeNull();
+
+    const runPromise = cli!.run(['orchestrate'], '/tmp', jest.fn(), jest.fn());
+    expect(cli!.isRunning).toBe(true);
+
+    const fakeError = new Error('spawn ENOENT');
+    errorCallback?.(fakeError);
+
+    await expect(runPromise).rejects.toThrow('spawn ENOENT');
+    expect(cli!.isRunning).toBe(false);
+  });
+
+  it('runCapture() returns stdout/stderr/code from run()', async () => {
+    const stdout = new PassThrough();
+    const stderr = new PassThrough();
+    let closeCallback: ((code: number | null) => void) | undefined;
+
+    jest.spyOn(cp, 'spawn').mockReturnValue({
+      stdout,
+      stderr,
+      on: jest.fn((event: string, cb: (code: number | null) => void) => {
+        if (event === 'close') closeCallback = cb;
+      }),
+      kill: jest.fn(),
+    } as unknown as cp.ChildProcess);
+
+    const cli = await WispCli.resolve();
+    expect(cli).not.toBeNull();
+
+    const capturePromise = cli!.runCapture(['logs', 'list'], '/tmp');
+
+    // Emit lines then close
+    setImmediate(() => {
+      stdout.push('session-abc\n');
+      stderr.push('warn: something\n');
+      closeCallback?.(0);
+    });
+
+    const result = await capturePromise;
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain('session-abc');
+    expect(result.stderr).toContain('warn: something');
+  });
+
+  it('run() resolves to 1 when process closes with null exit code', async () => {
+    let closeCallback: ((code: number | null) => void) | undefined;
+
+    jest.spyOn(cp, 'spawn').mockReturnValue({
+      stdout: new PassThrough(),
+      stderr: new PassThrough(),
+      on: jest.fn((event: string, cb: (code: number | null) => void) => {
+        if (event === 'close') closeCallback = cb;
+      }),
+      kill: jest.fn(),
+    } as unknown as cp.ChildProcess);
+
+    const cli = await WispCli.resolve();
+    expect(cli).not.toBeNull();
+
+    const runPromise = cli!.run(['orchestrate'], '/tmp', jest.fn(), jest.fn());
+    closeCallback?.(null);
+
+    const code = await runPromise;
+    expect(code).toBe(1);
+  });
+});
+
 describe('package.json activationEvents', () => {
   const pkg = JSON.parse(
     readFileSync(join(__dirname, '../../package.json'), 'utf8'),
@@ -124,5 +272,37 @@ describe('package.json activationEvents', () => {
 
   it('activates when prds directory contains markdown files', () => {
     expect(pkg.activationEvents).toContain('workspaceContains:**/prds/**/*.md');
+  });
+});
+
+describe('package.json contributes.commands', () => {
+  const pkg = JSON.parse(
+    readFileSync(join(__dirname, '../../package.json'), 'utf8'),
+  ) as { contributes: { commands: { command: string; title: string }[] } };
+
+  const commandIds = pkg.contributes.commands.map((c) => c.command);
+
+  const requiredCommands = [
+    'wisp.orchestrate',
+    'wisp.pipeline',
+    'wisp.run',
+    'wisp.generatePrd',
+    'wisp.generateContext',
+    'wisp.monitor',
+    'wisp.installSkills',
+    'wisp.update',
+    'wisp.stopPipeline',
+    'wisp.showOutput',
+    'wisp.showVersion',
+  ];
+
+  it.each(requiredCommands)('declares %s in contributes.commands', (id) => {
+    expect(commandIds).toContain(id);
+  });
+
+  it('all declared commands have a non-empty title', () => {
+    for (const entry of pkg.contributes.commands) {
+      expect(entry.title).toBeTruthy();
+    }
   });
 });

@@ -17,10 +17,126 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "wisp-explorer",
+          "title": "Wisp Explorer",
+          "icon": "resources/wisp-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "wisp-explorer": [
+        {
+          "id": "wispExplorer",
+          "name": "Wisp Explorer",
+          "when": "true"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "wisp.explorer.refresh",
+          "when": "view == wispExplorer",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "wisp.explorer.orchestrate",
+          "when": "viewItem == wispManifest",
+          "group": "inline"
+        },
+        {
+          "command": "wisp.explorer.openFile",
+          "when": "viewItem == wispManifest"
+        },
+        {
+          "command": "wisp.explorer.orchestrateEpic",
+          "when": "viewItem == wispEpic",
+          "group": "inline"
+        },
+        {
+          "command": "wisp.explorer.runPipeline",
+          "when": "viewItem == wispSubtask",
+          "group": "inline"
+        },
+        {
+          "command": "wisp.explorer.openFile",
+          "when": "viewItem == wispPrd"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "wisp.showVersion",
         "title": "Wisp: Show Version"
+      },
+      {
+        "command": "wisp.orchestrate",
+        "title": "Wisp: Orchestrate Manifest"
+      },
+      {
+        "command": "wisp.pipeline",
+        "title": "Wisp: Run Pipeline"
+      },
+      {
+        "command": "wisp.run",
+        "title": "Wisp: Run Agent"
+      },
+      {
+        "command": "wisp.generatePrd",
+        "title": "Wisp: Generate PRDs"
+      },
+      {
+        "command": "wisp.generateContext",
+        "title": "Wisp: Generate Context"
+      },
+      {
+        "command": "wisp.monitor",
+        "title": "Wisp: Monitor Logs"
+      },
+      {
+        "command": "wisp.installSkills",
+        "title": "Wisp: Install Skills"
+      },
+      {
+        "command": "wisp.update",
+        "title": "Wisp: Update"
+      },
+      {
+        "command": "wisp.stopPipeline",
+        "title": "Wisp: Stop Pipeline"
+      },
+      {
+        "command": "wisp.showOutput",
+        "title": "Wisp: Show Output"
+      },
+      {
+        "command": "wisp.explorer.refresh",
+        "title": "Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "wisp.explorer.openFile",
+        "title": "Open File"
+      },
+      {
+        "command": "wisp.explorer.orchestrate",
+        "title": "Run Orchestrate",
+        "icon": "$(run)"
+      },
+      {
+        "command": "wisp.explorer.orchestrateEpic",
+        "title": "Run Orchestrate (this epic only)",
+        "icon": "$(run)"
+      },
+      {
+        "command": "wisp.explorer.runPipeline",
+        "title": "Run Pipeline",
+        "icon": "$(run)"
       }
     ],
     "configuration": {
@@ -29,8 +145,8 @@
         "wisp.binaryPath": {
           "type": "string",
           "default": "",
-          "scope": "machine-overridable",
-          "description": "Path to the wisp binary. Leave empty to use PATH. This setting cannot be overridden by workspace settings to prevent workspace-level binary hijacking."
+          "scope": "machine",
+          "description": "Path to the wisp binary. Leave empty to use PATH. This is a machine-scoped setting and cannot be overridden by workspace settings to prevent workspace-level binary hijacking."
         }
       }
     }
