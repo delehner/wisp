@@ -1,6 +1,7 @@
 import * as cp from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { PassThrough } from 'node:stream';
 import * as vscode from 'vscode';
 import { WispCli } from '../wispCli';
 
@@ -106,6 +107,57 @@ describe('WispCli.resolve()', () => {
     );
 
     Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+  });
+});
+
+describe('WispCli cancel() and isRunning', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+      get: jest.fn().mockReturnValue('/usr/local/bin/wisp'),
+    });
+  });
+
+  it('isRunning returns false before run() is called', async () => {
+    const cli = await WispCli.resolve();
+    expect(cli).not.toBeNull();
+    expect(cli!.isRunning).toBe(false);
+  });
+
+  it('cancel() is a noop when not running', async () => {
+    const cli = await WispCli.resolve();
+    expect(() => cli!.cancel()).not.toThrow();
+  });
+
+  it('cancel() sends SIGTERM and sets isRunning to false', async () => {
+    const killMock = jest.fn();
+    let closeCallback: ((code: number | null) => void) | null = null;
+
+    jest.spyOn(cp, 'spawn').mockReturnValue({
+      stdout: new PassThrough(),
+      stderr: new PassThrough(),
+      on: jest.fn((event: string, cb: (code: number | null) => void) => {
+        if (event === 'close') {
+          closeCallback = cb;
+        }
+      }),
+      kill: killMock,
+    } as unknown as cp.ChildProcess);
+
+    const cli = await WispCli.resolve();
+    expect(cli).not.toBeNull();
+
+    // Start run but don't await — process stays open
+    const runPromise = cli!.run(['orchestrate'], '/tmp', jest.fn(), jest.fn());
+
+    expect(cli!.isRunning).toBe(true);
+    cli!.cancel();
+    expect(killMock).toHaveBeenCalledWith('SIGTERM');
+    expect(cli!.isRunning).toBe(false);
+
+    // Resolve the promise so the test doesn't hang
+    closeCallback?.(0);
+    await runPromise;
   });
 });
 

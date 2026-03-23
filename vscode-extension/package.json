@@ -21,6 +21,46 @@
       {
         "command": "wisp.showVersion",
         "title": "Wisp: Show Version"
+      },
+      {
+        "command": "wisp.orchestrate",
+        "title": "Wisp: Orchestrate Manifest"
+      },
+      {
+        "command": "wisp.pipeline",
+        "title": "Wisp: Run Pipeline"
+      },
+      {
+        "command": "wisp.run",
+        "title": "Wisp: Run Agent"
+      },
+      {
+        "command": "wisp.generatePrd",
+        "title": "Wisp: Generate PRDs"
+      },
+      {
+        "command": "wisp.generateContext",
+        "title": "Wisp: Generate Context"
+      },
+      {
+        "command": "wisp.monitor",
+        "title": "Wisp: Monitor Logs"
+      },
+      {
+        "command": "wisp.installSkills",
+        "title": "Wisp: Install Skills"
+      },
+      {
+        "command": "wisp.update",
+        "title": "Wisp: Update"
+      },
+      {
+        "command": "wisp.stopPipeline",
+        "title": "Wisp: Stop Pipeline"
+      },
+      {
+        "command": "wisp.showOutput",
+        "title": "Wisp: Show Output"
       }
     ],
     "configuration": {

@@ -15,7 +15,20 @@ export interface CaptureResult {
 }
 
 export class WispCli {
+  private _proc: cp.ChildProcess | null = null;
+
   private constructor(private readonly binaryPath: string) {}
+
+  cancel(): void {
+    if (this._proc) {
+      this._proc.kill('SIGTERM');
+      this._proc = null;
+    }
+  }
+
+  get isRunning(): boolean {
+    return this._proc !== null;
+  }
 
   static async resolve(): Promise<WispCli | null> {
     const config = vscode.workspace.getConfiguration('wisp');
@@ -61,6 +74,7 @@ export class WispCli {
   ): Promise<number> {
     return new Promise((resolve, reject) => {
       const proc = cp.spawn(this.binaryPath, args, { cwd });
+      this._proc = proc;
 
       const rlOut = readline.createInterface({ input: proc.stdout });
       rlOut.on('line', (line) => {
@@ -74,8 +88,14 @@ export class WispCli {
         opts?.outputChannel?.appendLine(`[stderr] ${line}`);
       });
 
-      proc.on('error', reject);
-      proc.on('close', (code) => resolve(code ?? 1));
+      proc.on('error', (err) => {
+        this._proc = null;
+        reject(err);
+      });
+      proc.on('close', (code) => {
+        this._proc = null;
+        resolve(code ?? 1);
+      });
     });
   }
 
