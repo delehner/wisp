@@ -131,7 +131,7 @@ describe('WispCli cancel() and isRunning', () => {
 
   it('cancel() sends SIGTERM and sets isRunning to false', async () => {
     const killMock = jest.fn();
-    let closeCallback: ((code: number | null) => void) | null = null;
+    let closeCallback: ((code: number | null) => void) | undefined;
 
     jest.spyOn(cp, 'spawn').mockReturnValue({
       stdout: new PassThrough(),
@@ -176,5 +176,37 @@ describe('package.json activationEvents', () => {
 
   it('activates when prds directory contains markdown files', () => {
     expect(pkg.activationEvents).toContain('workspaceContains:**/prds/**/*.md');
+  });
+});
+
+describe('package.json contributes.commands', () => {
+  const pkg = JSON.parse(
+    readFileSync(join(__dirname, '../../package.json'), 'utf8'),
+  ) as { contributes: { commands: { command: string; title: string }[] } };
+
+  const commandIds = pkg.contributes.commands.map((c) => c.command);
+
+  const requiredCommands = [
+    'wisp.orchestrate',
+    'wisp.pipeline',
+    'wisp.run',
+    'wisp.generatePrd',
+    'wisp.generateContext',
+    'wisp.monitor',
+    'wisp.installSkills',
+    'wisp.update',
+    'wisp.stopPipeline',
+    'wisp.showOutput',
+    'wisp.showVersion',
+  ];
+
+  it.each(requiredCommands)('declares %s in contributes.commands', (id) => {
+    expect(commandIds).toContain(id);
+  });
+
+  it('all declared commands have a non-empty title', () => {
+    for (const entry of pkg.contributes.commands) {
+      expect(entry.title).toBeTruthy();
+    }
   });
 });
