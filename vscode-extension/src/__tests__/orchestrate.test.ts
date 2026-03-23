@@ -1,7 +1,6 @@
 import { PassThrough } from 'node:stream';
 import * as vscode from 'vscode';
 import * as cp from 'node:child_process';
-import { WispCli } from '../wispCli';
 import { WispStatusBar } from '../statusBar';
 import { registerOrchestrateCommand } from '../commands/orchestrate';
 
@@ -68,6 +67,17 @@ describe('registerOrchestrateCommand', () => {
     );
 
     spawnMock.mockRestore();
+  });
+
+  it('returns early without spawning when manifest picker is cancelled', async () => {
+    (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([]);
+    (vscode.window.showInputBox as jest.Mock).mockResolvedValue(undefined); // user cancels manual input
+
+    registerOrchestrateCommand(context, outputChannel, statusBar, jest.fn(), jest.fn());
+    const [[, handler]] = (vscode.commands.registerCommand as jest.Mock).mock.calls;
+    await handler();
+
+    expect(cp.spawn).not.toHaveBeenCalled();
   });
 
   it('shows error when no workspace folder is open', async () => {

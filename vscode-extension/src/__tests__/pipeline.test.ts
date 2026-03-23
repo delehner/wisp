@@ -1,7 +1,6 @@
 import { PassThrough } from 'node:stream';
 import * as vscode from 'vscode';
 import * as cp from 'node:child_process';
-import { WispCli } from '../wispCli';
 import { WispStatusBar } from '../statusBar';
 import { registerPipelineCommand } from '../commands/pipeline';
 
@@ -79,6 +78,44 @@ describe('registerPipelineCommand', () => {
     );
 
     spawnMock.mockRestore();
+  });
+
+  it('shows error when no workspace folder is open', async () => {
+    (vscode.workspace as unknown as { workspaceFolders: undefined }).workspaceFolders = undefined;
+
+    registerPipelineCommand(context, outputChannel, statusBar, jest.fn(), jest.fn());
+    const [[, handler]] = (vscode.commands.registerCommand as jest.Mock).mock.calls;
+    await handler();
+
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Wisp: No workspace folder open.');
+    expect(cp.spawn).not.toHaveBeenCalled();
+  });
+
+  it('returns early without spawning when prd picker is cancelled', async () => {
+    (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([]);
+    (vscode.window.showInputBox as jest.Mock).mockResolvedValueOnce(undefined);
+
+    registerPipelineCommand(context, outputChannel, statusBar, jest.fn(), jest.fn());
+    const [[, handler]] = (vscode.commands.registerCommand as jest.Mock).mock.calls;
+    await handler();
+
+    expect(cp.spawn).not.toHaveBeenCalled();
+  });
+
+  it('returns early without spawning when branch input is cancelled (undefined)', async () => {
+    (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([
+      { fsPath: '/workspace/prds/feat/prd.md' },
+    ]);
+    (vscode.window.showQuickPick as jest.Mock).mockResolvedValue('/workspace/prds/feat/prd.md');
+    (vscode.window.showInputBox as jest.Mock)
+      .mockResolvedValueOnce('https://github.com/org/repo.git')
+      .mockResolvedValueOnce(undefined); // branch cancelled
+
+    registerPipelineCommand(context, outputChannel, statusBar, jest.fn(), jest.fn());
+    const [[, handler]] = (vscode.commands.registerCommand as jest.Mock).mock.calls;
+    await handler();
+
+    expect(cp.spawn).not.toHaveBeenCalled();
   });
 
   it('validates repo URL — rejects invalid URL', async () => {

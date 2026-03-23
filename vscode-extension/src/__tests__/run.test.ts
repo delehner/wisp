@@ -1,7 +1,6 @@
 import { PassThrough } from 'node:stream';
 import * as vscode from 'vscode';
 import * as cp from 'node:child_process';
-import { WispCli } from '../wispCli';
 import { WispStatusBar } from '../statusBar';
 import { registerRunCommand } from '../commands/run';
 import { KNOWN_AGENTS } from '../commands/utils';
@@ -58,6 +57,41 @@ describe('registerRunCommand', () => {
       KNOWN_AGENTS,
       expect.objectContaining({ placeHolder: expect.any(String) }),
     );
+  });
+
+  it('shows error when no workspace folder is open', async () => {
+    (vscode.workspace as unknown as { workspaceFolders: undefined }).workspaceFolders = undefined;
+
+    registerRunCommand(context, outputChannel, statusBar, jest.fn(), jest.fn());
+    const [[, handler]] = (vscode.commands.registerCommand as jest.Mock).mock.calls;
+    await handler();
+
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Wisp: No workspace folder open.');
+    expect(cp.spawn).not.toHaveBeenCalled();
+  });
+
+  it('returns early without spawning when workdir input is cancelled', async () => {
+    (vscode.window.showQuickPick as jest.Mock).mockResolvedValueOnce('developer');
+    (vscode.window.showInputBox as jest.Mock).mockResolvedValueOnce(undefined);
+
+    registerRunCommand(context, outputChannel, statusBar, jest.fn(), jest.fn());
+    const [[, handler]] = (vscode.commands.registerCommand as jest.Mock).mock.calls;
+    await handler();
+
+    expect(cp.spawn).not.toHaveBeenCalled();
+  });
+
+  it('returns early without spawning when prd picker is cancelled', async () => {
+    (vscode.window.showQuickPick as jest.Mock).mockResolvedValueOnce('developer');
+    (vscode.window.showInputBox as jest.Mock).mockResolvedValueOnce('/workspace');
+    (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([]);
+    (vscode.window.showInputBox as jest.Mock).mockResolvedValueOnce(undefined);
+
+    registerRunCommand(context, outputChannel, statusBar, jest.fn(), jest.fn());
+    const [[, handler]] = (vscode.commands.registerCommand as jest.Mock).mock.calls;
+    await handler();
+
+    expect(cp.spawn).not.toHaveBeenCalled();
   });
 
   it('builds correct args: run --agent --workdir --prd', async () => {
