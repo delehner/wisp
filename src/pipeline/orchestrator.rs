@@ -260,7 +260,8 @@ fn annotate_push_for_downstream_stack(
                 .iter()
                 .any(|r| repo_name_from_url(&r.url) == repo)
         });
-        unit.push_branch_for_downstream_stack = later_same_repo_in_prd[idx] || later_subtask_same_repo;
+        unit.push_branch_for_downstream_stack =
+            later_same_repo_in_prd[idx] || later_subtask_same_repo;
     }
 }
 
