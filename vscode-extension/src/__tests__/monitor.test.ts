@@ -1,7 +1,6 @@
 import { PassThrough } from 'node:stream';
 import * as vscode from 'vscode';
 import * as cp from 'node:child_process';
-import { WispCli } from '../wispCli';
 import { WispStatusBar } from '../statusBar';
 import { registerMonitorCommand } from '../commands/monitor';
 
@@ -89,5 +88,50 @@ describe('registerMonitorCommand', () => {
     );
 
     spawnMock.mockRestore();
+  });
+
+  it('builds correct args when a session is selected: monitor --session <id>', async () => {
+    // First spawn returns sessions list (runCapture), second spawn runs monitor
+    let spawnCallCount = 0;
+    jest.spyOn(cp, 'spawn').mockImplementation(() => {
+      spawnCallCount++;
+      const stdout = new PassThrough();
+      const stderr = new PassThrough();
+      const proc = {
+        stdout,
+        stderr,
+        on: jest.fn((event: string, cb: (code: number) => void) => {
+          if (event === 'close') {
+            setImmediate(() => {
+              if (spawnCallCount === 1) {
+                // First call: emit session list then close
+                stdout.push('session-20240101\n');
+              }
+              stdout.end();
+              stderr.end();
+              cb(0);
+            });
+          }
+        }),
+        kill: jest.fn(),
+      };
+      return proc as unknown as cp.ChildProcess;
+    });
+
+    (vscode.window.showQuickPick as jest.Mock).mockResolvedValue('session-20240101');
+
+    registerMonitorCommand(context, outputChannel, statusBar, jest.fn(), jest.fn());
+    const [[, handler]] = (vscode.commands.registerCommand as jest.Mock).mock.calls;
+    await handler();
+
+    // The second spawn call should be the monitor invocation
+    const spawnCalls = (cp.spawn as jest.Mock).mock.calls;
+    const monitorCall = spawnCalls.find((call: unknown[]) =>
+      Array.isArray(call[1]) && call[1].includes('monitor'),
+    );
+    expect(monitorCall).toBeDefined();
+    expect(monitorCall[1]).toEqual(['monitor', '--session', 'session-20240101']);
+
+    jest.restoreAllMocks();
   });
 });
