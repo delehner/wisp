@@ -309,6 +309,20 @@ pub struct GenerateContextArgs {
 pub enum InstallCmd {
     /// Install Cursor skills as symlinks
     Skills(InstallSkillsArgs),
+
+    /// Download agent prompt files from GitHub to ~/.wisp/agents/
+    Agents(InstallAgentsArgs),
+}
+
+#[derive(clap::Args)]
+pub struct InstallAgentsArgs {
+    /// Destination directory (default: ~/.wisp/agents/)
+    #[arg(long)]
+    pub output: Option<PathBuf>,
+
+    /// Overwrite existing files
+    #[arg(long)]
+    pub force: bool,
 }
 
 #[derive(clap::Args)]

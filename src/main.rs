@@ -4,6 +4,7 @@ mod cli;
 mod config;
 mod context;
 mod git;
+mod install;
 mod logging;
 mod manifest;
 mod pipeline;
@@ -196,6 +197,9 @@ async fn main() -> Result<()> {
         Commands::Install { cmd } => match cmd {
             InstallCmd::Skills(args) => {
                 install_skills(&args, &config)?;
+            }
+            InstallCmd::Agents(args) => {
+                install::agents::run(&args).await?;
             }
         },
 
