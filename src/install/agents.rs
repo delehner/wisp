@@ -66,10 +66,7 @@ async fn fetch_tarball() -> Result<Vec<u8>> {
         }
     }
 
-    let bytes = resp
-        .bytes()
-        .await
-        .context("failed to read response body")?;
+    let bytes = resp.bytes().await.context("failed to read response body")?;
 
     if bytes.len() > MAX_TARBALL_BYTES {
         anyhow::bail!(
@@ -240,7 +237,10 @@ mod tests {
             "wisp-main/",
         ];
         for p in &paths {
-            assert!(!p.starts_with(AGENTS_PREFIX), "{p} should not match agents prefix");
+            assert!(
+                !p.starts_with(AGENTS_PREFIX),
+                "{p} should not match agents prefix"
+            );
         }
     }
 
