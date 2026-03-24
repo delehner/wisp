@@ -6,6 +6,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Explorer command handlers now receive correct arguments** — clicking inline action buttons or context menu items in the Wisp AI Explorer (Run Orchestrate, Run Orchestrate (this epic only), Run Pipeline) no longer fails with `Error: failed to read manifest: [object Object]`. Handlers now correctly extract the file path or properties from the tree item object passed by VS Code.
+
 ### Added
 
 - **Wisp AI Explorer sidebar** — Activity Bar panel (custom Wisp icon) with two sections:

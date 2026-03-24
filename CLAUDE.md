@@ -1,22 +1,43 @@
-# Wisp
+# Wisp — Overview
 
-Wisp is a CLI tool that automates the path from PRD (Product Requirements Document) to Pull Request using a sequential pipeline of specialized AI agents. Given a manifest file describing PRDs and target repositories, wisp clones each repo, creates a feature branch, runs a configurable sequence of agents (architect → developer → tester → reviewer → ...) inside Dev Containers, and opens a GitHub PR with evidence comments.
+Wisp is a **single Rust binary** that turns Product Requirements Documents (PRDs) into fully implemented Pull Requests by orchestrating AI coding agents in isolated Dev Containers.
 
-It is used by engineers who want to delegate feature implementation, code review, test generation, or documentation across multiple repositories in parallel — with each agent responsible for one concern.
-
-**Tech Stack**: Rust (edition 2021), Tokio 1 (async runtime), Clap 4 (CLI), Serde 1 (JSON deserialization)
 **Repository**: https://github.com/delehner/wisp
-**Key Dependencies**:
-- `tokio` — async runtime; all pipeline execution is async with `JoinSet` + `Semaphore` for parallelism
-- `clap` (derive feature) — all CLI subcommands and flags via derive macros
-- `serde` / `serde_json` — manifest deserialization and JSONL log parsing
-- `anyhow` / `thiserror` — error handling throughout
-- `notify` — filesystem watcher for real-time log monitoring (`wisp logs tail`)
-- `tracing` / `tracing-subscriber` — structured logging with JSONL output
-- `dotenvy` — `.env` file loading for config
-- `which` — runtime check for `claude`, `gemini`, `gh`, `docker` availability
-- `indicatif` — progress bars and spinners during pipeline execution
-- `dialoguer` — interactive prompts in interactive mode
+**Tech Stack**: Rust (tokio async, clap, serde), Claude Code CLI, Gemini CLI, GitHub CLI (`gh`), Docker Dev Containers
+**Binary name**: `wisp`
+
+## What It Does
+
+1. Reads a **manifest** JSON file listing PRDs, target repositories, and agent sequences
+2. Clones repos, creates feature branches, starts Dev Containers
+3. Runs a **Ralph Loop** — iterative AI agent execution — for each agent in the pipeline
+4. Each agent reads/writes `.agent-progress/` files to track progress across iterations
+5. After all agents complete, rebases the branch and opens a Pull Request via `gh pr create`
+
+## AI Providers
+
+- **Claude Code** (`claude`): Uses `--dangerously-skip-permissions --output-format stream-json`
+- **Gemini CLI** (`gemini`): Uses `--yolo --output-format stream-json`
+
+## Pipeline Order (14 agents)
+
+Architect → Designer → Migration → Developer → Accessibility → Tester → Performance → SecOps → Dependency → Infrastructure → DevOps → Rollback → Documentation → Reviewer
+
+Non-blocking agents (failures don't stop pipeline): Designer, Migration, Accessibility, Performance, Dependency, Rollback, Documentation
+
+## Key CLI Commands
+
+```bash
+wisp orchestrate --manifest manifests/my.json   # Run full manifest
+wisp pipeline --prd path/to/prd.md --repo https://github.com/org/repo
+wisp run --agent developer --workdir /path --prd path/to/prd.md
+wisp generate prd --output prds/ --manifest manifests/my.json --repo https://github.com/org/repo
+wisp generate context --repo https://github.com/org/repo --output contexts/myrepo
+wisp monitor --log-dir ./logs                    # Tail agent logs in real-time
+wisp logs path/to/file.jsonl                     # Re-format a raw JSONL log
+wisp install skills                              # Symlink Cursor skills
+wisp update                                      # Self-update to latest version
+```
 
 ---
 
@@ -25,328 +46,472 @@ It is used by engineers who want to delegate feature implementation, code review
 ## Directory Structure
 
 ```
-wisp/
-├── src/
-│   ├── main.rs              # CLI entry point, command dispatch
-│   ├── cli.rs               # Clap derive structs (all subcommands + flags)
-│   ├── config.rs            # Config struct, .env loading, per-agent overrides
-│   ├── utils.rs             # exec_streaming, exec_capture, command_exists, repo_name_from_url
-│   ├── manifest/mod.rs      # Manifest, Order, PrdEntry, Repository (serde deserialization)
-│   ├── prd/mod.rs           # Prd struct, markdown frontmatter extraction (title, branch, status)
-│   ├── context/mod.rs       # assemble_skills() — ordered skill file concatenation
-│   ├── git/
-│   │   ├── mod.rs           # clone, prepare_repo, create_feature_branch, push
-│   │   └── pr.rs            # gh pr create, evidence comment posting
-│   ├── provider/
-│   │   ├── mod.rs           # Provider trait, RunOutcome, RunOpts, create_provider()
-│   │   ├── claude.rs        # ClaudeProvider: claude CLI invocation
-│   │   └── gemini.rs        # GeminiProvider: gemini CLI invocation
-│   ├── pipeline/
-│   │   ├── mod.rs           # DEFAULT_AGENTS, NON_BLOCKING_AGENTS, is_blocking()
-│   │   ├── orchestrator.rs  # Manifest dispatch, order sequencing, wave stacking, parallel execution
-│   │   ├── runner.rs        # Single PRD × repo pipeline (clone → branch → devcontainer → agents → PR)
-│   │   ├── agent.rs         # Ralph Loop: prompt assembly, iteration, completion detection
-│   │   └── devcontainer.rs  # Dev Container RAII lifecycle (Drop impl stops/removes container)
-│   └── logging/
-│       ├── mod.rs           # Tracing subscriber initialization
-│       ├── formatter.rs     # JSONL stream formatting (Claude + Gemini event types)
-│       └── monitor.rs       # Real-time log tailing (notify-based), session listing
-├── agents/                  # Agent prompt files: _base-system.md + <name>/prompt.md
-├── templates/               # PRD, manifest, and context templates
-├── skills/                  # Cursor-compatible skill files per agent
-├── contexts/                # Per-repository context skill directories
-├── manifests/               # Manifest JSON files
-├── docs/                    # Mermaid diagrams and reference documentation
-├── config/                  # AI CLI settings templates
-├── .devcontainer/           # Dev Container configs (firewall + tool setup hooks)
-└── .github/workflows/       # CI (clippy/fmt/test/build) + release (cross-compile)
+src/
+├── main.rs                    # Entry point, CLI dispatch, generate/install commands
+├── cli.rs                     # Clap derive structs for all subcommands and flags
+├── config.rs                  # .env loading, per-agent model/iteration overrides
+├── utils.rs                   # exec_streaming(), exec_capture(), command_exists(), slugify()
+├── manifest/mod.rs            # Manifest, Order, PrdEntry, Repository structs (serde)
+├── prd/mod.rs                 # PRD struct, markdown metadata extraction
+├── provider/
+│   ├── mod.rs                 # Provider trait, RunOutcome, RunOpts, create_provider()
+│   ├── claude.rs              # Claude Code CLI arg builder + session ID extraction
+│   └── gemini.rs              # Gemini CLI arg builder + session ID extraction
+├── pipeline/
+│   ├── mod.rs                 # DEFAULT_AGENTS, NON_BLOCKING_AGENTS, is_blocking()
+│   ├── orchestrator.rs        # Manifest dispatch, wave stacking, parallel execution
+│   ├── runner.rs              # Single PRD × repo pipeline (clone → agents → PR)
+│   ├── agent.rs               # Ralph Loop: prompt assembly, iteration, completion detection
+│   └── devcontainer.rs        # Dev Container lifecycle with RAII Drop impl
+├── git/
+│   ├── mod.rs                 # clone_or_prepare(), create_feature_branch(), rebase_onto_latest()
+│   └── pr.rs                  # gh pr create, evidence comment posting
+├── context/mod.rs             # Skill assembly in canonical order, frontmatter stripping
+└── logging/
+    ├── mod.rs                 # Tracing subscriber init
+    ├── formatter.rs           # JSONL → human-readable output (Claude + Gemini event types)
+    └── monitor.rs             # Real-time log tailing via notify crate
+
+agents/                        # Agent prompt files (_base-system.md + per-agent prompt.md)
+contexts/                      # Per-repo context skill directories (assembled into CLAUDE.md)
+manifests/                     # Manifest JSON files
+skills/                        # Cursor-compatible agent skills
+templates/                     # PRD, manifest, context-skill templates
+docs/                          # Mermaid diagrams and reference documentation
 ```
 
 ## Key Patterns
 
-- **Provider trait**: `src/provider/mod.rs` defines `Provider` with `build_run_args()`, `extract_session_id()`, etc. `ClaudeProvider` and `GeminiProvider` implement it. `create_provider(config)` returns `Box<dyn Provider>`.
-- **RAII Dev Containers**: `DevContainer` in `devcontainer.rs` implements `Drop` — container stops and is removed when the struct goes out of scope regardless of success/failure.
-- **Wave stacking for same-repo PRDs**: When multiple PRDs in an order target the same repository, the orchestrator serializes them into waves. Each wave branches from the previous wave's feature branch, preventing merge conflicts.
-- **Ralph Loop**: Agent iteration loop in `agent.rs`. Each iteration assembles a fresh prompt (base system + PRD + previous progress), invokes the AI CLI, and checks `.agent-progress/<name>.md` for `Status: COMPLETED` or `Status: BLOCKED`.
-- **Blocking vs. non-blocking agents**: `NON_BLOCKING_AGENTS` in `pipeline/mod.rs` — failure of these agents does not abort the pipeline. All others are blocking.
+- **Provider trait** (`src/provider/mod.rs`): Abstraction over Claude/Gemini CLIs. Implement `build_run_args()`, `extract_session_id()` to add a new provider.
+- **Ralph Loop** (`src/pipeline/agent.rs`): Iterative agent execution. Each iteration assembles a prompt, runs the CLI, checks for `## Status: COMPLETED` in `.agent-progress/<agent>.md`, and loops until complete or max iterations reached.
+- **Wave stacking** (`src/pipeline/orchestrator.rs`): Multiple PRDs targeting the same repo are serialized into waves. Each wave branches from the previous feature branch.
+- **RAII DevContainers** (`src/pipeline/devcontainer.rs`): `Drop` impl warns if container was not explicitly stopped. Always call `stop()` in the happy path.
+- **Filesystem memory**: Agents read/write `.agent-progress/` files for state across iterations. Progress tracked via presence of `## Status: COMPLETED` marker.
 
 ## Data Flow
 
 ```
-Manifest JSON
-  → Orchestrator (orders sequentially, PRDs in parallel via JoinSet)
-    → [wave grouping for same-repo PRDs]
-    → Runner (per PRD × repo)
-      → git clone + feature branch
-      → assemble_skills() → CLAUDE.md / GEMINI.md written to workdir
-      → DevContainer start
-        → AgentRunner (for each agent in sequence)
-          → prompt assembly (base-system + PRD + context + progress)
-          → Provider::build_run_args() → exec_streaming(claude/gemini)
-          → read .agent-progress/<name>.md → check COMPLETED/BLOCKED
-          → repeat up to max_iterations
-      → DevContainer drop (cleanup)
-      → git push → gh pr create → evidence comments
+manifest.json
+  → orchestrator: parse orders, build work units, detect same-repo conflicts, split into waves
+    → runner (per PRD × repo):
+        1. clone_or_prepare() — clone or fetch latest
+        2. create_feature_branch() — check out feature branch
+        3. assemble_skills() → write CLAUDE.md / GEMINI.md
+        4. DevContainer::start() (optional)
+        5. AgentRunner::run() × N agents (Ralph Loop)
+        6. rebase_onto_latest()
+        7. create_pull_request() + post_pr_evidence()
 ```
 
-## Module Boundaries
+## Parallel Execution
 
-- `cli.rs` owns all input parsing — nothing else touches `clap`
-- `config.rs` owns all env/`.env` resolution — modules receive `&Config`
-- `pipeline/` owns execution logic — `git/` and `provider/` are utilities it calls
-- `context/mod.rs` is stateless — pure file assembly with no pipeline knowledge
-- `logging/` is initialized once in `main.rs` and produces side effects (files, stdout)
+`tokio::sync::Semaphore` limits concurrency to `Config::max_parallel`. PRDs within the same order run concurrently (via `tokio::task::JoinSet`). Same-repo PRDs are forced into sequential waves.
 
 ---
 
-# Coding Conventions
+# Conventions
 
-## General Rules
+## Rust Style
 
-- Rust edition 2021. Run `cargo fmt` before every commit; CI enforces `cargo fmt --check`.
-- `cargo clippy -- -D warnings` must pass — all clippy warnings are treated as errors in CI.
-- The binary must cross-compile for macOS arm64/x86_64 and Linux arm64/x86_64 (`profile.release` uses `opt-level = "z"`, `lto = true`, `codegen-units = 1`, `strip = true`).
-- Async code uses `tokio` with `#[tokio::main]`. Blocking I/O is not allowed on the async runtime — use `tokio::fs`, `tokio::process::Command`, or `spawn_blocking`.
-- All fallible functions return `anyhow::Result<T>`. Use `.with_context(|| "message")` on every `?` where the error lacks context.
-- Use `thiserror` for library-style error types when a module needs typed errors (e.g., pipeline errors).
-
-## Naming
-
-- Modules follow Rust snake_case (`pipeline/orchestrator.rs`, `git/pr.rs`).
-- Structs are PascalCase: `Config`, `RunOutcome`, `PrdEntry`, `DevContainer`.
-- Constants are SCREAMING_SNAKE_CASE: `DEFAULT_AGENTS`, `NON_BLOCKING_AGENTS`.
-- CLI subcommands in `cli.rs` use PascalCase enum variants: `Commands::Orchestrate`, `Commands::Run`.
-- Agent names are lowercase kebab-case strings matching directory names under `agents/`: `"architect"`, `"developer"`, `"tester"`.
-- Environment variables follow `UPPER_SNAKE_CASE` matching `.env.example` exactly.
-
-## Code Style
-
-- Imports: standard library first, then external crates, then internal (`crate::`) — separated by blank lines. `cargo fmt` enforces ordering.
-- Prefer explicit file paths in `git add` over `git add .` (enforced by agent prompt conventions; applies to manual commits too).
-- Struct construction: use named fields, not positional.
-- String formatting: prefer `format!()` over string concatenation.
-- Use `Option<String>` (not empty strings) to represent "not set" config values. `env_opt()` in `config.rs` filters empty strings to `None`.
+- **Edition**: Rust 2021
+- **Formatter**: `cargo fmt` — run before every commit
+- **Linter**: `cargo clippy` — zero warnings policy
+- **Error handling**: `anyhow::Result` at application boundaries; `thiserror` for library-style typed errors on structs
 
 ## Error Handling
 
-- All public functions return `anyhow::Result`. Internal helpers may return `Result<(), anyhow::Error>`.
-- `.context("...")` is preferred over `.unwrap()` or `.expect()` except in tests.
-- Pipeline errors are logged via `tracing::error!` before propagation.
-- Agent-level errors write to `.agent-progress/<name>.md` with `Status: BLOCKED` for recoverable failures; hard errors bubble up.
-- `exec_streaming` and `exec_capture` in `utils.rs` are the only places that call `tokio::process::Command` — do not spawn processes directly elsewhere.
+```rust
+// Use anyhow::Result with context for callsite context
+fn do_thing() -> anyhow::Result<()> {
+    some_op().context("failed to do X")?;
+    Ok(())
+}
 
-## Async Conventions
+// Use thiserror for domain errors that need matching
+#[derive(thiserror::Error, Debug)]
+enum PipelineError {
+    #[error("agent {0} failed: {1}")]
+    AgentFailed(String, String),
+}
+```
 
-- Top-level concurrency: `tokio::task::JoinSet` for spawning parallel pipelines, `tokio::sync::Semaphore` for rate limiting (max parallel = `Config::max_parallel`).
-- Shared state across tasks: `Arc<Mutex<T>>` or channels — no raw `Mutex` across await points.
-- Log output from child processes uses `exec_streaming` with closure callbacks — not `.output().await` which buffers everything.
+- Always add `.context("...")` or `.with_context(|| ...)` when propagating with `?`
+- Prefer `anyhow::bail!()` over `return Err(anyhow!(...))` for early exits
+
+## Async Patterns
+
+- Runtime: `tokio` with `#[tokio::main]` at top level
+- All I/O is async; blocking calls use `tokio::task::spawn_blocking`
+- Parallel tasks use `tokio::task::JoinSet`
+- Concurrency limiting uses `tokio::sync::Semaphore`
+- Cancellation uses `tokio_util::sync::CancellationToken`
+
+## Command Execution
+
+Always use helpers from `src/utils.rs`, not raw `std::process::Command`:
+
+```rust
+// Stream output with callbacks
+exec_streaming(&["git", "clone", url], dir, |line| { ... }, |line| { ... }).await?;
+
+// Capture full output
+let (stdout, stderr) = exec_capture(&["gh", "pr", "create", ...], dir).await?;
+```
+
+## Logging
+
+Use `tracing` macros, not `println!`:
+
+```rust
+tracing::info!(agent = %name, iteration = i, "starting agent");
+tracing::warn!("container not stopped explicitly");
+tracing::error!(err = %e, "pipeline failed");
+```
+
+Log level is set via `LOG_LEVEL` env var (default: `info`).
+
+## Naming
+
+- **Modules**: snake_case (`pipeline/orchestrator.rs`)
+- **Structs/Enums/Traits**: PascalCase (`AgentRunner`, `PrdStatus`, `Provider`)
+- **Functions/variables**: snake_case (`build_run_args`, `max_iterations`)
+- **Constants**: UPPER_SNAKE (`DEFAULT_AGENTS`, `NON_BLOCKING_AGENTS`)
+- **CLI flags**: kebab-case (`--max-iterations`, `--skip-pr`)
+
+## Code Organization
+
+- Keep functions focused; prefer ~50 lines per function
+- Put associated helpers close to the type they serve
+- Avoid `pub` on internal implementation details — only expose what crosses module boundaries
+- Tests go in `#[cfg(test)]` modules at the bottom of the file
+
+---
+
+# Key Components
+
+## Provider Trait (`src/provider/mod.rs`)
+
+Abstraction over Claude Code and Gemini CLIs:
+
+```rust
+trait Provider: Send + Sync {
+    fn cli_name(&self) -> &str;                          // "claude" or "gemini"
+    fn context_filename(&self) -> &str;                  // "CLAUDE.md" or "GEMINI.md"
+    fn npm_package(&self) -> &str;                       // npm package name for install
+    fn validate_cli(&self) -> anyhow::Result<()>;        // check CLI is in PATH
+    fn build_run_args(&self, prompt_file: &Path, opts: &RunOpts) -> Vec<String>;
+    fn extract_session_id(&self, lines: &[String]) -> Option<String>;
+    fn resume_hint(&self, session_id: &str) -> String;   // default impl provided
+    fn auth_check_cmd(&self) -> String;                  // default impl provided
+}
+```
+
+- `create_provider(config: &Config) -> Box<dyn Provider>` is the factory function
+- To add a provider: implement the trait in `src/provider/<name>.rs`, add variant to `ProviderKind` in `src/cli.rs`, register in `create_provider()`
+
+## Ralph Loop (`src/pipeline/agent.rs`)
+
+The core execution loop for a single agent:
+
+1. Check if `.agent-progress/<agent>.md` contains `## Status: COMPLETED` → skip if done
+2. Assemble prompt in strict order: base system + agent prompt + PRD + previous agent progress + own progress + architecture doc + design doc + context + iteration metadata
+3. Run `Provider::build_run_args()` → spawn CLI process → stream stdout to JSONL log + stderr to formatted log
+4. Extract and persist session ID for resumable sessions
+5. Re-check completion status after each iteration
+6. In interactive mode: prompt user to skip/continue/abort between iterations
+7. Sleep 2s between iterations; return `AgentOutcome` (Completed/MaxIterationsReached/Skipped/Failed)
+
+**Completion detection**: Reads `.agent-progress/<agent>.md` and looks for `## Status: COMPLETED`.
+
+## Context Assembly (`src/context/mod.rs`)
+
+Assembles per-repo context skills into a single `CLAUDE.md` or `GEMINI.md`:
+
+- Reads all `.md` files from the context directory
+- Orders canonically: overview → architecture → conventions → components → api → database → testing → build-deploy → environment → integrations → remaining (alphabetical)
+- Strips YAML frontmatter (`--- ... ---`) from each file
+- Joins with `\n---\n\n` separator
+- Backward-compatible with single-file contexts (non-directory path)
+
+## Dev Container (`src/pipeline/devcontainer.rs`)
+
+RAII lifecycle wrapper:
+
+```rust
+let dc = DevContainer::start(&workdir).await?;
+dc.exec(&["cargo", "test"], None).await?;
+dc.stop().await?;   // must call explicitly; Drop warns if skipped
+```
+
+- `start()` runs `devcontainer up` and parses JSON output for `containerId` and `remoteWorkspaceFolder`
+- `exec()` runs commands via `devcontainer exec` with optional env vars
+- Used only when `Config::use_devcontainer` is true
+
+## Manifest + Orchestrator (`src/manifest/`, `src/pipeline/orchestrator.rs`)
+
+- `Manifest::load(path)`: Parses JSON, resolves relative paths against the manifest directory
+- `Order`: Sequential unit — orders execute one at a time
+- `PrdEntry`: A PRD file with a list of target `Repository` entries
+- Same-repo PRDs within an order are automatically stacked into sequential waves
+- `execute_units()`: tokio `JoinSet` + `Semaphore` for bounded parallel execution
+
+## Agent Prompts (`agents/`)
+
+Each agent has:
+- `agents/<name>/prompt.md`: Agent-specific instructions, responsibilities, workflow, completion criteria
+- `agents/_base-system.md`: Shared conventions — progress tracking format, git conventions, quality standards
+
+When adding a new agent, always read `_base-system.md` first to avoid duplicating shared instructions.
+
+## Git Operations (`src/git/`)
+
+- `clone_or_prepare()`: Clones or fetches; handles empty repos by seeding initial commit
+- `create_feature_branch()`: Creates `agent/<slug>-YYYYMMDD` branch name; checks out existing branch if already exists (for stacked waves)
+- `rebase_onto_latest()`: Rebases feature branch onto base; aborts on conflict (pipeline fails loudly)
+- `write_git_excludes()`: Adds pipeline files to `.git/info/exclude` (not `.gitignore`)
 
 ---
 
 # Testing
 
-**Framework**: Rust built-in test harness (`cargo test`)
-**Run**: `cargo test`
-**Location**: Inline `#[cfg(test)]` modules within source files — no separate `tests/` directory
-**Coverage**: No coverage threshold configured
+## Running Tests
 
-## Patterns
+```bash
+cargo test              # run all tests
+cargo test -- --nocapture  # show println! output during tests
+cargo clippy            # linting (treat warnings as errors in CI)
+cargo fmt --check       # formatting check
+```
 
-Tests live in `#[cfg(test)]` blocks at the bottom of their source file. Three modules have tests:
+## Test Location
 
-**`src/context/mod.rs`** — tests `strip_frontmatter()`:
+Tests live in `#[cfg(test)]` modules at the bottom of each source file:
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_something() { ... }
+}
+```
+
+## What Is Tested
+
+Current test coverage focuses on pure functions:
+
+- `src/prd/mod.rs`: PRD metadata extraction (title parsing, field extraction, slugification)
+- `src/utils.rs`: `repo_name_from_url()` — URL parsing edge cases
+- `src/context/mod.rs`: `strip_frontmatter()` — YAML header stripping
+
+## What Is NOT Unit-Tested (integration/manual)
+
+- CLI execution (`exec_streaming`, `exec_capture`) — requires real processes
+- Git operations — require real git repos
+- Provider trait implementations — require real Claude/Gemini CLIs
+- Pipeline orchestration — integration tested via `wisp run`/`wisp pipeline`
+
+## Adding Tests
+
+For pure functions, add tests directly in the module. For anything requiring external processes or filesystem, prefer integration testing via the CLI itself.
+
+When writing tests for PRD/context parsing, use inline strings rather than fixture files to keep tests self-contained:
+
 ```rust
 #[test]
 fn test_strip_frontmatter() {
-    let with_fm = "---\nname: test\ndescription: foo\n---\n# Content\nHello";
-    assert_eq!(strip_frontmatter(with_fm), "# Content\nHello");
-    let without_fm = "# Content\nHello";
-    assert_eq!(strip_frontmatter(without_fm), "# Content\nHello");
+    let input = "---\nname: foo\n---\n\n# Content";
+    let result = strip_frontmatter(input);
+    assert_eq!(result, "# Content");
 }
 ```
-
-**`src/prd/mod.rs`** — tests markdown metadata extraction (title, status, branch, priority parsing from frontmatter).
-
-**`src/utils.rs`** — tests `repo_name_from_url()`:
-```rust
-#[test]
-fn test_repo_name() {
-    assert_eq!(repo_name_from_url("https://github.com/org/my-repo.git"), "my-repo");
-    assert_eq!(repo_name_from_url("git@github.com:org/my-repo.git"), "my-repo");
-}
-```
-
-## Mocking
-
-No mocking framework in use. Tests exercise pure functions (string parsing, path manipulation) that don't require I/O. Integration behavior (git, docker, AI CLI invocations) is not unit-tested — it is validated by running the pipeline against real repos.
-
-## Notes
-
-- Tests must pass in CI: `cargo test` runs in the `check` job in `.github/workflows/ci.yml`
-- No async tests currently — all tested functions are synchronous
-- If adding async tests, use `#[tokio::test]`
 
 ---
 
 # Build & Deploy
 
-## Commands
+## Local Development
 
-- **Build (dev)**: `cargo build`
-- **Build (release)**: `cargo build --release`
-- **Run**: `cargo run -- <subcommand>`
-- **Lint**: `cargo clippy -- -D warnings`
-- **Format check**: `cargo fmt --check`
-- **Format fix**: `cargo fmt`
-- **Test**: `cargo test`
+```bash
+cargo build             # debug build
+cargo build --release   # release build (wisp binary in target/release/wisp)
+cargo test              # run tests
+cargo clippy            # lint
+cargo fmt               # format
+```
 
 ## Release Profile
 
-`Cargo.toml` configures an aggressive release profile:
-```toml
-[profile.release]
-opt-level = "z"   # optimize for binary size
-lto = true
-codegen-units = 1
-strip = true
+Configured in `Cargo.toml` for minimal binary size:
+- `opt-level = "z"` — optimize for size
+- `lto = true` — link-time optimization
+- `codegen-units = 1` — single codegen unit for better optimization
+- `strip = true` — strip debug symbols
+
+## Cross-Compilation Targets
+
+The binary must compile for all four targets:
+- `aarch64-apple-darwin` (macOS Apple Silicon)
+- `x86_64-apple-darwin` (macOS Intel)
+- `aarch64-unknown-linux-gnu` (Linux ARM64)
+- `x86_64-unknown-linux-gnu` (Linux x86_64)
+
+CI uses GitHub Actions with cross-compilation via the `cross` tool.
+
+## CI Pipeline (`.github/workflows/`)
+
+- **CI workflow**: `cargo test`, `cargo clippy -- -D warnings`, `cargo fmt --check` on every PR
+- **Release workflow**: Triggered on version tags (`v*`). Cross-compiles all four targets, uploads binaries to GitHub Releases.
+
+## Installation
+
+End users install via:
+```bash
+curl -fsSL https://raw.githubusercontent.com/delehner/wisp/main/scripts/install.sh | bash
 ```
 
-## Deployment
+`scripts/install.sh` is the only non-devcontainer shell script. It downloads the appropriate binary from GitHub Releases based on `uname`.
 
-Wisp is distributed as a single static binary. The install script (`scripts/install.sh`) downloads a pre-built binary from GitHub Releases and places it in the user's PATH.
+## Adding a New Agent (affects build)
 
-Users can also install from source: `cargo install --path .`
-
-The binary looks for `agents/` and `templates/` directories by walking up from the executable location, then falls back to `~/.wisp/`. The `WISP_ROOT_DIR` env var can override this.
-
-## CI/CD
-
-**CI** (`.github/workflows/ci.yml`) — triggers on pushes/PRs to `src/**` and `Cargo.toml`:
-1. `cargo fmt --check`
-2. `cargo clippy -- -D warnings`
-3. `cargo test`
-4. `cargo build --release`
-
-**Release** (`.github/workflows/release.yml`) — cross-compiles for four targets:
-- `aarch64-apple-darwin` (macOS ARM)
-- `x86_64-apple-darwin` (macOS Intel)
-- `aarch64-unknown-linux-gnu` (Linux ARM)
-- `x86_64-unknown-linux-gnu` (Linux x86)
-
-Artifacts are uploaded to GitHub Releases on version tags.
+When adding a new agent to `DEFAULT_AGENTS` in `src/pipeline/mod.rs`, also add corresponding fields to `AgentModelOverrides` and `AgentIterationOverrides` in `src/config.rs`. Missing fields cause compilation errors.
 
 ---
 
-# Environment Variables
+# Environment & Configuration
 
-Source: `.env.example`. Copy to `.env` in the wisp root directory. CLI flags take precedence over `.env` values.
+Configuration is loaded by `src/config.rs` via `dotenvy` from a `.env` file in the wisp installation root. All variables can also be set as real environment variables.
 
-## AI Provider
+## Provider Selection
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `AI_PROVIDER` | `claude` | `claude` or `gemini` |
+```env
+AI_PROVIDER=claude        # or: gemini (default: claude)
+```
 
-## Authentication
+## Auth Tokens
 
-| Variable | Description |
-|----------|-------------|
-| `ANTHROPIC_API_KEY` | API key for Claude (leave blank if using Claude Max subscription) |
-| `CLAUDE_CODE_OAUTH_TOKEN` | OAuth token for headless/containerized Claude runs (`claude setup-token`) |
-| `GEMINI_API_KEY` | API key for Gemini CLI (leave blank to use `gemini auth login`) |
-| `GOOGLE_API_KEY` | Alternative Google Cloud API key for Gemini |
-| `GITHUB_TOKEN` | GitHub PAT (or use `gh auth login`) |
+```env
+ANTHROPIC_API_KEY=sk-ant-...        # Claude API (if using API key auth)
+CLAUDE_CODE_OAUTH_TOKEN=...         # Claude Code OAuth token (alternative)
+GEMINI_API_KEY=...                  # Gemini API key
+GOOGLE_API_KEY=...                  # Google API key (alternative for Gemini)
+GITHUB_TOKEN=ghp_...                # GitHub token (for gh pr create)
+```
+
+## Model Selection
+
+```env
+CLAUDE_MODEL=sonnet                  # default Claude model (default: "sonnet")
+GEMINI_MODEL=gemini-2.5-pro          # default Gemini model
+CLAUDE_ALLOWED_TOOLS=Edit,Write,Bash,Read,MultiEdit   # tools Claude Code may use
+```
+
+### Per-Agent Model Overrides
+
+Each of the 14 agents can use a different model:
+```env
+ARCHITECT_MODEL=claude-opus-4-6
+DEVELOPER_MODEL=claude-sonnet-4-6
+TESTER_MODEL=claude-haiku-4-5-20251001
+# ... (architect, designer, migration, developer, accessibility, tester,
+#      performance, secops, dependency, infrastructure, devops, rollback,
+#      documentation, reviewer)
+```
 
 ## Pipeline Defaults
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PIPELINE_MAX_ITERATIONS` | `10` | Max Ralph Loop iterations per agent |
-| `PIPELINE_MAX_PARALLEL` | `4` | Max concurrent PRD × repo pipelines |
-| `PIPELINE_WORK_DIR` | `/tmp/wisp-work` | Working directory for cloned repos |
-| `PIPELINE_CLEANUP` | `false` | Delete work directory after PR creation |
-| `DEFAULT_BASE_BRANCH` | `main` | Base branch for PRs |
-| `USE_DEVCONTAINER` | `true` | Run agents inside Dev Containers |
-| `UPDATE_PROJECT_CONTEXT` | `true` | Rewrite `CLAUDE.md`/`GEMINI.md` after each agent |
-| `EVIDENCE_AGENTS` | `tester,performance,secops,dependency,infrastructure,devops` | Agents whose reports are posted as PR comments |
-
-## Provider Model Settings
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `CLAUDE_MODEL` | `sonnet` | Default Claude model (short names accepted: `sonnet`, `opus`) |
-| `CLAUDE_ALLOWED_TOOLS` | `Edit,Write,Bash,Read,MultiEdit` | Tools available to Claude in headless mode |
-| `GEMINI_MODEL` | `gemini-2.5-pro` | Default Gemini model |
-
-## Per-Agent Overrides
-
-Each agent supports `<AGENT>_MODEL` and `<AGENT>_MAX_ITERATIONS` overrides:
-
+```env
+PIPELINE_MAX_PARALLEL=4               # max concurrent PRD pipelines (default: 4)
+PIPELINE_MAX_ITERATIONS=10            # default Ralph Loop iterations per agent
+DEFAULT_BASE_BRANCH=main              # default base branch
+PIPELINE_WORK_DIR=/tmp/coding-agents-work  # directory for cloned repos
+PIPELINE_CLEANUP=false                # remove workdirs after pipeline (default: false)
+USE_DEVCONTAINER=true                 # run agents inside dev containers
+UPDATE_PROJECT_CONTEXT=true           # update context file at pipeline start
+INTERACTIVE=false                     # pause between agents for review
 ```
-ARCHITECT_MODEL=       ARCHITECT_MAX_ITERATIONS=
-DEVELOPER_MODEL=       DEVELOPER_MAX_ITERATIONS=
-TESTER_MODEL=          TESTER_MAX_ITERATIONS=
-REVIEWER_MODEL=        REVIEWER_MAX_ITERATIONS=
+
+### Per-Agent Max Iteration Overrides
+
+```env
+ARCHITECT_MAX_ITERATIONS=5
+DEVELOPER_MAX_ITERATIONS=15
 # ... same pattern for all 14 agents
+```
+
+## Evidence Agents
+
+```env
+EVIDENCE_AGENTS=tester,performance,secops,dependency,infrastructure,devops
+# agents whose progress reports become PR comments (default includes all 6 above)
 ```
 
 ## Logging
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
-| `LOG_DIR` | `./logs` | Log output directory |
-| `VERBOSE_LOGS` | `false` | Show agent thinking, tool calls, and results |
-| `INTERACTIVE` | `false` | Pause between agents for human review |
+```env
+LOG_LEVEL=info                        # log level (trace/debug/info/warn/error)
+LOG_DIR=./logs                        # JSONL log output directory
+VERBOSE_LOGS=false                    # enable verbose CLI output (tool calls, thinking)
+```
 
-## Optional Integrations (MCP)
+## MCP Integrations (optional)
 
-| Variable | Description |
-|----------|-------------|
-| `NOTION_TOKEN` | Notion integration token |
-| `FIGMA_ACCESS_TOKEN` | Figma access token |
-| `SLACK_TEAM_ID` | Slack team ID |
-| `JIRA_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` | Jira credentials |
+Configured in `.mcp.json`. Tokens for external services:
+```env
+NOTION_TOKEN=...
+FIGMA_TOKEN=...
+SLACK_TOKEN=...
+JIRA_TOKEN=...
+```
+
+See `docs/mcp-integrations.md` for setup details.
 
 ---
 
-# External Integrations
+# Integrations
 
-## Required Runtime Dependencies
+## AI CLI Tools
 
-These must be installed and authenticated for wisp to function:
+### Claude Code (`claude`)
+- Installed separately; checked via `which claude`
+- Invoked as: `claude -p <prompt-file> --model <model> --dangerously-skip-permissions --output-format stream-json --allowedTools <tools> --verbose`
+- `--verbose` is required for `stream-json` output format
+- Session resumption: extract session ID from first JSONL lines via `extract_session_id(lines: &[String])`; use `--resume <id>` to continue
 
-| Tool | Purpose | Check |
-|------|---------|-------|
-| `claude` (Claude Code CLI) | AI agent execution (default provider) | `claude --version` |
-| `gemini` (Gemini CLI) | AI agent execution (alternative provider) | `gemini --version` |
-| `gh` (GitHub CLI) | PR creation, evidence comments | `gh auth status` |
-| `docker` | Dev Container lifecycle | `docker info` |
-| `git` | Clone, branch, push | `git --version` |
+### Gemini CLI (`gemini`)
+- Installed separately; checked via `which gemini`
+- Invoked as: `gemini -p <prompt-file> --model <model> --yolo --output-format stream-json`
+- Session resumption: extract session ID from first JSONL lines via `extract_session_id(lines: &[String])`
 
-Wisp uses `which::which()` (the `which` crate) to check for these at startup.
+## GitHub CLI (`gh`)
 
-## MCP Servers (`.mcp.json`)
+Required for PR operations:
+- `gh pr create --title "..." --body "..." --base <branch>` — creates PR
+- `gh pr comment <pr-url> --body-file <path>` — posts evidence comments
+- Must be authenticated (`gh auth login`) before running wisp
 
-Configured MCP servers available to AI agents during pipeline execution:
+## Docker / Dev Containers
 
-| Service | Purpose | Config Key |
-|---------|---------|------------|
-| GitHub | Repository operations, issue/PR access | `GITHUB_TOKEN` |
-| Notion | PRD/doc retrieval from Notion databases | `NOTION_TOKEN` |
-| Figma | Design asset access for designer agent | `FIGMA_ACCESS_TOKEN` |
-| Slack | Team communication context | `SLACK_TEAM_ID` |
+- Uses the `devcontainer` CLI (from `@devcontainers/cli`)
+- `devcontainer up --workspace-folder <path>` — start container, returns JSON with `containerId`
+- `devcontainer exec --workspace-folder <path> -- <cmd>` — run command in container
+- Container cleanup: `docker stop <id> && docker rm <id>`
+- Dev Container config expected at `.devcontainer/devcontainer.json` in the target repo
 
-## CI/CD
+## MCP Servers (optional)
 
-| Service | Purpose |
-|---------|---------|
-| GitHub Actions | CI (clippy/fmt/test) and release (cross-compile binary distribution) |
-| GitHub Releases | Binary distribution for `scripts/install.sh` |
+Configured in `.mcp.json` at the project root. Used by Claude Code to access external services:
 
-## Dev Containers
+| Server | Purpose |
+|--------|---------|
+| `github` | Read issues, PRs, repo metadata |
+| `notion` | Read design specs and requirements |
+| `figma` | Read UI designs |
+| `slack` | Read channel context |
 
-Dev Container configs in `.devcontainer/` set up isolated environments with:
-- Firewall rules restricting network access
-- Pre-installed AI CLI tools (`claude`, `gemini`, `gh`, `docker`)
-- Auth token injection from host environment
+MCP is only active when `claude` is the provider and the target repo has Claude Code support. See `docs/mcp-integrations.md`.
+
+## notify Crate (log monitoring)
+
+`src/logging/monitor.rs` uses the `notify` crate to watch log directories for new `.log` and `.jsonl` files and tail them in real-time. This powers `wisp monitor`.
