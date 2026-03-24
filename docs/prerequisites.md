@@ -28,7 +28,7 @@ The `wisp` binary is a single static executable. Choose one of:
 
 The curl installer downloads a pre-built binary for your platform from GitHub Releases. No `jq`, `node`, or other runtime dependencies are required — `wisp` is self-contained.
 
-> **Homebrew and curl installs:** The binary needs `agents/`, `templates/`, and `.env`. See [Configuration Guide](configuration.md).
+> **Homebrew and curl installs:** The binary needs `agents/`, `templates/`, and `.env`. Run `wisp install agents` to download agent prompts to `~/.wisp/agents/` without cloning the full repo. See [Configuration Guide](configuration.md).
 
 ### Optional: Build from Source
 

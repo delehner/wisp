@@ -52,7 +52,26 @@ cp .env.example .env
 # Edit .env
 ```
 
-### Option B: Use an existing project directory
+### Option B: Use `wisp install agents` (quickest)
+
+This downloads only the agent prompt files without cloning the full repo. Useful after a Homebrew or curl install when you just need agents.
+
+```bash
+# 1. Download agent prompts to ~/.wisp/agents/
+wisp install agents
+
+# 2. Create ~/.wisp/.env from the template (download once)
+curl -fsSL https://raw.githubusercontent.com/delehner/wisp/main/.env.example -o ~/.wisp/.env
+
+# 3. Edit ~/.wisp/.env with your values
+$EDITOR ~/.wisp/.env
+```
+
+Wisp automatically finds `~/.wisp/` as the fallback root, so no `WISP_ROOT_DIR` is required.
+
+Re-run `wisp install agents` after upgrading wisp to keep agent prompts in sync with the binary. Use `--force` to overwrite existing files.
+
+### Option C: Use an existing project directory
 
 If you already have a wisp project (e.g. with manifests and PRDs):
 
@@ -132,7 +151,7 @@ ls -la ~/.wisp/.env
 
 | Install method | Root directory | Action |
 |----------------|----------------|--------|
-| Homebrew | `WISP_ROOT_DIR` or `~/.wisp` | Clone repo, set env, create `.env` |
+| Homebrew | `WISP_ROOT_DIR` or `~/.wisp` | `wisp install agents`, create `~/.wisp/.env` |
 | curl \| bash | Same | Same |
 | cargo install | Same | Same |
 | From repo (dev) | Repo root | `.env` in repo root |
