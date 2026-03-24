@@ -171,6 +171,10 @@ pub async fn run(
 
     agents_result?;
 
+    let auto_commit_message = format!("chore: apply pipeline changes for {}", prd.slug());
+    info!(message = %auto_commit_message, "staging and committing pipeline changes");
+    git::stage_all_and_commit(&workdir, &auto_commit_message).await?;
+
     if run_config.skip_pr || was_empty {
         if was_empty {
             info!("empty repo — pushing main instead of creating PR");
