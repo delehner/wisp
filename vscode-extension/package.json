@@ -2,7 +2,7 @@
   "name": "wisp-ai",
   "displayName": "Wisp AI",
   "description": "Run Wisp AI pipelines from your IDE — Command Palette, explorer, and live output for the wisp CLI",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "publisher": "delehner",
   "repository": {
     "type": "git",
