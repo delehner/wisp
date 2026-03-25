@@ -8,6 +8,7 @@ import { registerGeneratePrdCommand, registerGenerateContextCommand, promptGener
 import { registerMonitorCommand } from './commands/monitor';
 import { registerHomebrewCliCommands } from './commands/brew';
 import { registerInstallSkillsCommand, registerUpdateCommand, runWithOutput } from './commands/utils';
+import { registerDownloadWispAssetsCommands } from './commands/downloadWispAssets';
 import { WispTreeDataProvider } from './treeView/provider';
 import { WispFileWatcher } from './treeView/watcher';
 import { ManifestItem, EpicItem, SubtaskItem, PrdFileItem } from './treeView/items';
@@ -69,6 +70,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   registerHomebrewCliCommands(context);
   registerInstallSkillsCommand(context, outputChannel, statusBar, onActivate, onDone);
   registerUpdateCommand(context, outputChannel, statusBar, onActivate, onDone);
+  registerDownloadWispAssetsCommands(context);
 
   // Tree view
   const treeProvider = new WispTreeDataProvider();
