@@ -6,6 +6,7 @@ import { registerPipelineCommand } from './commands/pipeline';
 import { registerRunCommand } from './commands/run';
 import { registerGeneratePrdCommand, registerGenerateContextCommand, promptGeneratePrdArgs } from './commands/generate';
 import { registerMonitorCommand } from './commands/monitor';
+import { registerHomebrewCliCommands } from './commands/brew';
 import { registerInstallSkillsCommand, registerUpdateCommand, runWithOutput } from './commands/utils';
 import { WispTreeDataProvider } from './treeView/provider';
 import { WispFileWatcher } from './treeView/watcher';
@@ -65,6 +66,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   registerGeneratePrdCommand(context, outputChannel, statusBar, onActivate, onDone);
   registerGenerateContextCommand(context, outputChannel, statusBar, onActivate, onDone);
   registerMonitorCommand(context, outputChannel, statusBar, onActivate, onDone);
+  registerHomebrewCliCommands(context);
   registerInstallSkillsCommand(context, outputChannel, statusBar, onActivate, onDone);
   registerUpdateCommand(context, outputChannel, statusBar, onActivate, onDone);
 
