@@ -140,6 +140,16 @@ pub fn inject_iteration_defaults(path: &Path, config: &Config) -> Result<()> {
     let mut root: serde_json::Value = serde_json::from_str(&content)
         .with_context(|| format!("failed to parse manifest JSON: {}", path.display()))?;
 
+    // Validate the manifest structure before stamping iteration defaults.
+    let _: Manifest = serde_json::from_str(&content).with_context(|| {
+        format!(
+            "generated manifest does not conform to the expected schema: {}\n\
+             Check that all repositories have a 'url' field, every PrdEntry has a 'repositories' array, \
+             and 'prd' paths are strings.",
+            path.display()
+        )
+    })?;
+
     let obj = root
         .as_object_mut()
         .ok_or_else(|| anyhow::anyhow!("manifest root must be a JSON object"))?;
@@ -226,6 +236,31 @@ mod tests {
         }"#;
         let m2: Manifest = serde_json::from_str(json_legacy).unwrap();
         assert_eq!(m2.epics[0].subtasks.len(), 1);
+    }
+
+    #[test]
+    fn template_manifest_deserializes() {
+        let content = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/templates/manifest.json"
+        ));
+        let result = serde_json::from_str::<Manifest>(content);
+        assert!(
+            result.is_ok(),
+            "templates/manifest.json failed to deserialize: {:?}",
+            result.err()
+        );
+    }
+
+    #[test]
+    fn inject_iteration_defaults_rejects_missing_repository_url() {
+        // A manifest with a repository missing the required 'url' field must fail.
+        let bad = r#"{"epics": [{"subtasks": [{"prd": "./a.md", "repositories": [{}]}]}]}"#;
+        let result = serde_json::from_str::<Manifest>(bad);
+        assert!(
+            result.is_err(),
+            "expected parse error for repository missing 'url'"
+        );
     }
 
     #[test]
