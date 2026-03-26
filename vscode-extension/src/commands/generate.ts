@@ -77,7 +77,7 @@ export async function promptGeneratePrdArgs(
 
 export function registerGeneratePrdCommand(
   context: vscode.ExtensionContext,
-  outputChannel: vscode.OutputChannel,
+  outputChannel: vscode.LogOutputChannel,
   statusBar: WispStatusBar,
   onActivate: (cli: WispCli) => void,
   onDone: () => void,
@@ -106,7 +106,7 @@ export function registerGeneratePrdCommand(
 
 export function registerGenerateContextCommand(
   context: vscode.ExtensionContext,
-  outputChannel: vscode.OutputChannel,
+  outputChannel: vscode.LogOutputChannel,
   statusBar: WispStatusBar,
   onActivate: (cli: WispCli) => void,
   onDone: () => void,

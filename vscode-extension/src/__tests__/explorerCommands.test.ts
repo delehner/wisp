@@ -355,6 +355,62 @@ describe('Explorer command handlers (extension.ts)', () => {
       expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Wisp AI: No workspace folder open.');
       expect(cp.spawn).not.toHaveBeenCalled();
     });
+
+    // ─── item-absent (view/title button) tests ──────────────────────────────
+
+    it('item-absent happy path: prompts for manifest and spawns with typed path', async () => {
+      (vscode.window.showInputBox as jest.Mock)
+        .mockResolvedValueOnce('My Project')             // description
+        .mockResolvedValueOnce('./prds')                 // output directory
+        .mockResolvedValueOnce('./manifests/project.json') // manifest path (item-absent InputBox)
+        .mockResolvedValueOnce('');                      // empty repo URL ends loop
+      const spawnMock = makeSpawnMock();
+
+      await getHandler('wisp.explorer.generatePrd')();
+
+      expect(vscode.window.showInputBox).toHaveBeenCalledWith(
+        expect.objectContaining({ prompt: 'Manifest JSON path' }),
+      );
+      const spawnArgs = (spawnMock.mock.calls[0] as [string, string[]])[1];
+      const manifestIdx = spawnArgs.indexOf('--manifest');
+      expect(manifestIdx).toBeGreaterThanOrEqual(0);
+      expect(spawnArgs[manifestIdx + 1]).toBe('./manifests/project.json');
+      expect(spawnArgs.join(' ')).not.toContain('[object Object]');
+      spawnMock.mockRestore();
+    });
+
+    it('item-absent: returns early without spawning when manifest InputBox is cancelled', async () => {
+      (vscode.window.showInputBox as jest.Mock)
+        .mockResolvedValueOnce('My Project')  // description
+        .mockResolvedValueOnce('./prds')      // output directory
+        .mockResolvedValueOnce(undefined);    // user cancels manifest InputBox
+      const spawnMock = makeSpawnMock();
+
+      await getHandler('wisp.explorer.generatePrd')();
+
+      expect(spawnMock).not.toHaveBeenCalled();
+      spawnMock.mockRestore();
+    });
+
+    it('item-absent: returns early without spawning when first prompt is cancelled', async () => {
+      (vscode.window.showInputBox as jest.Mock)
+        .mockResolvedValueOnce(undefined); // user cancels description (first prompt)
+      const spawnMock = makeSpawnMock();
+
+      await getHandler('wisp.explorer.generatePrd')();
+
+      expect(spawnMock).not.toHaveBeenCalled();
+      spawnMock.mockRestore();
+    });
+
+    it('item-absent: shows error and does not spawn when no workspace folder is open', async () => {
+      (vscode.workspace as unknown as { workspaceFolders: undefined }).workspaceFolders = undefined;
+
+      await getHandler('wisp.explorer.generatePrd')();
+
+      expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Wisp AI: No workspace folder open.');
+      expect(cp.spawn).not.toHaveBeenCalled();
+    });
   });
 
   // ─── No [object Object] regression ───────────────────────────────────────

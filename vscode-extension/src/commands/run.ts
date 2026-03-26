@@ -5,7 +5,7 @@ import { KNOWN_AGENTS, pickPrdFile, runWithOutput } from './utils';
 
 export function registerRunCommand(
   context: vscode.ExtensionContext,
-  outputChannel: vscode.OutputChannel,
+  outputChannel: vscode.LogOutputChannel,
   statusBar: WispStatusBar,
   onActivate: (cli: WispCli) => void,
   onDone: () => void,

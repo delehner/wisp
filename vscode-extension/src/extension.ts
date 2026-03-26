@@ -13,7 +13,7 @@ import { WispTreeDataProvider } from './treeView/provider';
 import { WispFileWatcher } from './treeView/watcher';
 import { ManifestItem, EpicItem, SubtaskItem, PrdFileItem } from './treeView/items';
 
-let outputChannel: vscode.OutputChannel | undefined;
+let outputChannel: vscode.LogOutputChannel | undefined;
 let statusBar: WispStatusBar | undefined;
 let activeCli: WispCli | null = null;
 let fileWatcher: WispFileWatcher | undefined;
@@ -27,7 +27,7 @@ function onDone(): void {
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-  outputChannel = vscode.window.createOutputChannel('Wisp AI');
+  outputChannel = vscode.window.createOutputChannel('Wisp AI', { log: true });
   context.subscriptions.push(outputChannel);
 
   statusBar = new WispStatusBar();
@@ -273,21 +273,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           vscode.window.showErrorMessage('Wisp AI: No workspace folder open.');
           return;
         }
-        let prefilledManifest: string | undefined;
-        if (item?.fsPath) {
-          prefilledManifest = item.fsPath;
-        } else {
-          const manifestInput = await vscode.window.showInputBox({
-            prompt: 'Manifest JSON path',
-            value: './manifests/project.json',
-            validateInput: (val) => (val.trim() ? undefined : 'Manifest path is required'),
-          });
-          if (manifestInput === undefined) {
-            return;
-          }
-          prefilledManifest = manifestInput;
-        }
-        const args = await promptGeneratePrdArgs(cwd, prefilledManifest);
+        const args = await promptGeneratePrdArgs(cwd, item?.fsPath);
         if (!args) {
           return;
         }

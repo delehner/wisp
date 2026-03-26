@@ -21,13 +21,13 @@ function makeSpawnMock(exitCode = 0): jest.SpyInstance {
 
 describe('registerGeneratePrdCommand', () => {
   let context: vscode.ExtensionContext;
-  let outputChannel: vscode.OutputChannel;
+  let outputChannel: vscode.LogOutputChannel;
   let statusBar: WispStatusBar;
 
   beforeEach(() => {
     jest.clearAllMocks();
     context = { subscriptions: { push: jest.fn() } } as unknown as vscode.ExtensionContext;
-    outputChannel = vscode.window.createOutputChannel('Wisp AI');
+    outputChannel = vscode.window.createOutputChannel('Wisp AI', { log: true });
     statusBar = new WispStatusBar();
 
     mockExec.mockImplementation((_cmd, callback: unknown) => {
@@ -242,13 +242,13 @@ describe('registerGeneratePrdCommand', () => {
 
 describe('registerGenerateContextCommand', () => {
   let context: vscode.ExtensionContext;
-  let outputChannel: vscode.OutputChannel;
+  let outputChannel: vscode.LogOutputChannel;
   let statusBar: WispStatusBar;
 
   beforeEach(() => {
     jest.clearAllMocks();
     context = { subscriptions: { push: jest.fn() } } as unknown as vscode.ExtensionContext;
-    outputChannel = vscode.window.createOutputChannel('Wisp AI');
+    outputChannel = vscode.window.createOutputChannel('Wisp AI', { log: true });
     statusBar = new WispStatusBar();
 
     mockExec.mockImplementation((_cmd, callback: unknown) => {
