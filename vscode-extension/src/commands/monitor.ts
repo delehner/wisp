@@ -5,7 +5,7 @@ import { runWithOutput } from './utils';
 
 export function registerMonitorCommand(
   context: vscode.ExtensionContext,
-  outputChannel: vscode.OutputChannel,
+  outputChannel: vscode.LogOutputChannel,
   statusBar: WispStatusBar,
   onActivate: (cli: WispCli) => void,
   onDone: () => void,

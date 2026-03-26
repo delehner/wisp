@@ -42,7 +42,7 @@ Right-clicking nodes in the Wisp Explorer triggers these commands:
 ## Features
 
 - **Wisp Explorer sidebar** — Activity Bar panel showing all `manifests/*.json` and `prds/**/*.md` files in a browsable tree; auto-refreshes when files change
-- **Real-time streaming output** — all pipeline output appears line-by-line in a dedicated "Wisp" Output Channel as it is emitted; no buffering
+- **Structured output channel** — pipeline output streams line-by-line into the "Wisp AI" Output Channel with native VSCode timestamps and a log-level filter dropdown (uses `LogOutputChannel`). Each line is automatically classified as `error`, `warn`, `debug`, or `info` based on its content so you can filter to warnings or errors instantly. A run header (`▶ wisp <args>` + started timestamp) and a completion footer (exit status + elapsed time) bracket every pipeline invocation.
 - **Status bar indicator** — shows `$(sync~spin) Wisp: Running` during active pipelines and `$(check) Wisp: Idle` otherwise; click to open the Output Channel
 - **File pickers** — manifest commands filter to `**/manifests/*.json`; PRD commands filter to `**/prds/**/*.md`
 - **Process cancellation** — `wisp.stopPipeline` sends SIGTERM to the running process and resets the status bar

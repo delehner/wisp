@@ -10,6 +10,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **Explorer command handlers now receive correct arguments** — clicking inline action buttons or context menu items in the Wisp AI Explorer (Run Orchestrate, Run Orchestrate (this epic only), Run Pipeline) no longer fails with `Error: failed to read manifest: [object Object]`. Handlers now correctly extract the file path or properties from the tree item object passed by VS Code.
 
+### Changed
+
+- **Structured log output channel** — the "Wisp AI" Output Channel now uses VSCode's `LogOutputChannel` API (`{ log: true }`), which adds native timestamps and a log-level filter dropdown to the Output panel header. Every output line is classified by level before routing: lines containing `ERROR` or `error:` go to `channel.error()`, `WARN` or `warning:` to `channel.warn()`, `DEBUG` or `TRACE` to `channel.debug()`, all others to `channel.info()`. ANSI escape codes are stripped before classification. Stderr is classified independently — it is no longer forced to `error` level.
+- **Run header** — before each pipeline invocation, a horizontal rule, the full `wisp <args>` command, and a local-time started timestamp are appended to the output channel so multiple runs are easy to distinguish in a long session.
+- **Completion footer** — after each pipeline invocation completes (or errors), a footer showing the exit status (`✔ Finished` / `✘ Failed` / `✘ Error: …`) and the wall-clock elapsed time (`Xm Ys`) is appended. The footer is always written — even when the process is cancelled or fails to spawn.
+
 ### Added
 
 - **Wisp AI Explorer sidebar** — Activity Bar panel (custom Wisp icon) with two sections:

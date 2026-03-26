@@ -5,7 +5,7 @@ import { pickManifestFile, runWithOutput } from './utils';
 
 export function registerOrchestrateCommand(
   context: vscode.ExtensionContext,
-  outputChannel: vscode.OutputChannel,
+  outputChannel: vscode.LogOutputChannel,
   statusBar: WispStatusBar,
   onActivate: (cli: WispCli) => void,
   onDone: () => void,

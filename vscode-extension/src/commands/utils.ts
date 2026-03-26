@@ -49,11 +49,28 @@ export async function pickPrdFile(cwd: string): Promise<string | undefined> {
   });
 }
 
+function stripAnsi(line: string): string {
+  return line.replace(/\x1B\[[0-9;]*m/g, '');
+}
+
+export function classifyLine(line: string): 'error' | 'warn' | 'info' | 'debug' {
+  const s = stripAnsi(line);
+  if (/ ERROR |error:/i.test(s)) return 'error';
+  if (/ WARN |warning:/i.test(s)) return 'warn';
+  if (/ DEBUG | TRACE /i.test(s)) return 'debug';
+  return 'info';
+}
+
+function formatLocalTime(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
 export async function runWithOutput(
   cli: WispCli,
   args: string[],
   cwd: string,
-  outputChannel: vscode.OutputChannel,
+  outputChannel: vscode.LogOutputChannel,
   statusBar: WispStatusBar,
   onActivate?: (cli: WispCli) => void,
   onDone?: () => void,
@@ -67,15 +84,42 @@ export async function runWithOutput(
   statusBar.setRunning();
   onActivate?.(cli);
 
+  const hr = '─'.repeat(48);
+  const startMs = Date.now();
+  outputChannel.appendLine(hr);
+  outputChannel.appendLine(`▶ wisp ${args.join(' ')}`);
+  outputChannel.appendLine(`  Started: ${formatLocalTime(new Date())}`);
+  outputChannel.appendLine(hr);
+
+  let exitCode = 0;
+  let spawnError: Error | undefined;
   try {
-    const code = await cli.run(
+    exitCode = await cli.run(
       args,
       cwd,
-      (line) => outputChannel.appendLine(line),
-      (line) => outputChannel.appendLine(`[stderr] ${line}`),
+      (line) => outputChannel[classifyLine(line)](line),
+      (line) => outputChannel[classifyLine(line)](line),
     );
-    return code;
+    return exitCode;
+  } catch (err) {
+    spawnError = err instanceof Error ? err : new Error(String(err));
+    throw err;
   } finally {
+    const elapsed = Date.now() - startMs;
+    const mins = Math.floor(elapsed / 60000);
+    const secs = Math.floor((elapsed % 60000) / 1000);
+    const elapsedStr = `${mins}m ${secs}s`;
+
+    outputChannel.appendLine(hr);
+    if (spawnError) {
+      outputChannel.error(`✘ Error: ${spawnError.message}  (elapsed: ${elapsedStr})`);
+    } else if (exitCode === 0) {
+      outputChannel.info(`✔ Finished  exit code 0  (elapsed: ${elapsedStr})`);
+    } else {
+      outputChannel.error(`✘ Failed  exit code ${exitCode}  (elapsed: ${elapsedStr})`);
+    }
+    outputChannel.appendLine(hr);
+
     statusBar.setIdle();
     onDone?.();
   }
@@ -83,7 +127,7 @@ export async function runWithOutput(
 
 export function registerInstallSkillsCommand(
   context: vscode.ExtensionContext,
-  outputChannel: vscode.OutputChannel,
+  outputChannel: vscode.LogOutputChannel,
   statusBar: WispStatusBar,
   onActivate: (cli: WispCli) => void,
   onDone: () => void,
@@ -118,7 +162,7 @@ export function registerInstallSkillsCommand(
 
 export function registerUpdateCommand(
   context: vscode.ExtensionContext,
-  outputChannel: vscode.OutputChannel,
+  outputChannel: vscode.LogOutputChannel,
   statusBar: WispStatusBar,
   onActivate: (cli: WispCli) => void,
   onDone: () => void,
