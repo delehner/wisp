@@ -255,6 +255,8 @@ dc.stop().await?;   // must call explicitly; Drop warns if skipped
 - Same-repo PRDs within an order are automatically stacked into sequential waves
 - `execute_units()`: tokio `JoinSet` + `Semaphore` for bounded parallel execution
 
+**Schema sync requirement**: `schemas/manifest.schema.json` mirrors the Rust structs (`Manifest`, `Epic`, `PrdEntry`, `Repository`) in `src/manifest/mod.rs`. When adding, removing, or renaming fields in those structs, update the schema file to match. The JSON Schema is used for documentation and as an agent self-validation tool — the Rust parser remains the authoritative validator at runtime.
+
 ## Agent Prompts (`agents/`)
 
 Each agent has:

@@ -136,6 +136,36 @@ Produce a manifest JSON file at the specified manifest path:
 
 **Do not** add `max_iterations` or `agent_max_iterations` — the `wisp generate prd` command injects those from the user’s environment after you finish, so the manifest stays valid without you tracking iteration policy.
 
+### ❌ Do NOT use legacy keys
+
+The following keys are **deprecated** and must NOT appear in new manifests:
+
+```json
+{
+  "orders": [
+    {
+      "prds": [...]
+    }
+  ]
+}
+```
+
+Using `"orders"` or `"prds"` is deprecated. The JSON Schema at `schemas/manifest.schema.json` will reject them, but the Rust runtime still accepts them via aliases. New manifests must use `"epics"`/`"subtasks"`.
+
+### ✅ Always use canonical keys
+
+```json
+{
+  "epics": [
+    {
+      "subtasks": [...]
+    }
+  ]
+}
+```
+
+The schema at `schemas/manifest.schema.json` (relative to the wisp root) describes the exact required structure. If you have Bash tool access you can inspect it: `cat schemas/manifest.schema.json`
+
 ```json
 {
   "name": "[Project name]",
@@ -167,8 +197,8 @@ Manifest rules:
 - Context paths must be **relative to the project root** (e.g. `./contexts/<repo>`)
 - **Epics** run **in parallel** by default (pipeline uses `{PIPELINE_WORK_DIR}/epics/{index}/` per epic). **Subtasks** in the same epic run **sequentially** (manifest order). Repositories listed under **one** subtask can run in parallel. Only group subtasks in the same epic when later subtasks do not depend on earlier ones finishing first
 - When multiple subtasks in the same epic target the same repo, the pipeline auto-stacks their branches — no extra config needed
-- Legacy keys `orders` / `prds` still parse, but **prefer `epics` / `subtasks`** in new manifests
-- **Always include an `agents` array per PRD** selecting only the agents relevant to that PRD's scope. This avoids running all 14 agents when only a subset applies.
+- **`agents` is REQUIRED on every subtask (PrdEntry)** — omitting it causes the pipeline to run all 14 agents regardless of scope. Always include an explicit agents array.
+- Valid agent names (exact strings for the `agents` array): `architect`, `designer`, `migration`, `developer`, `accessibility`, `tester`, `performance`, `secops`, `dependency`, `infrastructure`, `devops`, `rollback`, `documentation`, `reviewer`
 
 ### Agent Selection
 
@@ -224,10 +254,13 @@ Every PRD should at minimum include: `architect`, `developer`, `tester`, `docume
 
 You are COMPLETED when:
 - [ ] All PRD files are written to the output directory
-- [ ] Each PRD follows the template structure with complete metadata
-- [ ] Every functional requirement has specific acceptance criteria with checkboxes
+- [ ] Each PRD contains: title metadata block (Status/Author/Date/Priority/Working Branch), Overview, Background, Goals, Non-Goals, User Stories, Functional Requirements with checkbox acceptance criteria, Agent Pipeline Notes with Scope Classification
+- [ ] Sections marked "Remove this section if N/A" are removed when not applicable — not left with placeholder text
+- [ ] Every functional requirement has at least one `- [ ]` acceptance criterion checkbox
 - [ ] PRDs are ordered logically — foundations before features, dependencies respected
-- [ ] The manifest JSON is valid and references all PRDs with correct relative paths
+- [ ] The manifest JSON uses `epics`/`subtasks` keys (NOT `orders`/`prds`) and is valid
+- [ ] Every subtask in the manifest has a non-empty `agents` array using only valid agent names
+- [ ] All `repositories` entries have a `url` field
 - [ ] Context paths in the manifest are correct and relative
 - [ ] Working branches are unique across all PRDs
 - [ ] Agent Hints reference specifics from the repo context (not generic advice)

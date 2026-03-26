@@ -1,0 +1,142 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/delehner/wisp/schemas/manifest.schema.json",
+  "title": "Wisp Manifest",
+  "description": "Schema for wisp manifest JSON files. Authoritative field list mirrors src/manifest/mod.rs structs.",
+  "type": "object",
+  "required": ["epics"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Human-readable name for this manifest."
+    },
+    "description": {
+      "type": "string",
+      "description": "Short description of what this manifest delivers."
+    },
+    "max_iterations": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Default Ralph Loop max iterations per agent (injected by wisp after generation)."
+    },
+    "agent_max_iterations": {
+      "$ref": "#/definitions/AgentIterationOverrides",
+      "description": "Per-agent iteration overrides for this manifest (injected by wisp after generation)."
+    },
+    "epics": {
+      "type": "array",
+      "description": "Top-level parallel work groups. Epics run in parallel; subtasks within an epic run sequentially.",
+      "items": { "$ref": "#/definitions/Epic" }
+    }
+  },
+  "definitions": {
+    "AgentNames": {
+      "type": "string",
+      "enum": [
+        "architect",
+        "designer",
+        "migration",
+        "developer",
+        "accessibility",
+        "tester",
+        "performance",
+        "secops",
+        "dependency",
+        "infrastructure",
+        "devops",
+        "rollback",
+        "documentation",
+        "reviewer"
+      ]
+    },
+    "AgentIterationOverrides": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "architect":       { "type": "integer", "minimum": 1 },
+        "designer":        { "type": "integer", "minimum": 1 },
+        "migration":       { "type": "integer", "minimum": 1 },
+        "developer":       { "type": "integer", "minimum": 1 },
+        "accessibility":   { "type": "integer", "minimum": 1 },
+        "tester":          { "type": "integer", "minimum": 1 },
+        "performance":     { "type": "integer", "minimum": 1 },
+        "secops":          { "type": "integer", "minimum": 1 },
+        "dependency":      { "type": "integer", "minimum": 1 },
+        "infrastructure":  { "type": "integer", "minimum": 1 },
+        "devops":          { "type": "integer", "minimum": 1 },
+        "rollback":        { "type": "integer", "minimum": 1 },
+        "documentation":   { "type": "integer", "minimum": 1 },
+        "reviewer":        { "type": "integer", "minimum": 1 }
+      }
+    },
+    "Epic": {
+      "type": "object",
+      "required": ["subtasks"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Human-readable epic name."
+        },
+        "description": {
+          "type": "string",
+          "description": "What this epic accomplishes."
+        },
+        "subtasks": {
+          "type": "array",
+          "description": "Ordered list of PRD work units for this epic. Run sequentially.",
+          "items": { "$ref": "#/definitions/PrdEntry" }
+        }
+      }
+    },
+    "PrdEntry": {
+      "type": "object",
+      "required": ["prd", "repositories"],
+      "additionalProperties": false,
+      "properties": {
+        "prd": {
+          "type": "string",
+          "description": "Path to the PRD markdown file, relative to the project root (e.g. ./prds/01-foundation.md)."
+        },
+        "agents": {
+          "type": "array",
+          "description": "Agents to run for this PRD entry. Required — omitting causes all 14 agents to run.",
+          "items": { "$ref": "#/definitions/AgentNames" },
+          "minItems": 1
+        },
+        "repositories": {
+          "type": "array",
+          "description": "Target repositories for this PRD. Repositories within one subtask run in parallel.",
+          "items": { "$ref": "#/definitions/Repository" },
+          "minItems": 1
+        }
+      }
+    },
+    "Repository": {
+      "type": "object",
+      "required": ["url"],
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "GitHub repository URL (e.g. https://github.com/org/repo)."
+        },
+        "branch": {
+          "type": "string",
+          "default": "main",
+          "description": "Base branch to branch from. Defaults to 'main'."
+        },
+        "context": {
+          "type": "string",
+          "description": "Path to repo context skill directory, relative to project root (e.g. ./contexts/repo-name)."
+        },
+        "agents": {
+          "type": "array",
+          "description": "Per-repository agent override. When set, overrides the PrdEntry-level agents for this repo.",
+          "items": { "$ref": "#/definitions/AgentNames" }
+        }
+      }
+    }
+  }
+}

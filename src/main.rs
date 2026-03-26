@@ -323,12 +323,27 @@ async fn run_generate_prd(args: &cli::GeneratePrdArgs, config: &Config) -> Resul
     )
     .await?;
 
-    let _ = std::fs::remove_file(&prompt_file);
-
     if exit_code != 0 {
+        tracing::warn!(
+            prompt_file = %prompt_file.display(),
+            "preserving prompt file for debugging"
+        );
         anyhow::bail!("PRD generation failed with exit code {exit_code}");
     }
 
+    if !manifest_path.is_file() {
+        tracing::warn!(
+            prompt_file = %prompt_file.display(),
+            "preserving prompt file for debugging"
+        );
+        anyhow::bail!(
+            "manifest not written by agent: expected file at {}\n\
+             Check agent logs. The agent may have written to a different path.",
+            manifest_path.display()
+        );
+    }
+
+    let _ = std::fs::remove_file(&prompt_file);
     crate::manifest::inject_iteration_defaults(&manifest_path, config)?;
 
     tracing::info!("PRD generation complete");
