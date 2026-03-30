@@ -1,15 +1,14 @@
 # Wisp
 
-A single Rust binary that turns PRDs into Pull Requests using AI coding agents (Claude Code or Gemini CLI), Ralph Loops, and Dev Containers.
+## Summary
 
-```
-Description → wisp generate prd → PRDs + Manifest
-Manifest → wisp orchestrate → [Architect → Designer → Migration → Developer → Accessibility →
-  Tester → Performance → SecOps → Dependency → Infrastructure → DevOps → Rollback →
-  Documentation → Reviewer] → Pull Requests
-```
+Wisp is a single Rust CLI that turns Product Requirements Documents (PRDs) into implemented work on real repositories: it clones targets, runs a configurable sequence of AI coding agents in isolated Dev Containers (Ralph loop), tracks progress under `.agent-progress/`, and opens Pull Requests via GitHub CLI. You can drive the same workflows from the terminal or from the optional **Wisp AI** VS Code extension.
 
-## Install
+**Repository:** [github.com/delehner/wisp](https://github.com/delehner/wisp)
+
+## How to install
+
+### CLI
 
 **Pre-built binary** (recommended):
 
@@ -24,13 +23,13 @@ brew tap delehner/tap
 brew install wisp
 ```
 
-> **Homebrew/curl users:** The binary alone isn't enough — you need `agents/`, `templates/`, and `.env`. See [Configuration Guide](docs/configuration.md).
-
-**From source:**
+**From crates.io / source:**
 
 ```bash
 cargo install wisp
 ```
+
+The binary needs supporting assets (`agents/`, `templates/`, `.env`) on disk. If you installed with curl or Homebrew only, read [Configuration](docs/configuration.md) for `WISP_ROOT_DIR` and copying `.env.example` to `.env`.
 
 **Verify:**
 
@@ -39,230 +38,43 @@ wisp --version
 wisp --help
 ```
 
-## Prerequisites
+You also need the external tools Wisp shells out to: `git`, Docker, `devcontainer` CLI, `gh`, and either **Claude Code** or **Gemini CLI**. See [Prerequisites](docs/prerequisites.md) for versions, install commands, and auth (`claude` / `gh auth login`).
 
-| Tool | Required | Install |
-|------|----------|---------|
-| `git` | Yes | `brew install git` |
-| `docker` | Yes | [docker.com](https://docker.com) |
-| `devcontainer` | Yes | `npm install -g @devcontainers/cli` |
-| `gh` | Yes | `brew install gh` |
-| `claude` or `gemini` | Yes (one) | `npm install -g @anthropic-ai/claude-code` or `npm install -g @google/gemini-cli` |
+### Extension
 
-**Note:** `jq` and `node` are not required — the Rust binary handles JSON natively.
+The Wisp AI extension (publisher `delehner`) is a thin IDE front-end for the CLI: Command Palette commands, a Wisp explorer sidebar, and live output. It does not replace the CLI; install `wisp` first and ensure it is on your `PATH`.
 
-## Quick Start
+- VS Code / Cursor: Extensions view → search “Wisp AI” → Install, open [Visual Studio Marketplace — Wisp AI](https://marketplace.visualstudio.com/items?itemName=delehner.wisp-ai), or follow [Installing the Wisp AI VS Code Extension](docs/vscode-install.md) (VSIX from [Releases](https://github.com/delehner/wisp/releases), or build from `vscode-extension/`).
+- Features and settings: [VS Code Extension Feature Guide](docs/vscode-extension.md).
 
-### 1. Authenticate
+## Features
 
-```bash
-claude            # login with Claude Max
-gh auth login     # login to GitHub
-```
+- Manifest-driven orchestration — run many PRDs across repos with epics, parallel and stacked same-repo waves, and per-unit agent lists (`wisp orchestrate`).
+- Single PRD pipeline — one PRD and one repo end-to-end (`wisp pipeline`).
+- Agent runner — one agent’s Ralph loop in a workdir (`wisp run`).
+- PRD and context generation — scaffold PRDs and manifests from a repo description; generate context skills from a remote repo (`wisp generate prd`, `wisp generate context`).
+- 14-stage default pipeline — Architect through Reviewer, with blocking vs non-blocking agents; evidence agents can post reports to PRs.
+- Providers — Claude Code or Gemini CLI, with per-agent model and iteration overrides via environment variables.
+- Dev Containers — optional execution inside the target repo’s Dev Container.
+- Logging and recovery — JSONL logs, `wisp monitor`, `wisp logs`, session hints for CLI resume.
+- IDE integration — Wisp AI extension: run orchestrate/pipeline, browse manifests and PRDs, install/update CLI helpers from the UI.
+- Cursor skills — `wisp install skills` symlinks project skills.
 
-### 2. Generate context for your repo
+For command tables, manifest JSON shape, and pipeline details, see [Pipeline overview](docs/pipeline-overview.md).
 
-```bash
-wisp generate context \
-  --repo https://github.com/you/your-repo \
-  --output ./contexts/your-repo
-```
+## How to contribute
 
-### 3. Generate PRDs and a manifest
+Contributions are welcome via issues and pull requests on [delehner/wisp](https://github.com/delehner/wisp).
 
-Wisp will prompt you to describe what you want to build, or you can pass it via `--description`:
+- Rust CLI: changes under `src/`. Run `cargo fmt`, `cargo clippy -- -D warnings`, and `cargo test` before opening a PR.
+- VS Code extension: code under `vscode-extension/` (Node.js; `npm ci`, `npm run compile`, `npm run lint` as applicable).
+- Agents and templates: prompts in `agents/` and templates in `templates/`; keep `schemas/manifest.schema.json` in sync with `src/manifest/` when structs change.
 
-```bash
-wisp generate prd \
-  --output ./prds/your-project \
-  --manifest ./manifests/your-project.json \
-  --repo https://github.com/you/your-repo \
-  --context ./contexts/your-repo
-# Prompts: "Describe what you want to build (goals, features, constraints)"
-
-# Or non-interactively:
-wisp generate prd ... --description "Build a VS Code extension for Wisp"
-```
-
-### 4. Run the pipeline
-
-```bash
-wisp orchestrate --manifest ./manifests/your-project.json
-```
-
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `wisp orchestrate --manifest <path>` | Run all epics/subtasks from a manifest |
-| `wisp pipeline --prd <path> --repo <url>` | Run a single PRD against one repo |
-| `wisp run --agent <name> --workdir <path> --prd <path>` | Run a single agent (Ralph Loop) |
-| `wisp generate prd --output <dir> --manifest <path> --repo <url> --context <path> [--description <text>]` | Generate PRDs (prompts for description or use --description) |
-| `wisp generate context --repo <url> --output <dir>` | Generate context skills from a repo |
-| `wisp monitor [--agent <name>]` | Tail agent logs in real-time |
-| `wisp logs <file.jsonl>` | Re-format raw log files |
-| `wisp install skills [--project <path>]` | Install Cursor skills as symlinks |
-| `wisp update` | Self-update to latest version |
-
-## Manifest Structure
-
-```json
-{
-  "name": "My Project",
-  "epics": [
-    {
-      "name": "1 - Foundation",
-      "subtasks": [
-        {
-          "prd": "./prds/01-setup.md",
-          "agents": ["architect", "designer"],
-          "repositories": [
-            {
-              "url": "https://github.com/org/repo",
-              "branch": "main",
-              "context": "./contexts/repo",
-              "agents": ["developer", "tester", "reviewer"]
-            }
-          ]
-        }
-      ]
-    }
-  ]
-}
-```
-
-- **Epics** run in parallel by default when multiple (isolated clones under `{work_dir}/epics/{index}/`); use `--sequential-epics` for one-at-a-time on a shared workdir
-- **Subtasks within an epic** execute in manifest order (sequential); **repos** under the same subtask can run in parallel within `--max-parallel`
-- **Same-repo subtasks** auto-serialize into stacking waves
-- **Per-unit agents** combine: PRD agents first, then repo agents
-
-## Agent Pipeline
-
-| Order | Agent | Blocking | Produces |
-|-------|-------|----------|----------|
-| 1 | Architect | Yes | `architecture.md` |
-| 2 | Designer | No | `design.md` |
-| 3 | Migration | No | `migration-plan.md` |
-| 4 | Developer | Yes | Working code + commits |
-| 5 | Accessibility | No | `accessibility-report.md` |
-| 6 | Tester | Yes | `test-report.md` |
-| 7 | Performance | No | `performance-report.md` |
-| 8 | SecOps | Yes | `security-report.md` |
-| 9 | Dependency | No | `dependency-report.md` |
-| 10 | Infrastructure | Yes | `infrastructure.md` |
-| 11 | DevOps | Yes | `devops.md` |
-| 12 | Rollback | No | `rollback-plan.md` |
-| 13 | Documentation | No | `documentation-summary.md` |
-| 14 | Reviewer | Yes | `pr-description.md` |
-
-Blocking agents halt the pipeline on failure. Non-blocking agents log a warning and continue.
-
-## Configuration
-
-Copy `.env.example` to `.env` and edit:
-
-```bash
-cp .env.example .env
-```
-
-**Installed via Homebrew or curl?** See [Configuration Guide](docs/configuration.md) for `WISP_ROOT_DIR` and `.env` setup.
-
-Key variables:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `AI_PROVIDER` | `claude` | `claude` or `gemini` |
-| `CLAUDE_MODEL` | `sonnet` | Default Claude model |
-| `GEMINI_MODEL` | `gemini-2.5-pro` | Default Gemini model |
-| `PIPELINE_MAX_ITERATIONS` | `2` | Default Ralph cap when manifest has no `max_iterations` |
-| `PIPELINE_MAX_PARALLEL` | `4` | Max concurrent pipelines |
-| `PIPELINE_WORK_DIR` | `/tmp/wisp-work` | Clone directory |
-| `EVIDENCE_AGENTS` | `tester,performance,...` | Agents whose reports become PR comments |
-| `INTERACTIVE` | `false` | Pause between agents/iterations |
-
-Per-agent overrides: `ARCHITECT_MODEL`, `DEVELOPER_MAX_ITERATIONS`, etc. For **`wisp orchestrate`**, prefer manifest `max_iterations` and `agent_max_iterations`; `wisp generate prd` seeds those from your `.env`.
-
-## Project Structure
-
-```
-├── Cargo.toml                — Rust project manifest
-├── src/                      — Rust source (~4,400 lines)
-│   ├── main.rs               — entry point, CLI dispatch
-│   ├── cli.rs                — clap subcommands and flags
-│   ├── config.rs             — .env loading, per-agent overrides
-│   ├── pipeline/             — orchestrator, runner, agent loop, devcontainer
-│   ├── provider/             — Claude + Gemini CLI abstraction
-│   ├── git/                  — clone, branch, rebase, PR creation
-│   ├── manifest/             — manifest JSON parsing (serde)
-│   ├── prd/                  — PRD metadata extraction
-│   ├── context/              — context skill assembly
-│   └── logging/              — JSONL formatting, log tailing
-├── agents/                   — Agent prompt markdown files
-├── templates/                — PRD, manifest, context templates
-├── skills/                   — Cursor-compatible skills
-├── contexts/                 — Per-repo context directories
-├── manifests/                — Manifest JSON files
-├── scripts/install.sh        — Binary download installer
-├── .devcontainer/            — Dev Container configs (72 lines of shell — only remaining shell)
-├── .github/workflows/        — CI, Rust release, and VSCode extension publish automation
-└── docs/                     — Architecture documentation
-```
-
-## Monitoring
-
-```bash
-# Tail all agent logs
-wisp monitor
-
-# Filter by agent
-wisp monitor --agent developer
-
-# List resumable sessions
-wisp monitor --sessions
-
-# Re-format a raw log file
-wisp logs ./logs/developer_iteration_1.jsonl
-
-# Resume a session interactively
-claude --resume <session-id>
-```
-
-## Development
-
-```bash
-# Build
-cargo build
-
-# Run tests
-cargo test
-
-# Lint
-cargo clippy
-
-# Format
-cargo fmt
-
-# Release build (1.4 MB stripped binary)
-cargo build --release
-```
+If you add a user-facing behavior, consider updating the relevant file under `docs/` and the index in [Documentation](#documentation).
 
 ## Documentation
 
-See `docs/` for detailed guides:
-
-- [Pipeline Overview](docs/pipeline-overview.md) — end-to-end flow, agent responsibilities, CLI reference
-- [Ralph Loop](docs/ralph-loop.md) — iteration mechanism, prompt assembly, completion detection
-- [Adding Agents](docs/adding-agents.md) — step-by-step guide for new agents
-- [Project Structure](docs/project-structure.md) — directory map, component relationships
-- [Prerequisites](docs/prerequisites.md) — required tools, auth setup
-- [Configuration](docs/configuration.md) — `.env` and `WISP_ROOT_DIR` for Homebrew/curl installs
-- [MCP Integrations](docs/mcp-integrations.md) — Notion, Figma, Slack, Jira
-
-### VS Code Extension
-
-- [VS Code Extension Feature Guide](docs/vscode-extension.md) — commands, configuration, sidebar, troubleshooting
-- [Installing the VS Code Extension](docs/vscode-install.md) — Marketplace, VSIX, and build-from-source install options
-- [Publishing the VS Code Extension](docs/vscode-publish.md) — maintainer guide: PAT setup, release process, rotation
+Full guides live in [`docs/`](docs/README.md). The index is [docs/README.md](docs/README.md) (prerequisites, configuration, pipeline, Ralph loop, extension, MCP, adding agents, and architecture notes).
 
 ## License
 
