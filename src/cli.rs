@@ -310,13 +310,13 @@ pub enum InstallCmd {
     /// Install Cursor skills as symlinks
     Skills(InstallSkillsArgs),
 
-    /// Download agent prompt files from GitHub to ~/.wisp/agents/
+    /// Download agent prompts and the pipeline `.devcontainer/agent/` template from GitHub to ~/.wisp/
     Agents(InstallAgentsArgs),
 }
 
 #[derive(clap::Args)]
 pub struct InstallAgentsArgs {
-    /// Destination directory (default: ~/.wisp/agents/)
+    /// Agents destination (default: ~/.wisp/agents/; devcontainer template goes under ~/.wisp/.devcontainer/agent/)
     #[arg(long)]
     pub output: Option<PathBuf>,
 

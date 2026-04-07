@@ -416,19 +416,31 @@ pub async fn rebase_onto_latest(workdir: &Path, target_branch: &str) -> Result<b
     Ok(true)
 }
 
+/// Patterns appended to `.git/info/exclude` so pipeline artifacts stay out of `git status`.
+const GIT_EXCLUDE_SNIPPETS: &[&str] = &[
+    ".agent-progress/",
+    ".pipeline/",
+    "logs/",
+    ".devcontainer/agent/",
+];
+
 /// Write git exclude patterns for pipeline artifacts.
 pub fn write_git_excludes(workdir: &Path) -> Result<()> {
     let exclude_file = workdir.join(".git/info/exclude");
-    let excludes = ".agent-progress/\n.pipeline/\nlogs/\n";
-
-    if let Ok(existing) = std::fs::read_to_string(&exclude_file) {
-        if existing.contains(".agent-progress/") {
-            return Ok(());
+    let mut content = std::fs::read_to_string(&exclude_file).unwrap_or_default();
+    let mut appended = false;
+    for snippet in GIT_EXCLUDE_SNIPPETS {
+        if !content.contains(snippet) {
+            content.push_str(snippet);
+            content.push('\n');
+            appended = true;
         }
     }
-
-    let mut content = std::fs::read_to_string(&exclude_file).unwrap_or_default();
-    content.push_str(excludes);
-    std::fs::write(&exclude_file, content)?;
+    if appended {
+        if let Some(parent) = exclude_file.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&exclude_file, content)?;
+    }
     Ok(())
 }

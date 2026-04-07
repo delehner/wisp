@@ -1,3 +1,4 @@
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
@@ -133,6 +134,10 @@ pub async fn run(
 
     // Write git excludes
     git::write_git_excludes(&workdir)?;
+
+    if run_config.use_devcontainer {
+        provision_devcontainer_config(&workdir, config)?;
+    }
 
     // Assemble context
     if let Some(ctx_path) = &run_config.context_path {
@@ -363,6 +368,55 @@ async fn run_agent_sequence(
     Ok(())
 }
 
+/// Copy `src` directory tree into `dst` (created if missing).
+fn copy_dir_all(src: &Path, dst: &Path) -> Result<()> {
+    if !src.is_dir() {
+        anyhow::bail!("copy_dir_all: source is not a directory: {}", src.display());
+    }
+    fs::create_dir_all(dst).with_context(|| format!("create_dir_all {}", dst.display()))?;
+    for entry in fs::read_dir(src).with_context(|| format!("read_dir {}", src.display()))? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        let from = entry.path();
+        let to = dst.join(entry.file_name());
+        if ty.is_dir() {
+            copy_dir_all(&from, &to)?;
+        } else {
+            fs::copy(&from, &to)
+                .with_context(|| format!("copy {} -> {}", from.display(), to.display()))?;
+        }
+    }
+    Ok(())
+}
+
+/// When the cloned repo has no `.devcontainer/agent/` (e.g. assets were only in the IDE workspace),
+/// copy the template from the wisp install root (`wisp install agents`).
+fn provision_devcontainer_config(workdir: &Path, config: &Config) -> Result<()> {
+    let marker = workdir.join(".devcontainer/agent/devcontainer.json");
+    if marker.is_file() {
+        return Ok(());
+    }
+    let source_dir = config.root_dir.join(".devcontainer/agent");
+    let source_config = source_dir.join("devcontainer.json");
+    if !source_config.is_file() {
+        warn!(
+            expected = %source_config.display(),
+            "Wisp devcontainer template not found — run `wisp install agents` to install it"
+        );
+        return Ok(());
+    }
+    let dest_dir = workdir.join(".devcontainer/agent");
+    copy_dir_all(&source_dir, &dest_dir).with_context(|| {
+        format!(
+            "failed to provision devcontainer from {} into {}",
+            source_dir.display(),
+            dest_dir.display()
+        )
+    })?;
+    info!(workdir = %workdir.display(), "provisioned .devcontainer/agent from wisp install");
+    Ok(())
+}
+
 /// Remove prior PRD progress so Ralph loops do not treat leftover `.agent-progress/*.md` as done.
 fn reset_agent_progress_for_prd(workdir: &std::path::Path) -> Result<()> {
     let dir = workdir.join(".agent-progress");
@@ -393,4 +447,84 @@ where
         }
     }
     Err(last_err.unwrap())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+
+    #[test]
+    fn copy_dir_all_nested_files() {
+        let src = tempfile::TempDir::new().unwrap();
+        let dst = tempfile::TempDir::new().unwrap();
+        std::fs::write(src.path().join("a.txt"), b"1").unwrap();
+        let sub = src.path().join("sub");
+        std::fs::create_dir_all(&sub).unwrap();
+        std::fs::write(sub.join("b.txt"), b"2").unwrap();
+
+        copy_dir_all(src.path(), dst.path()).unwrap();
+
+        assert_eq!(std::fs::read(dst.path().join("a.txt")).unwrap(), b"1");
+        assert_eq!(std::fs::read(dst.path().join("sub/b.txt")).unwrap(), b"2");
+    }
+
+    #[test]
+    fn provision_devcontainer_skips_when_marker_present() {
+        let workdir = tempfile::TempDir::new().unwrap();
+        let agent = workdir.path().join(".devcontainer/agent");
+        std::fs::create_dir_all(&agent).unwrap();
+        std::fs::write(agent.join("devcontainer.json"), "keep").unwrap();
+
+        let install_root = tempfile::TempDir::new().unwrap();
+        let src = install_root.path().join(".devcontainer/agent");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(src.join("devcontainer.json"), "template").unwrap();
+
+        let mut config = Config::load();
+        config.root_dir = install_root.path().to_path_buf();
+
+        provision_devcontainer_config(workdir.path(), &config).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(agent.join("devcontainer.json")).unwrap(),
+            "keep"
+        );
+    }
+
+    #[test]
+    fn provision_devcontainer_copies_from_root_dir() {
+        let workdir = tempfile::TempDir::new().unwrap();
+        let install_root = tempfile::TempDir::new().unwrap();
+        let src = install_root.path().join(".devcontainer/agent");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(src.join("devcontainer.json"), r#"{"x":1}"#).unwrap();
+        std::fs::write(src.join("Dockerfile"), "FROM scratch\n").unwrap();
+
+        let mut config = Config::load();
+        config.root_dir = install_root.path().to_path_buf();
+
+        provision_devcontainer_config(workdir.path(), &config).unwrap();
+
+        let out = workdir.path().join(".devcontainer/agent/devcontainer.json");
+        assert!(out.is_file());
+        assert_eq!(std::fs::read_to_string(out).unwrap(), r#"{"x":1}"#);
+        assert!(workdir
+            .path()
+            .join(".devcontainer/agent/Dockerfile")
+            .is_file());
+    }
+
+    #[test]
+    fn provision_devcontainer_no_op_without_install_template() {
+        let workdir = tempfile::TempDir::new().unwrap();
+        let install_root = tempfile::TempDir::new().unwrap();
+        let mut config = Config::load();
+        config.root_dir = install_root.path().to_path_buf();
+
+        provision_devcontainer_config(workdir.path(), &config).unwrap();
+        assert!(!workdir
+            .path()
+            .join(".devcontainer/agent/devcontainer.json")
+            .exists());
+    }
 }

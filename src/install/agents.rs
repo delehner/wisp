@@ -7,6 +7,8 @@ use crate::cli::InstallAgentsArgs;
 
 const TARBALL_URL: &str = "https://github.com/delehner/wisp/archive/refs/heads/main.tar.gz";
 const AGENTS_PREFIX: &str = "wisp-main/agents/";
+/// Files under this prefix install to `install_data_root(dest)/.devcontainer/agent/`.
+const DEVCONTAINER_AGENT_PREFIX: &str = "wisp-main/.devcontainer/agent/";
 /// Hard cap on tarball download size to prevent OOM from unexpectedly large responses.
 const MAX_TARBALL_BYTES: usize = 50 * 1024 * 1024; // 50 MB
 
@@ -26,7 +28,11 @@ pub async fn run(args: &InstallAgentsArgs) -> Result<()> {
         .await
         .context("extraction task panicked")??;
 
-    println!("Agents installed to {} ({} files)", dest.display(), count);
+    println!(
+        "Installed {} files under {} (agents + .devcontainer/agent template when present)",
+        count,
+        dest.display()
+    );
     Ok(())
 }
 
@@ -36,6 +42,17 @@ fn resolve_destination(output: Option<&Path>) -> Result<PathBuf> {
     }
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
     Ok(PathBuf::from(home).join(".wisp/agents"))
+}
+
+/// Parent `.wisp` when `dest` is `.../agents` (default install); otherwise `dest` is the data root.
+fn install_data_root(dest: &Path) -> PathBuf {
+    match dest.file_name().and_then(|n| n.to_str()) {
+        Some("agents") => dest
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| dest.to_path_buf()),
+        _ => dest.to_path_buf(),
+    }
 }
 
 async fn fetch_tarball() -> Result<Vec<u8>> {
@@ -95,6 +112,7 @@ fn extract_agents(bytes: &[u8], dest: &Path, force: bool) -> Result<usize> {
     let mut archive = tar::Archive::new(gz);
 
     let mut count = 0usize;
+    let wisp_root = install_data_root(dest);
 
     for entry in archive.entries().context("failed to read tar entries")? {
         let mut entry = entry.context("failed to read tar entry")?;
@@ -104,9 +122,13 @@ fn extract_agents(bytes: &[u8], dest: &Path, force: bool) -> Result<usize> {
             .into_owned();
 
         let raw_str = raw_path.to_string_lossy();
-        if !raw_str.starts_with(AGENTS_PREFIX) {
+        let write_base: &Path = if raw_str.starts_with(AGENTS_PREFIX) {
+            dest
+        } else if raw_str.starts_with(DEVCONTAINER_AGENT_PREFIX) {
+            &wisp_root
+        } else {
             continue;
-        }
+        };
 
         // Skip anything that is not a regular file (directories, symlinks, hardlinks, etc.)
         if !entry.header().entry_type().is_file() {
@@ -125,7 +147,7 @@ fn extract_agents(bytes: &[u8], dest: &Path, force: bool) -> Result<usize> {
             continue;
         }
 
-        let dest_path = dest.join(&stripped);
+        let dest_path = write_base.join(&stripped);
         let existed = dest_path.exists();
 
         if existed && !force {
@@ -244,6 +266,30 @@ mod tests {
         }
     }
 
+    // --- install_data_root ---
+
+    #[test]
+    fn test_install_data_root_default_agents_dest() {
+        let p = PathBuf::from("/home/user/.wisp/agents");
+        assert_eq!(install_data_root(&p), PathBuf::from("/home/user/.wisp"));
+    }
+
+    #[test]
+    fn test_install_data_root_custom_flat() {
+        let p = PathBuf::from("/tmp/out");
+        assert_eq!(install_data_root(&p), PathBuf::from("/tmp/out"));
+    }
+
+    // --- DEVCONTAINER_AGENT_PREFIX ---
+
+    #[test]
+    fn test_devcontainer_prefix_strips_correctly() {
+        let raw = "wisp-main/.devcontainer/agent/devcontainer.json";
+        assert!(raw.starts_with(DEVCONTAINER_AGENT_PREFIX));
+        let stripped = raw.strip_prefix("wisp-main/").unwrap();
+        assert_eq!(stripped, ".devcontainer/agent/devcontainer.json");
+    }
+
     // --- extract_agents (in-memory tarball) ---
 
     fn make_tarball(entries: &[(&str, &[u8])]) -> Vec<u8> {
@@ -335,6 +381,34 @@ mod tests {
 
         let count = extract_agents(&bytes, tmp.path(), false).unwrap();
         assert_eq!(count, 3);
+    }
+
+    #[test]
+    fn test_extract_agents_includes_devcontainer_agent_files() {
+        let agents_dest = tempfile::TempDir::new().unwrap();
+        let dest_path = agents_dest.path().join("agents");
+        std::fs::create_dir_all(&dest_path).unwrap();
+
+        let bytes = make_tarball(&[
+            ("wisp-main/agents/architect/prompt.md", b"arch"),
+            (
+                "wisp-main/.devcontainer/agent/devcontainer.json",
+                b"{\"name\":\"test\"}",
+            ),
+            (
+                "wisp-main/.devcontainer/agent/Dockerfile",
+                b"FROM scratch\n",
+            ),
+        ]);
+
+        let count = extract_agents(&bytes, &dest_path, false).unwrap();
+        assert_eq!(count, 3);
+
+        let wisp_root = install_data_root(&dest_path);
+        let dc = wisp_root.join(".devcontainer/agent/devcontainer.json");
+        assert!(dc.is_file());
+        assert_eq!(std::fs::read_to_string(dc).unwrap(), "{\"name\":\"test\"}");
+        assert!(wisp_root.join(".devcontainer/agent/Dockerfile").is_file());
     }
 
     /// Network integration test — skipped in CI; run manually with `cargo test -- --ignored`
