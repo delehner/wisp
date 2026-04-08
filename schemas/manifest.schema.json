@@ -24,6 +24,10 @@
       "$ref": "#/definitions/AgentIterationOverrides",
       "description": "Per-agent iteration overrides for this manifest (injected by wisp after generation)."
     },
+    "devcontainer": {
+      "type": "string",
+      "description": "Path to the agent Dev Container folder (must contain devcontainer.json) or to that JSON file, relative to the project root. Used when the cloned repo has no .devcontainer/agent. Overrides: repository > subtask > epic > manifest."
+    },
     "epics": {
       "type": "array",
       "description": "Top-level parallel work groups. Epics run in parallel; subtasks within an epic run sequentially.",
@@ -83,6 +87,10 @@
           "type": "string",
           "description": "What this epic accomplishes."
         },
+        "devcontainer": {
+          "type": "string",
+          "description": "Epic-level devcontainer template path (overrides manifest default; overridden by subtask/repository)."
+        },
         "subtasks": {
           "type": "array",
           "description": "Ordered list of PRD work units for this epic. Run sequentially.",
@@ -104,6 +112,10 @@
           "description": "Agents to run for this PRD entry. Required — omitting causes all 14 agents to run.",
           "items": { "$ref": "#/definitions/AgentNames" },
           "minItems": 1
+        },
+        "devcontainer": {
+          "type": "string",
+          "description": "Subtask-level devcontainer template path (overrides epic/manifest; overridden per repository)."
         },
         "repositories": {
           "type": "array",
@@ -135,6 +147,10 @@
           "type": "array",
           "description": "Per-repository agent override. When set, overrides the PrdEntry-level agents for this repo.",
           "items": { "$ref": "#/definitions/AgentNames" }
+        },
+        "devcontainer": {
+          "type": "string",
+          "description": "Repository-level devcontainer template path (most specific; overrides subtask, epic, and manifest)."
         }
       }
     }

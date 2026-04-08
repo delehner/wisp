@@ -70,6 +70,7 @@ async fn main() -> Result<()> {
                 push_branch_for_downstream_stack: false,
                 evidence_agents: args.evidence_agents.clone(),
                 work_dir: args.work_dir.clone(),
+                devcontainer_agent_source: None,
             };
 
             let provider = provider::create_provider(&config);

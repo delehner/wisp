@@ -28,6 +28,7 @@ struct EpicRunCtx<'a> {
     global_sem: Arc<Semaphore>,
     /// Clone root for this epic (`PIPELINE_WORK_DIR` or `{work_dir}/epics/{idx}` when epics run in parallel).
     pipeline_work_dir: PathBuf,
+    manifest: Arc<Manifest>,
 }
 
 /// A single work unit: one PRD x one repo.
@@ -42,11 +43,13 @@ struct WorkUnit {
     /// Push feature branch when this run produces no PR (0 commits) so downstream stacked work has `origin/<branch>`.
     push_branch_for_downstream_stack: bool,
     label: String,
+    /// Effective devcontainer template: directory with `devcontainer.json` or path to that file.
+    devcontainer_agent_source: Option<PathBuf>,
 }
 
 /// Run the manifest orchestrator.
 pub async fn run(args: &OrchestrateArgs, config: &Config) -> Result<()> {
-    let manifest = Manifest::load(&args.manifest)?;
+    let manifest = Arc::new(Manifest::load(&args.manifest)?);
 
     info!(
         manifest = %manifest.display_name(),
@@ -106,6 +109,7 @@ pub async fn run(args: &OrchestrateArgs, config: &Config) -> Result<()> {
                     manifest_agent_max_iterations: &manifest_agent_max_iterations,
                     global_sem: global_sem.clone(),
                     pipeline_work_dir: pipeline_work_dir.clone(),
+                    manifest: manifest.clone(),
                 },
             )
             .await?;
@@ -124,6 +128,7 @@ pub async fn run(args: &OrchestrateArgs, config: &Config) -> Result<()> {
             let args = args.clone();
             let global_sem = global_sem.clone();
             let manifest_iters = manifest_agent_max_iterations.clone();
+            let manifest_for_epic = manifest.clone();
             let pipeline_work_dir = config.work_dir.join("epics").join(format!("{epic_idx:03}"));
 
             join_set.spawn(async move {
@@ -140,6 +145,7 @@ pub async fn run(args: &OrchestrateArgs, config: &Config) -> Result<()> {
                         manifest_agent_max_iterations: &manifest_iters,
                         global_sem,
                         pipeline_work_dir,
+                        manifest: manifest_for_epic,
                     },
                 )
                 .await;
@@ -180,7 +186,8 @@ async fn execute_epic(epic: &Epic, ctx: EpicRunCtx<'_>) -> Result<()> {
     let mut last_branch_by_repo: HashMap<String, String> = HashMap::new();
 
     for (subtask_idx, prd_entry) in epic.subtasks.iter().enumerate() {
-        let mut work_units = build_work_units_for_prd(prd_entry, ctx.global_agents)?;
+        let mut work_units =
+            build_work_units_for_prd(prd_entry, ctx.global_agents, ctx.manifest.as_ref(), epic)?;
 
         if work_units.is_empty() {
             continue;
@@ -268,6 +275,8 @@ fn annotate_push_for_downstream_stack(
 fn build_work_units_for_prd(
     prd_entry: &PrdEntry,
     global_agents: &[String],
+    manifest: &Manifest,
+    epic: &Epic,
 ) -> Result<Vec<WorkUnit>> {
     if let Ok(prd) = Prd::load(&prd_entry.prd) {
         if prd.is_done() {
@@ -297,6 +306,13 @@ fn build_work_units_for_prd(
             .and_then(|s| s.to_str())
             .unwrap_or("prd");
 
+        let devcontainer_agent_source = repo
+            .devcontainer
+            .clone()
+            .or_else(|| prd_entry.devcontainer.clone())
+            .or_else(|| epic.devcontainer.clone())
+            .or_else(|| manifest.devcontainer.clone());
+
         units.push(WorkUnit {
             prd_path: prd_entry.prd.clone(),
             repo_url: repo.url.clone(),
@@ -306,6 +322,7 @@ fn build_work_units_for_prd(
             stack_on: None,
             push_branch_for_downstream_stack: false,
             label: format!("{prd_name} x {repo_name}"),
+            devcontainer_agent_source,
         });
     }
 
@@ -444,6 +461,7 @@ async fn execute_units(
                 push_branch_for_downstream_stack: unit.push_branch_for_downstream_stack,
                 evidence_agents,
                 work_dir: pipeline_work_dir,
+                devcontainer_agent_source: unit.devcontainer_agent_source.clone(),
             };
 
             let result = runner::run(&run_config, &config, &*provider).await;
@@ -514,6 +532,7 @@ async fn execute_single_unit(
         push_branch_for_downstream_stack: unit.push_branch_for_downstream_stack,
         evidence_agents: args.evidence_agents.clone(),
         work_dir: pipeline_work_dir,
+        devcontainer_agent_source: unit.devcontainer_agent_source.clone(),
     };
 
     runner::run(&run_config, config, provider).await?;
@@ -537,6 +556,7 @@ mod tests {
             stack_on: None,
             push_branch_for_downstream_stack: false,
             label: repo_suffix.to_string(),
+            devcontainer_agent_source: None,
         }
     }
 
@@ -545,14 +565,17 @@ mod tests {
         let epic = Epic {
             name: None,
             description: None,
+            devcontainer: None,
             subtasks: vec![PrdEntry {
                 prd: PathBuf::from("a.md"),
                 agents: None,
+                devcontainer: None,
                 repositories: vec![Repository {
                     url: "https://github.com/o/r".into(),
                     branch: "main".into(),
                     context: None,
                     agents: None,
+                    devcontainer: None,
                 }],
             }],
         };
@@ -567,25 +590,30 @@ mod tests {
         let epic = Epic {
             name: None,
             description: None,
+            devcontainer: None,
             subtasks: vec![
                 PrdEntry {
                     prd: PathBuf::from("a.md"),
                     agents: None,
+                    devcontainer: None,
                     repositories: vec![Repository {
                         url: "https://github.com/o/wisp".into(),
                         branch: "main".into(),
                         context: None,
                         agents: None,
+                        devcontainer: None,
                     }],
                 },
                 PrdEntry {
                     prd: PathBuf::from("b.md"),
                     agents: None,
+                    devcontainer: None,
                     repositories: vec![Repository {
                         url: "https://github.com/o/wisp".into(),
                         branch: "main".into(),
                         context: None,
                         agents: None,
+                        devcontainer: None,
                     }],
                 },
             ],

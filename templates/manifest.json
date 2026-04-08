@@ -1,6 +1,7 @@
 {
   "name": "Project Name",
   "description": "Brief description of what this manifest delivers.",
+  "devcontainer": "./.devcontainer/agent",
   "max_iterations": 2,
   "agent_max_iterations": {
     "developer": 4

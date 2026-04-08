@@ -34,6 +34,9 @@ pub struct PipelineRunConfig {
     pub push_branch_for_downstream_stack: bool,
     pub evidence_agents: Vec<String>,
     pub work_dir: PathBuf,
+    /// Directory containing `devcontainer.json` for the agent runner, or path to that JSON file.
+    /// When set (e.g. from manifest), copied into the clone before `DevContainer::start`.
+    pub devcontainer_agent_source: Option<PathBuf>,
 }
 
 /// Run the full pipeline for a single PRD x repo pair.
@@ -136,7 +139,11 @@ pub async fn run(
     git::write_git_excludes(&workdir)?;
 
     if run_config.use_devcontainer {
-        provision_devcontainer_config(&workdir, config)?;
+        provision_devcontainer_config(
+            &workdir,
+            config,
+            run_config.devcontainer_agent_source.as_deref(),
+        )?;
     }
 
     // Assemble context
@@ -389,13 +396,59 @@ fn copy_dir_all(src: &Path, dst: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Resolve a manifest or CLI path to the agent folder that contains `devcontainer.json`.
+fn agent_dir_from_devcontainer_path(path: &Path) -> Option<PathBuf> {
+    let meta = std::fs::metadata(path).ok()?;
+    if meta.is_dir() {
+        return path
+            .join("devcontainer.json")
+            .is_file()
+            .then(|| path.to_path_buf());
+    }
+    if meta.is_file() && path.file_name()?.to_str()? == "devcontainer.json" {
+        return path.parent().map(Path::to_path_buf);
+    }
+    None
+}
+
 /// When the cloned repo has no `.devcontainer/agent/` (e.g. assets were only in the IDE workspace),
-/// copy the template from the wisp install root (`wisp install agents`).
-fn provision_devcontainer_config(workdir: &Path, config: &Config) -> Result<()> {
+/// copy from `manifest_source` if set, else from the wisp install root (`wisp install agents`).
+fn provision_devcontainer_config(
+    workdir: &Path,
+    config: &Config,
+    manifest_source: Option<&Path>,
+) -> Result<()> {
     let marker = workdir.join(".devcontainer/agent/devcontainer.json");
     if marker.is_file() {
         return Ok(());
     }
+
+    if let Some(src) = manifest_source {
+        if let Some(agent_dir) = agent_dir_from_devcontainer_path(src) {
+            let dest_dir = workdir.join(".devcontainer/agent");
+            match copy_dir_all(&agent_dir, &dest_dir) {
+                Ok(()) => {
+                    info!(
+                        workdir = %workdir.display(),
+                        from = %agent_dir.display(),
+                        "provisioned .devcontainer/agent from manifest"
+                    );
+                    return Ok(());
+                }
+                Err(e) => warn!(
+                    error = %e,
+                    from = %agent_dir.display(),
+                    "failed to copy manifest devcontainer — falling back to wisp install"
+                ),
+            }
+        } else {
+            warn!(
+                path = %src.display(),
+                "manifest devcontainer path is missing or does not contain devcontainer.json — falling back to wisp install"
+            );
+        }
+    }
+
     let source_dir = config.root_dir.join(".devcontainer/agent");
     let source_config = source_dir.join("devcontainer.json");
     if !source_config.is_file() {
@@ -484,7 +537,7 @@ mod tests {
         let mut config = Config::load();
         config.root_dir = install_root.path().to_path_buf();
 
-        provision_devcontainer_config(workdir.path(), &config).unwrap();
+        provision_devcontainer_config(workdir.path(), &config, None).unwrap();
         assert_eq!(
             std::fs::read_to_string(agent.join("devcontainer.json")).unwrap(),
             "keep"
@@ -503,7 +556,7 @@ mod tests {
         let mut config = Config::load();
         config.root_dir = install_root.path().to_path_buf();
 
-        provision_devcontainer_config(workdir.path(), &config).unwrap();
+        provision_devcontainer_config(workdir.path(), &config, None).unwrap();
 
         let out = workdir.path().join(".devcontainer/agent/devcontainer.json");
         assert!(out.is_file());
@@ -521,10 +574,49 @@ mod tests {
         let mut config = Config::load();
         config.root_dir = install_root.path().to_path_buf();
 
-        provision_devcontainer_config(workdir.path(), &config).unwrap();
+        provision_devcontainer_config(workdir.path(), &config, None).unwrap();
         assert!(!workdir
             .path()
             .join(".devcontainer/agent/devcontainer.json")
             .exists());
+    }
+
+    #[test]
+    fn provision_prefers_manifest_devcontainer_dir() {
+        let workdir = tempfile::TempDir::new().unwrap();
+        let template = tempfile::TempDir::new().unwrap();
+        let agent = template.path().join("my-agent");
+        std::fs::create_dir_all(&agent).unwrap();
+        std::fs::write(agent.join("devcontainer.json"), r#"{"from":"manifest"}"#).unwrap();
+
+        let mut config = Config::load();
+        config.root_dir = tempfile::TempDir::new().unwrap().path().to_path_buf();
+
+        provision_devcontainer_config(workdir.path(), &config, Some(&agent)).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(workdir.path().join(".devcontainer/agent/devcontainer.json"))
+                .unwrap(),
+            r#"{"from":"manifest"}"#
+        );
+    }
+
+    #[test]
+    fn provision_manifest_path_may_be_devcontainer_json_file() {
+        let workdir = tempfile::TempDir::new().unwrap();
+        let template = tempfile::TempDir::new().unwrap();
+        let json_path = template.path().join("devcontainer.json");
+        std::fs::write(&json_path, r#"{"ok":true}"#).unwrap();
+
+        let mut config = Config::load();
+        config.root_dir = tempfile::TempDir::new().unwrap().path().to_path_buf();
+
+        provision_devcontainer_config(workdir.path(), &config, Some(&json_path)).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(workdir.path().join(".devcontainer/agent/devcontainer.json"))
+                .unwrap(),
+            r#"{"ok":true}"#
+        );
     }
 }

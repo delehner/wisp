@@ -112,17 +112,21 @@ export class ErrorItem extends WispTreeItem {
 export interface ManifestJson {
   name?: string;
   description?: string;
+  /** Path to agent devcontainer folder or devcontainer.json (relative to workspace root). */
+  devcontainer?: string;
   epics?: EpicJson[];
   orders?: EpicJson[];
 }
 
 export interface EpicJson {
   name?: string;
+  devcontainer?: string;
   subtasks?: SubtaskJson[];
   prds?: SubtaskJson[];
 }
 
 export interface SubtaskJson {
   prd: string;
-  repositories?: Array<{ url: string; branch?: string }>;
+  devcontainer?: string;
+  repositories?: Array<{ url: string; branch?: string; devcontainer?: string }>;
 }

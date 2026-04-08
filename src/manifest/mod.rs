@@ -17,6 +17,10 @@ pub struct Manifest {
     /// Per-agent max iterations for this manifest (partial overrides).
     #[serde(default)]
     pub agent_max_iterations: Option<AgentIterationOverrides>,
+    /// Path to the agent Dev Container folder (`devcontainer.json` inside) or to that JSON file.
+    /// Overrides use the same shape; most specific wins: repository → subtask → epic → manifest.
+    #[serde(default)]
+    pub devcontainer: Option<PathBuf>,
     #[serde(rename = "epics", alias = "orders")]
     pub epics: Vec<Epic>,
 }
@@ -27,6 +31,8 @@ pub struct Epic {
     pub name: Option<String>,
     #[serde(default)]
     pub description: Option<String>,
+    #[serde(default)]
+    pub devcontainer: Option<PathBuf>,
     #[serde(rename = "subtasks", alias = "prds")]
     pub subtasks: Vec<PrdEntry>,
 }
@@ -36,6 +42,8 @@ pub struct PrdEntry {
     pub prd: PathBuf,
     #[serde(default)]
     pub agents: Option<Vec<String>>,
+    #[serde(default)]
+    pub devcontainer: Option<PathBuf>,
     pub repositories: Vec<Repository>,
 }
 
@@ -48,6 +56,8 @@ pub struct Repository {
     pub context: Option<PathBuf>,
     #[serde(default)]
     pub agents: Option<Vec<String>>,
+    #[serde(default)]
+    pub devcontainer: Option<PathBuf>,
 }
 
 fn default_branch() -> String {
@@ -69,17 +79,37 @@ impl Manifest {
         Ok(manifest)
     }
 
-    /// Resolve relative PRD and context paths against the current working directory.
+    /// Resolve relative PRD, context, and devcontainer paths against the current working directory.
     fn resolve_paths(&mut self, base_dir: &Path) {
+        if let Some(p) = &mut self.devcontainer {
+            if p.is_relative() {
+                *p = base_dir.join(&*p);
+            }
+        }
         for epic in &mut self.epics {
+            if let Some(p) = &mut epic.devcontainer {
+                if p.is_relative() {
+                    *p = base_dir.join(&*p);
+                }
+            }
             for subtask in &mut epic.subtasks {
                 if subtask.prd.is_relative() {
                     subtask.prd = base_dir.join(&subtask.prd);
+                }
+                if let Some(p) = &mut subtask.devcontainer {
+                    if p.is_relative() {
+                        *p = base_dir.join(&*p);
+                    }
                 }
                 for repo in &mut subtask.repositories {
                     if let Some(ctx) = &mut repo.context {
                         if ctx.is_relative() {
                             *ctx = base_dir.join(&*ctx);
+                        }
+                    }
+                    if let Some(p) = &mut repo.devcontainer {
+                        if p.is_relative() {
+                            *p = base_dir.join(&*p);
                         }
                     }
                 }
@@ -205,6 +235,42 @@ mod tests {
         let m: Manifest = serde_json::from_str(json).unwrap();
         assert_eq!(m.max_iterations, Some(7));
         assert_eq!(m.agent_max_iterations.as_ref().unwrap().developer, Some(12));
+    }
+
+    #[test]
+    fn manifest_deserializes_devcontainer_overrides() {
+        let json = r#"{
+            "name": "T",
+            "devcontainer": "./.wisp-dc/agent",
+            "epics": [{
+                "devcontainer": "./epic/agent",
+                "subtasks": [{
+                    "prd": "./p.md",
+                    "devcontainer": "./sub/agent",
+                    "repositories": [{
+                        "url": "https://github.com/o/r",
+                        "devcontainer": "./repo/agent"
+                    }]
+                }]
+            }]
+        }"#;
+        let m: Manifest = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            m.devcontainer.as_ref().unwrap(),
+            Path::new("./.wisp-dc/agent")
+        );
+        let epic = &m.epics[0];
+        assert_eq!(
+            epic.devcontainer.as_ref().unwrap(),
+            Path::new("./epic/agent")
+        );
+        let sub = &epic.subtasks[0];
+        assert_eq!(sub.devcontainer.as_ref().unwrap(), Path::new("./sub/agent"));
+        let repo = &sub.repositories[0];
+        assert_eq!(
+            repo.devcontainer.as_ref().unwrap(),
+            Path::new("./repo/agent")
+        );
     }
 
     #[test]
