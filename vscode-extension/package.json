@@ -2,7 +2,7 @@
   "name": "wisp-ai",
   "displayName": "Wisp AI",
   "description": "Run Wisp AI pipelines from your IDE — Command Palette, explorer, and live output for the wisp CLI",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "publisher": "delehner",
   "repository": {
     "type": "git",
@@ -68,6 +68,16 @@
         },
         {
           "command": "wisp.explorer.downloadWispAssets",
+          "when": "view == wispExplorer",
+          "group": "navigation"
+        },
+        {
+          "command": "wisp.explorer.configureEnv",
+          "when": "view == wispExplorer",
+          "group": "navigation"
+        },
+        {
+          "command": "wisp.explorer.clearWorkDir",
           "when": "view == wispExplorer",
           "group": "navigation"
         }
@@ -192,6 +202,14 @@
         "title": "Wisp AI: Update"
       },
       {
+        "command": "wisp.configureEnv",
+        "title": "Wisp AI: Configure Environment"
+      },
+      {
+        "command": "wisp.clearWorkDir",
+        "title": "Wisp AI: Clear Work Directory"
+      },
+      {
         "command": "wisp.stopPipeline",
         "title": "Wisp AI: Stop Pipeline"
       },
@@ -252,6 +270,16 @@
         "command": "wisp.explorer.downloadWispAssets",
         "title": "Download Wisp assets",
         "icon": "$(desktop-download)"
+      },
+      {
+        "command": "wisp.explorer.configureEnv",
+        "title": "Configure Environment",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "wisp.explorer.clearWorkDir",
+        "title": "Clear Work Directory",
+        "icon": "$(trash)"
       }
     ],
     "configuration": {

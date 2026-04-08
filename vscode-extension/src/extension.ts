@@ -9,6 +9,7 @@ import { registerMonitorCommand } from './commands/monitor';
 import { registerHomebrewCliCommands } from './commands/brew';
 import { registerInstallSkillsCommand, registerUpdateCommand, runWithOutput } from './commands/utils';
 import { registerDownloadWispAssetsCommands } from './commands/downloadWispAssets';
+import { registerConfigureEnvCommand } from './commands/configureEnv';
 import { WispTreeDataProvider } from './treeView/provider';
 import { WispFileWatcher } from './treeView/watcher';
 import { ManifestItem, EpicItem, SubtaskItem, PrdFileItem } from './treeView/items';
@@ -61,6 +62,45 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   });
   context.subscriptions.push(stopPipeline);
 
+  context.subscriptions.push(
+    vscode.commands.registerCommand('wisp.clearWorkDir', async () => {
+      const workDir = process.env.PIPELINE_WORK_DIR || '/tmp/coding-agents-work';
+      const epicsUri = vscode.Uri.file(`${workDir}/epics`);
+
+      let entryCount = 0;
+      try {
+        const entries = await vscode.workspace.fs.readDirectory(epicsUri);
+        entryCount = entries.length;
+      } catch {
+        vscode.window.showInformationMessage('Wisp AI: Work directory is already empty or does not exist.');
+        return;
+      }
+
+      if (entryCount === 0) {
+        vscode.window.showInformationMessage('Wisp AI: Work directory is already empty.');
+        return;
+      }
+
+      const confirm = await vscode.window.showWarningMessage(
+        `Delete ${entryCount} item(s) from ${workDir}/epics/?`,
+        { modal: true },
+        'Delete',
+      );
+      if (confirm !== 'Delete') {
+        return;
+      }
+
+      try {
+        await vscode.workspace.fs.delete(epicsUri, { recursive: true, useTrash: false });
+        await vscode.workspace.fs.createDirectory(epicsUri);
+        vscode.window.showInformationMessage('Wisp AI: Work directory cleared.');
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`Wisp AI: Failed to clear work directory: ${msg}`);
+      }
+    }),
+  );
+
   registerOrchestrateCommand(context, outputChannel, statusBar, onActivate, onDone);
   registerPipelineCommand(context, outputChannel, statusBar, onActivate, onDone);
   registerRunCommand(context, outputChannel, statusBar, onActivate, onDone);
@@ -71,6 +111,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   registerInstallSkillsCommand(context, outputChannel, statusBar, onActivate, onDone);
   registerUpdateCommand(context, outputChannel, statusBar, onActivate, onDone);
   registerDownloadWispAssetsCommands(context);
+  registerConfigureEnvCommand(context);
 
   // Tree view
   const treeProvider = new WispTreeDataProvider();
@@ -290,6 +331,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await runWithOutput(cli, args, cwd, outputChannel!, statusBar!, onActivate, onDone);
       },
     ),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('wisp.explorer.configureEnv', () => {
+      return vscode.commands.executeCommand('wisp.configureEnv');
+    }),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('wisp.explorer.clearWorkDir', () => {
+      return vscode.commands.executeCommand('wisp.clearWorkDir');
+    }),
   );
 
   context.subscriptions.push(
