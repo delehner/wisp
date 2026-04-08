@@ -28,7 +28,12 @@ export function findZipRootFromEntryNames(entryNames: string[]): string {
   return firstFile.slice(0, slash + 1);
 }
 
-/** Map zip entry to workspace-relative path under `.devcontainer`, `templates`, or `agents`. */
+/**
+ * Map zip entry to workspace-relative path under `.devcontainer/agent`, `templates`, or `agents`.
+ * Only the agent runner devcontainer is included — the main `.devcontainer/` config
+ * (Dockerfile, post-start.sh, init-firewall.sh) is for developing wisp itself and must
+ * not be placed into user workspaces.
+ */
 export function relativePathIfWispAsset(zipRoot: string, entryName: string): string | undefined {
   if (!entryName.startsWith(zipRoot)) {
     return undefined;
@@ -41,6 +46,12 @@ export function relativePathIfWispAsset(zipRoot: string, entryName: string): str
   const first = trimmed.split('/')[0];
   if (first !== '.devcontainer' && first !== 'templates' && first !== 'agents') {
     return undefined;
+  }
+  if (first === '.devcontainer') {
+    const parts = trimmed.split('/');
+    if (parts.length < 2 || parts[1] !== 'agent') {
+      return undefined;
+    }
   }
   return rel.endsWith('/') ? `${trimmed}/` : trimmed;
 }
@@ -148,7 +159,7 @@ export function registerDownloadWispAssetsCommands(context: vscode.ExtensionCont
       return;
     }
     const choice = await vscode.window.showWarningMessage(
-      'Download `.devcontainer`, `templates`, and `agents` from github.com/delehner/wisp into the workspace root? Existing files in those folders may be overwritten.',
+      'Download `.devcontainer/agent`, `templates`, and `agents` from github.com/delehner/wisp into the workspace root? Existing files in those folders may be overwritten.',
       { modal: true },
       'Download',
     );
@@ -167,7 +178,7 @@ export function registerDownloadWispAssetsCommands(context: vscode.ExtensionCont
         },
       );
       void vscode.window.showInformationMessage(
-        'Wisp AI: Downloaded `.devcontainer`, `templates`, and `agents`. `.gitignore` updated to ignore them.',
+        'Wisp AI: Downloaded `.devcontainer/agent`, `templates`, and `agents`. `.gitignore` updated to ignore them.',
       );
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

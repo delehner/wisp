@@ -33,10 +33,20 @@ describe('downloadWispAssets helpers', () => {
   describe('relativePathIfWispAsset', () => {
     const z = 'wisp-main/';
 
-    it('keeps .devcontainer files', () => {
-      expect(relativePathIfWispAsset(z, 'wisp-main/.devcontainer/Dockerfile')).toBe(
-        '.devcontainer/Dockerfile',
+    it('keeps .devcontainer/agent files', () => {
+      expect(relativePathIfWispAsset(z, 'wisp-main/.devcontainer/agent/devcontainer.json')).toBe(
+        '.devcontainer/agent/devcontainer.json',
       );
+      expect(relativePathIfWispAsset(z, 'wisp-main/.devcontainer/agent/Dockerfile')).toBe(
+        '.devcontainer/agent/Dockerfile',
+      );
+    });
+
+    it('excludes main .devcontainer files (not under agent/)', () => {
+      expect(relativePathIfWispAsset(z, 'wisp-main/.devcontainer/Dockerfile')).toBeUndefined();
+      expect(relativePathIfWispAsset(z, 'wisp-main/.devcontainer/devcontainer.json')).toBeUndefined();
+      expect(relativePathIfWispAsset(z, 'wisp-main/.devcontainer/init-firewall.sh')).toBeUndefined();
+      expect(relativePathIfWispAsset(z, 'wisp-main/.devcontainer/post-start.sh')).toBeUndefined();
     });
 
     it('keeps templates and agents', () => {
@@ -52,6 +62,10 @@ describe('downloadWispAssets helpers', () => {
 
     it('handles directory entries', () => {
       expect(relativePathIfWispAsset(z, 'wisp-main/agents/')).toBe('agents/');
+    });
+
+    it('handles .devcontainer/agent directory entry', () => {
+      expect(relativePathIfWispAsset(z, 'wisp-main/.devcontainer/agent/')).toBe('.devcontainer/agent/');
     });
   });
 

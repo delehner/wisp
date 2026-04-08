@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import * as vscode from 'vscode';
-import { WispCli } from '../wispCli';
+import { WispCli, parseDotEnv } from '../wispCli';
 import { WispStatusBar } from '../statusBar';
 
 jest.mock('node:child_process');
@@ -254,6 +254,38 @@ describe('WispCli proc error event', () => {
 
     const code = await runPromise;
     expect(code).toBe(1);
+  });
+});
+
+describe('parseDotEnv()', () => {
+  it('parses KEY=VALUE lines', () => {
+    const text = 'FOO=bar\nBAZ=qux';
+    expect(parseDotEnv(text)).toEqual({ FOO: 'bar', BAZ: 'qux' });
+  });
+
+  it('skips comments and blank lines', () => {
+    const text = '# comment\n\nKEY=value\n  # another comment\n';
+    expect(parseDotEnv(text)).toEqual({ KEY: 'value' });
+  });
+
+  it('strips surrounding double quotes', () => {
+    expect(parseDotEnv('API_KEY="sk-ant-123"')).toEqual({ API_KEY: 'sk-ant-123' });
+  });
+
+  it('strips surrounding single quotes', () => {
+    expect(parseDotEnv("TOKEN='abc'")).toEqual({ TOKEN: 'abc' });
+  });
+
+  it('handles values containing = signs', () => {
+    expect(parseDotEnv('DATA=a=b=c')).toEqual({ DATA: 'a=b=c' });
+  });
+
+  it('returns empty object for empty input', () => {
+    expect(parseDotEnv('')).toEqual({});
+  });
+
+  it('skips lines without = sign', () => {
+    expect(parseDotEnv('NOEQUAL')).toEqual({});
   });
 });
 

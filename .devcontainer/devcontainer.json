@@ -11,6 +11,7 @@
       "version": "22"
     }
   },
+  "runArgs": ["--cap-add=NET_ADMIN"],
   "postCreateCommand": "bash .devcontainer/post-create.sh",
   "postStartCommand": "bash .devcontainer/post-start.sh",
   "forwardPorts": [3000, 5173, 8080],

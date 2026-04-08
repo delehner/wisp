@@ -1,13 +1,24 @@
 #!/bin/bash
-set -euo pipefail
+set -uo pipefail
 
 # Network firewall for dev container security.
 # Default-deny outbound, whitelist only necessary services.
 # Run with sudo/root privileges.
+# Exits gracefully (code 0) when iptables is unavailable or NET_ADMIN is missing.
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "Error: init-firewall.sh must be run as root"
   exit 1
+fi
+
+if ! command -v iptables &> /dev/null; then
+  echo "Warning: iptables not available, skipping firewall setup"
+  exit 0
+fi
+
+if ! iptables -L -n &> /dev/null; then
+  echo "Warning: iptables not permitted (missing NET_ADMIN capability?), skipping firewall setup"
+  exit 0
 fi
 
 iptables -F OUTPUT

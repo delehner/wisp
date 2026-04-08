@@ -1,13 +1,13 @@
 #!/bin/bash
-set -euo pipefail
+set -uo pipefail
 
 echo "=== Post-Start Setup ==="
 
-# Initialize firewall if running as root or sudo is available
+# Initialize firewall (non-fatal — the container is still usable without it)
 if [ "$(id -u)" -eq 0 ]; then
-  /usr/local/bin/init-firewall.sh
+  /usr/local/bin/init-firewall.sh || echo "Warning: Firewall init failed (non-fatal)"
 elif command -v sudo &> /dev/null; then
-  sudo /usr/local/bin/init-firewall.sh
+  sudo /usr/local/bin/init-firewall.sh || echo "Warning: Firewall init failed (non-fatal)"
 else
   echo "Warning: Cannot initialize firewall (no root/sudo access)"
 fi

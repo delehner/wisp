@@ -179,9 +179,21 @@ fn find_root_dir() -> PathBuf {
 impl Config {
     /// Load configuration from .env file + environment variables.
     /// CLI flags take precedence and should be applied after this call.
+    ///
+    /// Load order (first wins — `dotenvy` does not overwrite existing vars):
+    /// 1. CWD `.env` (project-local overrides)
+    /// 2. Root-dir `.env` (`~/.wisp/.env` or near the binary — global defaults)
     pub fn load() -> Self {
         let root_dir = find_root_dir();
         let env_file = root_dir.join(".env");
+
+        // CWD .env loads first so project-local values take precedence.
+        if let Ok(cwd) = std::env::current_dir() {
+            let cwd_env = cwd.join(".env");
+            if cwd_env.exists() && cwd_env != env_file {
+                let _ = dotenvy::from_path(&cwd_env);
+            }
+        }
         if env_file.exists() {
             let _ = dotenvy::from_path(&env_file);
         }

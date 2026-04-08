@@ -1,8 +1,49 @@
 import * as cp from 'node:child_process';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import * as readline from 'node:readline';
 import * as vscode from 'vscode';
 
 const INSTALL_URL = 'https://github.com/delehner/wisp#installation';
+
+/** Parse a `.env` file into key-value pairs (skips comments and blank lines). */
+export function parseDotEnv(text: string): Record<string, string> {
+  const vars: Record<string, string> = {};
+  for (const line of text.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) {
+      continue;
+    }
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx === -1) {
+      continue;
+    }
+    const key = trimmed.slice(0, eqIdx).trim();
+    let value = trimmed.slice(eqIdx + 1).trim();
+    // Strip surrounding quotes
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    if (key) {
+      vars[key] = value;
+    }
+  }
+  return vars;
+}
+
+/** Load `.env` from a directory, returning merged vars or empty object. */
+function loadDotEnv(dir: string): Record<string, string> {
+  try {
+    const envPath = path.join(dir, '.env');
+    const text = fs.readFileSync(envPath, 'utf8');
+    return parseDotEnv(text);
+  } catch {
+    return {};
+  }
+}
 
 export interface RunOptions {
   outputChannel?: vscode.OutputChannel;
@@ -73,7 +114,11 @@ export class WispCli {
     opts?: RunOptions,
   ): Promise<number> {
     return new Promise((resolve, reject) => {
-      const proc = cp.spawn(this.binaryPath, args, { cwd });
+      const dotEnvVars = loadDotEnv(cwd);
+      const proc = cp.spawn(this.binaryPath, args, {
+        cwd,
+        env: { ...process.env, ...dotEnvVars },
+      });
       this._proc = proc;
 
       const rlOut = readline.createInterface({ input: proc.stdout });
