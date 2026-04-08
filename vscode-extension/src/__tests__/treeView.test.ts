@@ -7,6 +7,10 @@ import {
   SubtaskItem,
   PrdFolderItem,
   PrdFileItem,
+  AgentItem,
+  AgentFileItem,
+  DevContainerFolderItem,
+  DevContainerFileItem,
   ErrorItem,
 } from '../treeView/items';
 
@@ -35,13 +39,17 @@ describe('WispTreeDataProvider', () => {
   });
 
   describe('getChildren(undefined)', () => {
-    it('returns exactly two SectionItems', async () => {
+    it('returns four SectionItems', async () => {
       const children = await provider.getChildren(undefined);
-      expect(children).toHaveLength(2);
+      expect(children).toHaveLength(4);
       expect(children[0]).toBeInstanceOf(SectionItem);
       expect(children[1]).toBeInstanceOf(SectionItem);
+      expect(children[2]).toBeInstanceOf(SectionItem);
+      expect(children[3]).toBeInstanceOf(SectionItem);
       expect((children[0] as SectionItem).sectionLabel).toBe('Manifests');
       expect((children[1] as SectionItem).sectionLabel).toBe('PRDs');
+      expect((children[2] as SectionItem).sectionLabel).toBe('Agents');
+      expect((children[3] as SectionItem).sectionLabel).toBe('Dev Containers');
     });
   });
 
@@ -324,6 +332,111 @@ describe('WispTreeDataProvider', () => {
       const item = new ErrorItem('/ws/manifests/bad.json', 'Invalid JSON');
       expect(item.label).toBe('⚠ Invalid JSON');
       expect(item.contextValue).toBe('wispError');
+    });
+  });
+
+  describe('getChildren(SectionItem("Agents"))', () => {
+    it('returns AgentItems grouped by directory', async () => {
+      const uris = [
+        makeUri('/ws/agents/_base-system.md'),
+        makeUri('/ws/agents/architect/prompt.md'),
+        makeUri('/ws/agents/developer/prompt.md'),
+      ];
+      (vscode.workspace.findFiles as jest.Mock).mockResolvedValueOnce(uris);
+
+      const section = new SectionItem('Agents');
+      const children = await provider.getChildren(section);
+
+      expect(children).toHaveLength(3);
+      expect(children[0]).toBeInstanceOf(AgentFileItem);
+      expect(children[1]).toBeInstanceOf(AgentItem);
+      expect((children[1] as AgentItem).agentName).toBe('architect');
+      expect(children[2]).toBeInstanceOf(AgentItem);
+      expect((children[2] as AgentItem).agentName).toBe('developer');
+    });
+
+    it('returns empty array when no agent files found', async () => {
+      (vscode.workspace.findFiles as jest.Mock).mockResolvedValueOnce([]);
+
+      const section = new SectionItem('Agents');
+      const children = await provider.getChildren(section);
+      expect(children).toHaveLength(0);
+    });
+  });
+
+  describe('getChildren(AgentItem)', () => {
+    it('returns AgentFileItems for each file URI', async () => {
+      const fileUris = [
+        makeUri('/ws/agents/architect/prompt.md'),
+      ];
+      const item = new AgentItem('architect', makeUri('/ws/agents/architect'), fileUris);
+      const children = await provider.getChildren(item);
+
+      expect(children).toHaveLength(1);
+      expect(children[0]).toBeInstanceOf(AgentFileItem);
+      expect((children[0] as AgentFileItem).fsPath).toBe('/ws/agents/architect/prompt.md');
+    });
+  });
+
+  describe('AgentFileItem properties', () => {
+    it('uses filename as label and sets openFile command', () => {
+      const item = new AgentFileItem('/ws/agents/architect/prompt.md');
+      expect(item.label).toBe('prompt.md');
+      expect(item.contextValue).toBe('wispAgentFile');
+      expect(item.command?.command).toBe('wisp.explorer.openFile');
+    });
+  });
+
+  describe('getChildren(SectionItem("Dev Containers"))', () => {
+    it('returns DevContainerFolderItems grouped by subdirectory', async () => {
+      const uris = [
+        makeUri('/ws/.devcontainer/devcontainer.json'),
+        makeUri('/ws/.devcontainer/Dockerfile'),
+        makeUri('/ws/.devcontainer/agent/devcontainer.json'),
+        makeUri('/ws/.devcontainer/agent/Dockerfile'),
+      ];
+      (vscode.workspace.findFiles as jest.Mock).mockResolvedValueOnce(uris);
+
+      const section = new SectionItem('Dev Containers');
+      const children = await provider.getChildren(section);
+
+      expect(children).toHaveLength(2);
+      expect(children[0]).toBeInstanceOf(DevContainerFolderItem);
+      expect((children[0] as DevContainerFolderItem).folderName).toBe('(root)');
+      expect(children[1]).toBeInstanceOf(DevContainerFolderItem);
+      expect((children[1] as DevContainerFolderItem).folderName).toBe('agent');
+    });
+
+    it('returns empty array when no devcontainer files found', async () => {
+      (vscode.workspace.findFiles as jest.Mock).mockResolvedValueOnce([]);
+
+      const section = new SectionItem('Dev Containers');
+      const children = await provider.getChildren(section);
+      expect(children).toHaveLength(0);
+    });
+  });
+
+  describe('getChildren(DevContainerFolderItem)', () => {
+    it('returns DevContainerFileItems', async () => {
+      const fileUris = [
+        makeUri('/ws/.devcontainer/devcontainer.json'),
+        makeUri('/ws/.devcontainer/Dockerfile'),
+      ];
+      const folder = new DevContainerFolderItem('(root)', fileUris);
+      const children = await provider.getChildren(folder);
+
+      expect(children).toHaveLength(2);
+      expect(children[0]).toBeInstanceOf(DevContainerFileItem);
+      expect(children[1]).toBeInstanceOf(DevContainerFileItem);
+    });
+  });
+
+  describe('DevContainerFileItem properties', () => {
+    it('uses filename as label and sets openFile command', () => {
+      const item = new DevContainerFileItem('/ws/.devcontainer/devcontainer.json');
+      expect(item.label).toBe('devcontainer.json');
+      expect(item.contextValue).toBe('wispDevcontainerFile');
+      expect(item.command?.command).toBe('wisp.explorer.openFile');
     });
   });
 });

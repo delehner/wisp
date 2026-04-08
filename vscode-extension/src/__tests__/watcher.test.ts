@@ -11,13 +11,15 @@ describe('WispFileWatcher', () => {
     jest.useRealTimers();
   });
 
-  it('creates two file system watchers with correct globs', () => {
+  it('creates four file system watchers with correct globs', () => {
     const onRefresh = jest.fn();
     const watcher = new WispFileWatcher(onRefresh);
 
-    expect(vscode.workspace.createFileSystemWatcher).toHaveBeenCalledTimes(2);
+    expect(vscode.workspace.createFileSystemWatcher).toHaveBeenCalledTimes(4);
     expect(vscode.workspace.createFileSystemWatcher).toHaveBeenCalledWith('**/manifests/*.json');
     expect(vscode.workspace.createFileSystemWatcher).toHaveBeenCalledWith('**/prds/**/*.md');
+    expect(vscode.workspace.createFileSystemWatcher).toHaveBeenCalledWith('**/agents/**/*.md');
+    expect(vscode.workspace.createFileSystemWatcher).toHaveBeenCalledWith('**/.devcontainer/**');
 
     watcher.dispose();
   });
@@ -27,7 +29,7 @@ describe('WispFileWatcher', () => {
     const watcher = new WispFileWatcher(onRefresh);
 
     const results = (vscode.workspace.createFileSystemWatcher as jest.Mock).mock.results;
-    expect(results).toHaveLength(2);
+    expect(results).toHaveLength(4);
     for (const result of results) {
       const fsw = result.value;
       expect(fsw.onDidCreate).toHaveBeenCalledTimes(1);

@@ -7,6 +7,10 @@ export const CONTEXT_VALUES = {
   subtask: 'wispSubtask',
   prdFolder: 'wispPrdFolder',
   prd: 'wispPrd',
+  agent: 'wispAgent',
+  agentFile: 'wispAgentFile',
+  devcontainerFolder: 'wispDevcontainerFolder',
+  devcontainerFile: 'wispDevcontainerFile',
   error: 'wispError',
 } as const;
 
@@ -23,8 +27,10 @@ export class WispTreeItem extends vscode.TreeItem {
   }
 }
 
+export type SectionLabel = 'Manifests' | 'PRDs' | 'Agents' | 'Dev Containers';
+
 export class SectionItem extends WispTreeItem {
-  constructor(public readonly sectionLabel: 'Manifests' | 'PRDs') {
+  constructor(public readonly sectionLabel: SectionLabel) {
     super(sectionLabel, vscode.TreeItemCollapsibleState.Expanded, CONTEXT_VALUES.section);
     this.tooltip = sectionLabel;
   }
@@ -92,6 +98,61 @@ export class PrdFileItem extends WispTreeItem {
     this.tooltip = new vscode.MarkdownString(`**${title || label}**\n\nStatus: ${status || 'Unknown'}`);
     this.description = status || undefined;
     this.iconPath = new vscode.ThemeIcon('file');
+    this.command = {
+      command: 'wisp.explorer.openFile',
+      title: 'Open File',
+      arguments: [fsPath],
+    };
+  }
+}
+
+export class AgentItem extends WispTreeItem {
+  constructor(
+    public readonly agentName: string,
+    public readonly dirUri: vscode.Uri,
+    public readonly fileUris: vscode.Uri[],
+  ) {
+    super(agentName, vscode.TreeItemCollapsibleState.Collapsed, CONTEXT_VALUES.agent);
+    this.tooltip = agentName;
+    this.iconPath = new vscode.ThemeIcon('hubot');
+  }
+}
+
+export class AgentFileItem extends WispTreeItem {
+  constructor(public readonly fsPath: string) {
+    const label = fsPath.split('/').pop() ?? fsPath;
+    super(label, vscode.TreeItemCollapsibleState.None, CONTEXT_VALUES.agentFile);
+    this.tooltip = fsPath;
+    this.iconPath = new vscode.ThemeIcon('file');
+    this.command = {
+      command: 'wisp.explorer.openFile',
+      title: 'Open File',
+      arguments: [fsPath],
+    };
+  }
+}
+
+export class DevContainerFolderItem extends WispTreeItem {
+  constructor(
+    public readonly folderName: string,
+    public readonly fileUris: vscode.Uri[],
+  ) {
+    super(folderName, vscode.TreeItemCollapsibleState.Collapsed, CONTEXT_VALUES.devcontainerFolder);
+    this.tooltip = folderName;
+    this.iconPath = new vscode.ThemeIcon('remote');
+  }
+}
+
+export class DevContainerFileItem extends WispTreeItem {
+  constructor(public readonly fsPath: string) {
+    const label = fsPath.split('/').pop() ?? fsPath;
+    super(label, vscode.TreeItemCollapsibleState.None, CONTEXT_VALUES.devcontainerFile);
+    this.tooltip = fsPath;
+    const isJson = label.endsWith('.json');
+    const isDockerfile = label.toLowerCase().includes('dockerfile');
+    this.iconPath = new vscode.ThemeIcon(
+      isJson ? 'json' : isDockerfile ? 'package' : 'file-code',
+    );
     this.command = {
       command: 'wisp.explorer.openFile',
       title: 'Open File',

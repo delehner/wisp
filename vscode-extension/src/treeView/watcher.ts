@@ -10,6 +10,8 @@ export class WispFileWatcher implements vscode.Disposable {
     this._watchers = [
       vscode.workspace.createFileSystemWatcher('**/manifests/*.json'),
       vscode.workspace.createFileSystemWatcher('**/prds/**/*.md'),
+      vscode.workspace.createFileSystemWatcher('**/agents/**/*.md'),
+      vscode.workspace.createFileSystemWatcher('**/.devcontainer/**'),
     ];
 
     for (const watcher of this._watchers) {
