@@ -19,6 +19,7 @@ export function registerRunCommand(
 
     const agent = await vscode.window.showQuickPick(KNOWN_AGENTS, {
       placeHolder: 'Select an agent to run',
+      ignoreFocusOut: true,
     });
     if (!agent) {
       return;
@@ -28,6 +29,7 @@ export function registerRunCommand(
       prompt: 'Working directory (repo root)',
       placeHolder: cwd,
       value: cwd,
+      ignoreFocusOut: true,
     });
     if (!workdir) {
       return;
@@ -41,6 +43,7 @@ export function registerRunCommand(
     const rawIterations = await vscode.window.showInputBox({
       prompt: 'Max iterations (--max-iterations)',
       value: '2',
+      ignoreFocusOut: true,
     });
     if (rawIterations === undefined) {
       return;
@@ -51,6 +54,7 @@ export function registerRunCommand(
       prompt: 'Model override (optional, press Enter to skip)',
       placeHolder: 'claude-opus-4-5, sonnet, ...',
       value: '',
+      ignoreFocusOut: true,
     });
     if (model === undefined) {
       return;

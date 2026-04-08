@@ -110,6 +110,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const rawIterations = await vscode.window.showInputBox({
         prompt: 'Max iterations per agent',
         value: '2',
+        ignoreFocusOut: true,
         validateInput: (val) =>
           /^\d+$/.test(val) && parseInt(val, 10) > 0
             ? undefined
@@ -173,6 +174,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const rawIterations = await vscode.window.showInputBox({
           prompt: 'Max iterations per agent',
           value: '2',
+          ignoreFocusOut: true,
           validateInput: (val) =>
             /^\d+$/.test(val) && parseInt(val, 10) > 0
               ? undefined
@@ -207,6 +209,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const repoUrl = await vscode.window.showInputBox({
           prompt: 'Repository URL',
           placeHolder: 'https://github.com/org/repo.git',
+          ignoreFocusOut: true,
           validateInput: (val) =>
             val.startsWith('https://') || val.startsWith('git@')
               ? undefined
@@ -218,6 +221,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const branch = await vscode.window.showInputBox({
           prompt: 'Branch',
           value: 'main',
+          ignoreFocusOut: true,
         });
         if (branch === undefined) {
           return;
@@ -225,6 +229,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const contextPath = await vscode.window.showInputBox({
           prompt: 'Context path (optional, press Enter to skip)',
           value: '',
+          ignoreFocusOut: true,
         });
         if (contextPath === undefined) {
           return;
@@ -232,6 +237,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const rawIterations = await vscode.window.showInputBox({
           prompt: 'Max iterations per agent',
           value: '2',
+          ignoreFocusOut: true,
           validateInput: (val) =>
             /^\d+$/.test(val) && parseInt(val, 10) > 0
               ? undefined
@@ -296,6 +302,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const repoUrl = await vscode.window.showInputBox({
         prompt: 'Repository URL',
         placeHolder: 'https://github.com/org/repo.git',
+        ignoreFocusOut: true,
         validateInput: (val) =>
           val.startsWith('https://') || val.startsWith('git@')
             ? undefined
@@ -307,6 +314,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const branch = await vscode.window.showInputBox({
         prompt: 'Branch to analyze',
         value: 'main',
+        ignoreFocusOut: true,
       });
       if (branch === undefined) {
         return;
@@ -315,6 +323,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const output = await vscode.window.showInputBox({
         prompt: 'Output directory for context skills',
         value: `./contexts/${repoName}`,
+        ignoreFocusOut: true,
         validateInput: (val) => (val.trim() ? undefined : 'Output directory is required'),
       });
       if (output === undefined) {

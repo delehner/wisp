@@ -29,6 +29,7 @@ export function registerPipelineCommand(
     const repoUrl = await vscode.window.showInputBox({
       prompt: 'Repository URL',
       placeHolder: 'https://github.com/org/repo.git',
+      ignoreFocusOut: true,
       validateInput: (val) =>
         isValidRepoUrl(val) ? undefined : 'Must start with https:// or git@',
     });
@@ -40,6 +41,7 @@ export function registerPipelineCommand(
       prompt: 'Base branch',
       placeHolder: 'main',
       value: 'main',
+      ignoreFocusOut: true,
     });
     if (branch === undefined) {
       return;
@@ -49,6 +51,7 @@ export function registerPipelineCommand(
       prompt: 'Context directory (optional, press Enter to skip)',
       placeHolder: './contexts/my-repo',
       value: '',
+      ignoreFocusOut: true,
     });
     if (contextDir === undefined) {
       return;
@@ -57,6 +60,7 @@ export function registerPipelineCommand(
     const rawIterations = await vscode.window.showInputBox({
       prompt: 'Max iterations per agent (--max-iterations)',
       value: '2',
+      ignoreFocusOut: true,
     });
     if (rawIterations === undefined) {
       return;
@@ -67,6 +71,7 @@ export function registerPipelineCommand(
       prompt: 'Agents to run, comma-separated (optional, press Enter to skip)',
       placeHolder: 'architect,developer,tester',
       value: '',
+      ignoreFocusOut: true,
     });
     if (agents === undefined) {
       return;

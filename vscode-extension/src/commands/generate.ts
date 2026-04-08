@@ -10,6 +10,7 @@ export async function promptGeneratePrdArgs(
   const description = await vscode.window.showInputBox({
     prompt: 'Project description',
     placeHolder: 'Describe the feature or project to generate PRDs for',
+    ignoreFocusOut: true,
   });
   if (!description) {
     return null;
@@ -18,6 +19,7 @@ export async function promptGeneratePrdArgs(
   const output = await vscode.window.showInputBox({
     prompt: 'Output directory for generated PRDs',
     value: './prds',
+    ignoreFocusOut: true,
     validateInput: (val) => (val.trim() ? undefined : 'Output directory is required'),
   });
   if (output === undefined) {
@@ -31,6 +33,7 @@ export async function promptGeneratePrdArgs(
     const manifestInput = await vscode.window.showInputBox({
       prompt: 'Manifest JSON path',
       value: './manifests/project.json',
+      ignoreFocusOut: true,
       validateInput: (val) => (val.trim() ? undefined : 'Manifest path is required'),
     });
     if (manifestInput === undefined) {
@@ -45,6 +48,7 @@ export async function promptGeneratePrdArgs(
     const repoUrl = await vscode.window.showInputBox({
       prompt: `Repo URL ${repoPairs.length + 1} (leave empty to finish)`,
       placeHolder: 'https://github.com/org/repo.git or leave empty to skip',
+      ignoreFocusOut: true,
     });
     if (!repoUrl) {
       addMore = false;
@@ -52,6 +56,7 @@ export async function promptGeneratePrdArgs(
       const contextPath = await vscode.window.showInputBox({
         prompt: 'Context directory for this repo (optional, press Enter to skip)',
         value: '',
+        ignoreFocusOut: true,
       });
       if (contextPath === undefined) {
         return null;
@@ -121,6 +126,7 @@ export function registerGenerateContextCommand(
     const repoUrl = await vscode.window.showInputBox({
       prompt: 'Repository URL',
       placeHolder: 'https://github.com/org/repo.git',
+      ignoreFocusOut: true,
       validateInput: (val) =>
         val.startsWith('https://') || val.startsWith('git@')
           ? undefined
@@ -134,6 +140,7 @@ export function registerGenerateContextCommand(
       prompt: 'Branch to analyze',
       placeHolder: 'main',
       value: 'main',
+      ignoreFocusOut: true,
     });
     if (branch === undefined) {
       return;
@@ -144,6 +151,7 @@ export function registerGenerateContextCommand(
     const output = await vscode.window.showInputBox({
       prompt: 'Output directory for context skills',
       value: defaultOutput,
+      ignoreFocusOut: true,
       validateInput: (val) => (val.trim() ? undefined : 'Output directory is required'),
     });
     if (output === undefined) {

@@ -25,12 +25,14 @@ export async function pickManifestFile(cwd: string): Promise<string | undefined>
     const items = uris.map((u) => u.fsPath);
     const picked = await vscode.window.showQuickPick(items, {
       placeHolder: 'Select a manifest file',
+      ignoreFocusOut: true,
     });
     return picked;
   }
   return vscode.window.showInputBox({
     prompt: 'No manifest files found. Enter path to manifest JSON',
     placeHolder: `${cwd}/manifests/my-manifest.json`,
+    ignoreFocusOut: true,
   });
 }
 
@@ -40,12 +42,14 @@ export async function pickPrdFile(cwd: string): Promise<string | undefined> {
     const items = uris.map((u) => u.fsPath);
     const picked = await vscode.window.showQuickPick(items, {
       placeHolder: 'Select a PRD file',
+      ignoreFocusOut: true,
     });
     return picked;
   }
   return vscode.window.showInputBox({
     prompt: 'No PRD files found. Enter path to PRD markdown file',
     placeHolder: `${cwd}/prds/my-feature/prd.md`,
+    ignoreFocusOut: true,
   });
 }
 

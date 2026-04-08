@@ -25,6 +25,7 @@ export function registerOrchestrateCommand(
     const rawIterations = await vscode.window.showInputBox({
       prompt: 'Max iterations per agent (--max-iterations)',
       value: '2',
+      ignoreFocusOut: true,
     });
     if (rawIterations === undefined) {
       return;
@@ -34,6 +35,7 @@ export function registerOrchestrateCommand(
     const rawParallel = await vscode.window.showInputBox({
       prompt: 'Max parallel pipelines (--max-parallel)',
       value: '4',
+      ignoreFocusOut: true,
     });
     if (rawParallel === undefined) {
       return;

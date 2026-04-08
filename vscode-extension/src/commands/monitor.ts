@@ -34,6 +34,7 @@ export function registerMonitorCommand(
 
     const session = await vscode.window.showQuickPick(sessions, {
       placeHolder: 'Select a log session to monitor',
+      ignoreFocusOut: true,
     });
     if (!session) {
       return;
