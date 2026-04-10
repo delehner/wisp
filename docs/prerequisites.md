@@ -28,7 +28,7 @@ The `wisp` binary is a single static executable. Choose one of:
 
 The curl installer downloads a pre-built binary for your platform from GitHub Releases. No `jq`, `node`, or other runtime dependencies are required — `wisp` is self-contained.
 
-> **Homebrew and curl installs:** The binary needs `agents/`, `templates/`, and `.env`. Run `wisp install agents` to download agent prompts to `~/.wisp/agents/` without cloning the full repo. See [Configuration Guide](configuration.md).
+> **Homebrew and curl installs:** The binary needs `.ai/agents/`, `.devenv/templates/`, and `.env`. Run `wisp install agents` to download agent prompts to `~/.wisp/.ai/agents/` and devcontainer config to `~/.wisp/.devenv/.devcontainer/agent/` without cloning the full repo. See [Configuration Guide](configuration.md).
 
 ### Optional: Build from Source
 
@@ -67,7 +67,7 @@ You need **one** AI provider configured:
 
 If JSONL logs show **Not logged in · Please run /login**, Claude Code inside the container has no credentials.
 
-1. Put **`ANTHROPIC_API_KEY`** and/or **`CLAUDE_CODE_OAUTH_TOKEN`** in the `.env` file that **Wisp loads**: for `cargo run` / `./target/release/wisp` from a clone, that is typically `.env` at the repo root next to `agents/` (see `find_root_dir` in the code); for installed binaries, often `~/.wisp/.env`. `dotenvy` loads that file into the `wisp` process; the child `devcontainer` CLI inherits the same environment so `${localEnv:...}` in `.devcontainer/agent/devcontainer.json` resolves correctly.
+1. Put **`ANTHROPIC_API_KEY`** and/or **`CLAUDE_CODE_OAUTH_TOKEN`** in the `.env` file that **Wisp loads**: for `cargo run` / `./target/release/wisp` from a clone, that is typically `.env` at the repo root next to `.ai/agents/` (see `find_root_dir` in the code); for installed binaries, often `~/.wisp/.env`. `dotenvy` loads that file into the `wisp` process; the child `devcontainer` CLI inherits the same environment so `${localEnv:...}` in `.devenv/.devcontainer/agent/devcontainer.json` resolves correctly.
 2. **Subscription / Max:** run `claude setup-token`, add the token to `.env` as `CLAUDE_CODE_OAUTH_TOKEN`. Browser-only login on the host may not be enough for headless runs in the container.
 3. If the agent image was built when variables were **unset**, remove the old container or trigger a fresh **`devcontainer up`** so `containerEnv` is applied with current values.
 

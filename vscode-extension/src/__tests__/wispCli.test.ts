@@ -298,12 +298,12 @@ describe('package.json activationEvents', () => {
     expect(pkg.activationEvents).toContain('onCommand:wisp.*');
   });
 
-  it('activates when manifests directory contains JSON files', () => {
-    expect(pkg.activationEvents).toContain('workspaceContains:**/manifests/*.json');
+  it('activates when .devenv/manifests directory contains JSON files', () => {
+    expect(pkg.activationEvents).toContain('workspaceContains:**/.devenv/manifests/*.json');
   });
 
-  it('activates when prds directory contains markdown files', () => {
-    expect(pkg.activationEvents).toContain('workspaceContains:**/prds/**/*.md');
+  it('activates when .devenv/prds directory contains markdown files', () => {
+    expect(pkg.activationEvents).toContain('workspaceContains:**/.devenv/prds/**/*.md');
   });
 });
 

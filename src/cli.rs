@@ -307,16 +307,16 @@ pub struct GenerateContextArgs {
 
 #[derive(Subcommand)]
 pub enum InstallCmd {
-    /// Install Cursor skills as symlinks
+    /// Install skills to .ai/skills/ (project) or ~/.cursor/skills/ (global) with IDE symlinks
     Skills(InstallSkillsArgs),
 
-    /// Download agent prompts and the pipeline `.devcontainer/agent/` template from GitHub to ~/.wisp/
+    /// Download agent prompts to ~/.wisp/.ai/agents/ and the pipeline devcontainer template to ~/.wisp/.devenv/.devcontainer/agent/ from GitHub
     Agents(InstallAgentsArgs),
 }
 
 #[derive(clap::Args)]
 pub struct InstallAgentsArgs {
-    /// Agents destination (default: ~/.wisp/agents/; devcontainer template goes under ~/.wisp/.devcontainer/agent/)
+    /// Agents destination (default: ~/.wisp/.ai/agents/; devcontainer template goes under ~/.wisp/.devenv/.devcontainer/agent/)
     #[arg(long)]
     pub output: Option<PathBuf>,
 
@@ -327,7 +327,7 @@ pub struct InstallAgentsArgs {
 
 #[derive(clap::Args)]
 pub struct InstallSkillsArgs {
-    /// Install to a project-specific directory instead of ~/.cursor/skills/
+    /// Install to a project-specific .ai/skills/ with IDE symlinks (.cursor/skills, .antigravity/skills) instead of global ~/.cursor/skills/
     #[arg(long)]
     pub project: Option<PathBuf>,
 }

@@ -33,12 +33,12 @@ describe('downloadWispAssets helpers', () => {
   describe('relativePathIfWispAsset', () => {
     const z = 'wisp-main/';
 
-    it('keeps .devcontainer/agent files', () => {
+    it('remaps .devcontainer/agent files to .devenv/.devcontainer/agent/', () => {
       expect(relativePathIfWispAsset(z, 'wisp-main/.devcontainer/agent/devcontainer.json')).toBe(
-        '.devcontainer/agent/devcontainer.json',
+        '.devenv/.devcontainer/agent/devcontainer.json',
       );
       expect(relativePathIfWispAsset(z, 'wisp-main/.devcontainer/agent/Dockerfile')).toBe(
-        '.devcontainer/agent/Dockerfile',
+        '.devenv/.devcontainer/agent/Dockerfile',
       );
     });
 
@@ -49,10 +49,28 @@ describe('downloadWispAssets helpers', () => {
       expect(relativePathIfWispAsset(z, 'wisp-main/.devcontainer/post-start.sh')).toBeUndefined();
     });
 
-    it('keeps templates and agents', () => {
-      expect(relativePathIfWispAsset(z, 'wisp-main/templates/foo.md')).toBe('templates/foo.md');
+    it('remaps templates to .devenv/templates/', () => {
+      expect(relativePathIfWispAsset(z, 'wisp-main/templates/foo.md')).toBe('.devenv/templates/foo.md');
+      expect(relativePathIfWispAsset(z, 'wisp-main/templates/manifest.json')).toBe(
+        '.devenv/templates/manifest.json',
+      );
+    });
+
+    it('remaps agents to .ai/agents/', () => {
       expect(relativePathIfWispAsset(z, 'wisp-main/agents/dev/prompt.md')).toBe(
-        'agents/dev/prompt.md',
+        '.ai/agents/dev/prompt.md',
+      );
+      expect(relativePathIfWispAsset(z, 'wisp-main/agents/_base-system.md')).toBe(
+        '.ai/agents/_base-system.md',
+      );
+    });
+
+    it('remaps skills to .ai/skills/', () => {
+      expect(relativePathIfWispAsset(z, 'wisp-main/skills/code-review/SKILL.md')).toBe(
+        '.ai/skills/code-review/SKILL.md',
+      );
+      expect(relativePathIfWispAsset(z, 'wisp-main/skills/testing-strategy/SKILL.md')).toBe(
+        '.ai/skills/testing-strategy/SKILL.md',
       );
     });
 
@@ -61,30 +79,33 @@ describe('downloadWispAssets helpers', () => {
     });
 
     it('handles directory entries', () => {
-      expect(relativePathIfWispAsset(z, 'wisp-main/agents/')).toBe('agents/');
+      expect(relativePathIfWispAsset(z, 'wisp-main/agents/')).toBe('.ai/agents/');
+      expect(relativePathIfWispAsset(z, 'wisp-main/skills/')).toBe('.ai/skills/');
+      expect(relativePathIfWispAsset(z, 'wisp-main/templates/')).toBe('.devenv/templates/');
     });
 
     it('handles .devcontainer/agent directory entry', () => {
-      expect(relativePathIfWispAsset(z, 'wisp-main/.devcontainer/agent/')).toBe('.devcontainer/agent/');
+      expect(relativePathIfWispAsset(z, 'wisp-main/.devcontainer/agent/')).toBe('.devenv/.devcontainer/agent/');
     });
   });
 
   describe('buildGitignoreAppend', () => {
     it('returns null when all lines exist', () => {
-      const existing = `.devcontainer/\ntemplates/\nagents/\n`;
+      const existing = `.ai/agents/\n.ai/skills/\n.devenv/.devcontainer/\n.devenv/templates/\n`;
       expect(buildGitignoreAppend(existing, WISP_ASSET_GITIGNORE_LINES)).toBeNull();
     });
 
     it('appends missing lines and header', () => {
-      const append = buildGitignoreAppend('foo\n', ['.devcontainer/', 'agents/']);
-      expect(append).toContain('.devcontainer/');
-      expect(append).toContain('agents/');
-      expect(append).not.toContain('templates/');
+      const append = buildGitignoreAppend('foo\n', WISP_ASSET_GITIGNORE_LINES);
+      expect(append).toContain('.ai/agents/');
+      expect(append).toContain('.ai/skills/');
+      expect(append).toContain('.devenv/.devcontainer/');
+      expect(append).toContain('.devenv/templates/');
       expect(append).toMatch(/Wisp AI/);
     });
 
     it('no leading newline when file is empty', () => {
-      const append = buildGitignoreAppend('', ['.devcontainer/']);
+      const append = buildGitignoreAppend('', ['.ai/agents/']);
       expect(append).not.toMatch(/^\n\n# Wisp/);
       expect(append).toContain('# Wisp AI');
     });

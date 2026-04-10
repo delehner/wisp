@@ -12,11 +12,11 @@ flowchart TD
     Root --> Src["src/\nRust source code"]
     Root --> Scripts["scripts/\nBinary installer"]
     Root --> Agents["agents/\nAgent prompt definitions"]
-    Root --> Manifests["manifests/\nExecution plans"]
-    Root --> PRDs["prds/\nProduct Requirements Documents"]
+    Root --> Manifests[".devenv/manifests/\nExecution plans"]
+    Root --> PRDs[".devenv/prds/\nProduct Requirements Documents"]
     Root --> Contexts["contexts/\nPer-repo context skill directories"]
     Root --> Templates["templates/\nPRD, manifest, context templates"]
-    Root --> Skills["skills/\nCursor-compatible skills"]
+    Root --> Skills["skills/\nIDE-compatible skills (.ai/skills/)"]
     Root --> DevC[".devcontainer/\nDev Container configs"]
     Root --> Docs["docs/\nDocumentation"]
     Root --> Config["config/\nSettings templates"]
@@ -95,7 +95,7 @@ flowchart LR
     end
 
     subgraph Infra["Infrastructure"]
-        DC[".devcontainer/agent/\n(headless container)"]
+        DC[".devenv/.devcontainer/agent/\n(headless container)"]
         MCP[".mcp.json"]
         AICLI["AI CLI\n(Claude Code or Gemini)"]
     end
@@ -175,8 +175,8 @@ flowchart LR
 | `docs/vscode-publish.md` | Maintainer publishing guide: one-time setup, release process, PAT rotation | Publish workflow or secrets change |
 | `agents/_base-system.md` | Shared instructions for all agents | Changing universal agent behavior |
 | `agents/*/prompt.md` | Per-agent instructions and completion criteria | Modifying agent behavior |
-| `manifests/*.json` | Execution plans: epics, subtasks, repos, contexts | Adding projects or changing plans |
-| `prds/<project>/` | Product Requirements Documents (referenced by manifests) | Adding or editing PRDs |
+| `.devenv/manifests/*.json` | Execution plans: epics, subtasks, repos, contexts | Adding projects or changing plans |
+| `.devenv/prds/<project>/` | Product Requirements Documents (referenced by manifests) | Adding or editing PRDs |
 | `contexts/<repo>/` | Per-repo context skill directories | Repo conventions change |
 | `templates/manifest.json` | Manifest template | Changing manifest schema |
 | `templates/prd.md` | PRD template | Changing required PRD sections |
@@ -193,6 +193,6 @@ flowchart LR
 | `.env.example` | Environment variable reference | Adding new config options |
 | `docs/configuration.md` | `.env` and `WISP_ROOT_DIR` for Homebrew/curl | Changing install config |
 | `config/settings.json` | AI CLI settings template | Changing default model |
-| `skills/*/SKILL.md` | Cursor agent skills | Adding skills or changing workflows |
+| `skills/*/SKILL.md` | Agent skills (installed to `.ai/skills/` with IDE symlinks) | Adding skills or changing workflows |
 | `CLAUDE.md` | Claude Code instructions for this repo | Changing project conventions |
 | `docs/*.md` | This documentation | Any significant change |

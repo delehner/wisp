@@ -4,7 +4,17 @@ import AdmZip from 'adm-zip';
 /** Default branch archive for delehner/wisp (matches extension repository). */
 export const WISP_REPO_ZIP_URL = 'https://github.com/delehner/wisp/archive/refs/heads/main.zip';
 
-export const WISP_ASSET_GITIGNORE_LINES = ['.devcontainer/', 'templates/', 'agents/'] as const;
+export const WISP_ASSET_GITIGNORE_LINES = ['.ai/agents/', '.ai/skills/', '.devenv/.devcontainer/', '.devenv/templates/'] as const;
+
+/** IDE-specific directory symlinks mapping to canonical .ai/ locations. */
+const IDE_SYMLINK_TARGETS = [
+  { ide: '.cursor', subdir: 'agents' },
+  { ide: '.cursor', subdir: 'skills' },
+  { ide: '.cursor', subdir: 'rules' },
+  { ide: '.antigravity', subdir: 'agents' },
+  { ide: '.antigravity', subdir: 'skills' },
+  { ide: '.antigravity', subdir: 'rules' },
+] as const;
 
 /** Discover `wisp-main/` (or equivalent) prefix inside a GitHub archive zip. */
 export function findZipRootFromEntryNames(entryNames: string[]): string {
@@ -29,7 +39,13 @@ export function findZipRootFromEntryNames(entryNames: string[]): string {
 }
 
 /**
- * Map zip entry to workspace-relative path under `.devcontainer/agent`, `templates`, or `agents`.
+ * Map zip entry to workspace-relative path under `.ai/` or `.devenv/`.
+ *
+ * - `agents/...` -> `.ai/agents/...`
+ * - `skills/...` -> `.ai/skills/...`
+ * - `.devcontainer/agent/...` -> `.devenv/.devcontainer/agent/...`
+ * - `templates/...` -> `.devenv/templates/...`
+ *
  * Only the agent runner devcontainer is included — the main `.devcontainer/` config
  * (Dockerfile, post-start.sh, init-firewall.sh) is for developing wisp itself and must
  * not be placed into user workspaces.
@@ -44,7 +60,7 @@ export function relativePathIfWispAsset(zipRoot: string, entryName: string): str
     return undefined;
   }
   const first = trimmed.split('/')[0];
-  if (first !== '.devcontainer' && first !== 'templates' && first !== 'agents') {
+  if (first !== '.devcontainer' && first !== 'templates' && first !== 'agents' && first !== 'skills') {
     return undefined;
   }
   if (first === '.devcontainer') {
@@ -52,8 +68,18 @@ export function relativePathIfWispAsset(zipRoot: string, entryName: string): str
     if (parts.length < 2 || parts[1] !== 'agent') {
       return undefined;
     }
+    const remapped = `.devenv/${trimmed}`;
+    return rel.endsWith('/') ? `${remapped}/` : remapped;
   }
-  return rel.endsWith('/') ? `${trimmed}/` : trimmed;
+  if (first === 'templates') {
+    const remapped = `.devenv/${trimmed}`;
+    return rel.endsWith('/') ? `${remapped}/` : remapped;
+  }
+  if (first === 'agents' || first === 'skills') {
+    const remapped = '.ai/' + trimmed;
+    return rel.endsWith('/') ? `${remapped}/` : remapped;
+  }
+  return undefined;
 }
 
 /** Returns text to append to `.gitignore`, or null if nothing to add. */
@@ -72,6 +98,10 @@ export function buildGitignoreAppend(existingContent: string, lines: readonly st
     '\n# Wisp AI — upstream assets (github.com/delehner/wisp; Download Wisp assets command)\n';
   return prefix + header + toAdd.join('\n') + '\n';
 }
+
+/** Subdirectories that contain downloaded (recoverable) assets. */
+const DOWNLOADED_AI_SUBDIRS = ['agents', 'skills'] as const;
+const DOWNLOADED_DEVENV_SUBDIRS = ['.devcontainer', 'templates'] as const;
 
 async function mkdirpUnderRoot(root: vscode.Uri, relativeDir: string): Promise<void> {
   const parts = relativeDir.replace(/\/$/, '').split('/').filter(Boolean);
@@ -122,7 +152,82 @@ async function fetchZipBuffer(url: string): Promise<Buffer> {
   return Buffer.from(ab);
 }
 
+/** Check if a URI exists as a directory. */
+async function dirExists(uri: vscode.Uri): Promise<boolean> {
+  try {
+    const stat = await vscode.workspace.fs.stat(uri);
+    return (stat.type & vscode.FileType.Directory) !== 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Remove only the downloaded asset subdirs, preserving user content
+ * like `.ai/rules/`, `.devenv/prds/`, and `.devenv/manifests/`.
+ */
+async function cleanDownloadedAssets(workspaceRoot: vscode.Uri): Promise<void> {
+  for (const subdir of DOWNLOADED_AI_SUBDIRS) {
+    const uri = vscode.Uri.joinPath(workspaceRoot, '.ai', subdir);
+    if (await dirExists(uri)) {
+      await vscode.workspace.fs.delete(uri, { recursive: true });
+    }
+  }
+  for (const subdir of DOWNLOADED_DEVENV_SUBDIRS) {
+    const uri = vscode.Uri.joinPath(workspaceRoot, '.devenv', subdir);
+    if (await dirExists(uri)) {
+      await vscode.workspace.fs.delete(uri, { recursive: true });
+    }
+  }
+}
+
+/**
+ * Create relative symlinks from IDE-specific directories to `.ai/` sub-paths.
+ * Covers agents, skills, and rules for each supported IDE.
+ * Skips if the target already exists as a non-symlink directory (won't clobber user content).
+ */
+async function createIdeSymlinks(workspaceRoot: vscode.Uri): Promise<void> {
+  const { exec } = await import('node:child_process');
+  const { promisify } = await import('node:util');
+  const execAsync = promisify(exec);
+  const fsPath = workspaceRoot.fsPath;
+
+  for (const { ide, subdir } of IDE_SYMLINK_TARGETS) {
+    const targetPath = `${ide}/${subdir}`;
+    const ideDirUri = vscode.Uri.joinPath(workspaceRoot, ide);
+    const symlinkUri = vscode.Uri.joinPath(workspaceRoot, targetPath);
+
+    try {
+      const stat = await vscode.workspace.fs.stat(symlinkUri);
+      if ((stat.type & vscode.FileType.SymbolicLink) !== 0) {
+        await vscode.workspace.fs.delete(symlinkUri);
+      } else if ((stat.type & vscode.FileType.Directory) !== 0) {
+        continue;
+      }
+    } catch {
+      // Doesn't exist — we'll create it
+    }
+
+    try {
+      await vscode.workspace.fs.createDirectory(ideDirUri);
+    } catch {
+      /* may already exist */
+    }
+
+    try {
+      await execAsync(
+        `ln -snf "../.ai/${subdir}" "${targetPath}"`,
+        { cwd: fsPath },
+      );
+    } catch {
+      // Symlink creation may fail on some platforms — non-fatal
+    }
+  }
+}
+
 export async function downloadWispAssetsToWorkspace(workspaceRoot: vscode.Uri): Promise<void> {
+  await cleanDownloadedAssets(workspaceRoot);
+
   const zipBuffer = await fetchZipBuffer(WISP_REPO_ZIP_URL);
   const zip = new AdmZip(zipBuffer);
   const names = zip
@@ -146,9 +251,10 @@ export async function downloadWispAssetsToWorkspace(workspaceRoot: vscode.Uri): 
     wrote += 1;
   }
   if (wrote === 0) {
-    throw new Error('No files were extracted (.devcontainer, templates, agents missing in archive?).');
+    throw new Error('No files were extracted (.ai/agents missing in archive?).');
   }
   await ensureGitignoreRules(workspaceRoot);
+  await createIdeSymlinks(workspaceRoot);
 }
 
 export function registerDownloadWispAssetsCommands(context: vscode.ExtensionContext): void {
@@ -159,7 +265,7 @@ export function registerDownloadWispAssetsCommands(context: vscode.ExtensionCont
       return;
     }
     const choice = await vscode.window.showWarningMessage(
-      'Download `.devcontainer/agent`, `templates`, and `agents` from github.com/delehner/wisp into the workspace root? Existing files in those folders may be overwritten.',
+      'Download agents, skills, devcontainer, and templates from github.com/delehner/wisp into `.ai/` and `.devenv/`? Existing downloaded assets will be replaced.',
       { modal: true },
       'Download',
     );
@@ -178,7 +284,7 @@ export function registerDownloadWispAssetsCommands(context: vscode.ExtensionCont
         },
       );
       void vscode.window.showInformationMessage(
-        'Wisp AI: Downloaded `.devcontainer/agent`, `templates`, and `agents`. `.gitignore` updated to ignore them.',
+        'Wisp AI: Downloaded assets to `.ai/` and `.devenv/`. IDE symlinks created.',
       );
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

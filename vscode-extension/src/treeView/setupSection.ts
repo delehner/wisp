@@ -23,10 +23,10 @@ const CONTEXT_VALUES = {
 
 const TOOLTIPS: Record<SetupStep | SetupUtility, string> = {
   installCli: 'Install the Wisp CLI via Homebrew',
-  installAgents: 'Download agent prompt files (~/.wisp/agents/)',
+  installAgents: 'Download agent prompt files (~/.wisp/.ai/agents/)',
   configureEnv: 'Configure API keys and pipeline settings in .env',
   generatePrd: 'Generate PRD files from a manifest',
-  installSkills: 'Symlink Cursor skills for this project',
+  installSkills: 'Install skills to .ai/skills/ with IDE symlinks',
 };
 
 export class SetupTreeItem extends vscode.TreeItem {
@@ -74,7 +74,7 @@ export async function isCliInstalled(): Promise<boolean> {
 export async function areAgentsInstalled(): Promise<boolean> {
   try {
     const agentsDir = vscode.Uri.file(
-      path.join(os.homedir(), '.wisp', 'agents'),
+      path.join(os.homedir(), '.wisp', '.ai', 'agents'),
     );
     await vscode.workspace.fs.stat(agentsDir);
     const entries = await vscode.workspace.fs.readDirectory(agentsDir);

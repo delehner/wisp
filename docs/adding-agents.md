@@ -13,14 +13,14 @@ flowchart TD
     end
 
     subgraph Optional["Optional Files"]
-        Skill["skills/new-agent/SKILL.md\n(Cursor skill)"]
+        Skill["skills/new-agent/SKILL.md\n(IDE skill)"]
         Rule["docs/ updates\n(update diagrams)"]
     end
 
     Prompt --> Working[Agent runs\nin pipeline]
     ModRs --> Working
     ConfigRs --> Working
-    Skill --> Cursor[Available as\nCursor skill]
+    Skill --> IDESkill[Available as\nIDE skill]
 ```
 
 ## Step-by-Step
@@ -169,9 +169,9 @@ Naming conventions:
 - Model: `<AGENT_NAME_UPPER>_MODEL`
 - Iterations: `<AGENT_NAME_UPPER>_MAX_ITERATIONS`
 
-### 5. Create a Cursor Skill (Optional)
+### 5. Create an IDE Skill (Optional)
 
-Create `skills/<name>/SKILL.md` to make this agent's capability available as a standalone Cursor skill:
+Create `skills/<name>/SKILL.md` to make this agent's capability available as a standalone IDE skill (installed to `.ai/skills/` with symlinks for Cursor, Antigravity):
 
 ```markdown
 ---

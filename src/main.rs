@@ -264,13 +264,13 @@ async fn run_generate_prd(args: &cli::GeneratePrdArgs, config: &Config) -> Resul
     // Build prompt from prd-generator agent
     let mut prompt = String::new();
 
-    let base_path = root.join("agents/_base-system.md");
+    let base_path = root.join(".ai/agents/_base-system.md");
     if base_path.is_file() {
         prompt.push_str(&std::fs::read_to_string(&base_path)?);
         prompt.push('\n');
     }
 
-    let gen_prompt = root.join("agents/prd-generator/prompt.md");
+    let gen_prompt = root.join(".ai/agents/prd-generator/prompt.md");
     if gen_prompt.is_file() {
         prompt.push_str(&std::fs::read_to_string(&gen_prompt)?);
         prompt.push('\n');
@@ -372,13 +372,13 @@ async fn run_generate_context(args: &cli::GenerateContextArgs, config: &Config) 
     // Build prompt
     let mut prompt = String::new();
 
-    let base_path = root.join("agents/_base-system.md");
+    let base_path = root.join(".ai/agents/_base-system.md");
     if base_path.is_file() {
         prompt.push_str(&std::fs::read_to_string(&base_path)?);
         prompt.push('\n');
     }
 
-    let gen_prompt = root.join("agents/context-generator/prompt.md");
+    let gen_prompt = root.join(".ai/agents/context-generator/prompt.md");
     if gen_prompt.is_file() {
         prompt.push_str(&std::fs::read_to_string(&gen_prompt)?);
         prompt.push('\n');
@@ -427,23 +427,53 @@ async fn run_generate_context(args: &cli::GenerateContextArgs, config: &Config) 
 }
 
 fn install_skills(args: &cli::InstallSkillsArgs, config: &Config) -> Result<()> {
-    let skills_src = config.root_dir.join("skills");
+    let skills_src = {
+        let preferred = config.root_dir.join(".ai/skills");
+        if preferred.is_dir() {
+            preferred
+        } else {
+            config.root_dir.join("skills")
+        }
+    };
     if !skills_src.is_dir() {
         anyhow::bail!("skills directory not found: {}", skills_src.display());
     }
 
-    let target_dir = match &args.project {
-        Some(project) => project.join(".cursor/skills"),
+    let is_project = args.project.is_some();
+    let primary_target = match &args.project {
+        Some(project) => project.join(".ai/skills"),
         None => {
             let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
             std::path::PathBuf::from(home).join(".cursor/skills")
         }
     };
 
-    std::fs::create_dir_all(&target_dir)?;
-    tracing::info!(src = %skills_src.display(), target = %target_dir.display(), "installing skills");
+    std::fs::create_dir_all(&primary_target)?;
+    tracing::info!(src = %skills_src.display(), target = %primary_target.display(), "installing skills");
 
-    let entries = std::fs::read_dir(&skills_src)?;
+    symlink_skill_entries(&skills_src, &primary_target)?;
+
+    if is_project {
+        let project = args.project.as_ref().unwrap();
+        for ide_dir in &[".cursor", ".antigravity"] {
+            let ide_skills = project.join(format!("{}/skills", ide_dir));
+            create_ide_dir_symlink(project, ide_dir, "skills")?;
+            tracing::info!(target = %ide_skills.display(), "created IDE symlink");
+        }
+    } else {
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
+        let antigravity_dir = std::path::PathBuf::from(home).join(".antigravity/skills");
+        std::fs::create_dir_all(&antigravity_dir)?;
+        symlink_skill_entries(&skills_src, &antigravity_dir)?;
+        tracing::info!(target = %antigravity_dir.display(), "installed skills for Antigravity");
+    }
+
+    tracing::info!("skills installed");
+    Ok(())
+}
+
+fn symlink_skill_entries(src: &std::path::Path, target_dir: &std::path::Path) -> Result<()> {
+    let entries = std::fs::read_dir(src)?;
     for entry in entries.flatten() {
         let path = entry.path();
         if !path.is_dir() {
@@ -472,8 +502,28 @@ fn install_skills(args: &cli::InstallSkillsArgs, config: &Config) -> Result<()> 
         #[cfg(not(unix))]
         std::fs::copy(&canonical, &target).map(|_| ())?;
     }
+    Ok(())
+}
 
-    tracing::info!("skills installed");
+/// Create a directory symlink from `<project>/<ide_dir>/<subdir>` -> `../.ai/<subdir>`.
+fn create_ide_dir_symlink(project: &std::path::Path, ide_dir: &str, subdir: &str) -> Result<()> {
+    let ide_path = project.join(ide_dir);
+    std::fs::create_dir_all(&ide_path)?;
+    let link_path = ide_path.join(subdir);
+    let relative_target = format!("../.ai/{}", subdir);
+
+    if link_path.is_symlink() {
+        std::fs::remove_file(&link_path)?;
+    } else if link_path.is_dir() {
+        return Ok(());
+    }
+
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(&relative_target, &link_path)?;
+    #[cfg(not(unix))]
+    {
+        let _ = relative_target;
+    }
     Ok(())
 }
 

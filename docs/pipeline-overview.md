@@ -117,7 +117,7 @@ flowchart LR
       "name": "1 - Foundation",
       "subtasks": [
         {
-          "prd": "./prds/01-setup.md",
+          "prd": "./.devenv/prds/01-setup.md",
           "agents": ["architect", "designer"],
           "repositories": [
             {
@@ -232,8 +232,8 @@ flowchart TD
 
 ### Dev Container Execution Notes
 
-- `runner.rs` uses `.devcontainer/agent/devcontainer.json` from the **cloned repo** (target repos do not need their own `.devcontainer/devcontainer.json` at the repo root for editing, but the clone must contain that agent config—typically from the Wisp template or the project you orchestrate).
-- **Provider CLIs run inside the container:** `claude` / `gemini` are invoked via `devcontainer exec --workspace-folder <clone> --config .devcontainer/agent/devcontainer.json -- …` with streaming JSONL (same log formatting as host mode). The `--config` path must match `devcontainer up`; without it, the Dev Containers CLI can report **Dev container not found** even after a successful `up`. Prompt paths are rewritten from the host checkout path to the container workspace path (e.g. `/workspaces/<repo>`). **Agent instructions** in the assembled prompt name the container’s `remoteWorkspaceFolder` as the repository root for Write/Edit/Bash so tools do not write under the host path (e.g. `/tmp/...`), which is not the bind-mounted clone — that mismatch previously caused Ralph stalls when `.agent-progress/` never updated on the host.
+- `runner.rs` uses `.devenv/.devcontainer/agent/devcontainer.json` from the **cloned repo** (target repos do not need their own `.devcontainer/devcontainer.json` at the repo root for editing, but the clone must contain that agent config—typically from the Wisp template or the project you orchestrate).
+- **Provider CLIs run inside the container:** `claude` / `gemini` are invoked via `devcontainer exec --workspace-folder <clone> --config .devenv/.devcontainer/agent/devcontainer.json -- …` with streaming JSONL (same log formatting as host mode). The `--config` path must match `devcontainer up`; without it, the Dev Containers CLI can report **Dev container not found** even after a successful `up`. Prompt paths are rewritten from the host checkout path to the container workspace path (e.g. `/workspaces/<repo>`). **Agent instructions** in the assembled prompt name the container’s `remoteWorkspaceFolder` as the repository root for Write/Edit/Bash so tools do not write under the host path (e.g. `/tmp/...`), which is not the bind-mounted clone — that mismatch previously caused Ralph stalls when `.agent-progress/` never updated on the host.
 - **Headless stdin:** Wisp runs the provider with **no stdin** (equivalent to `< /dev/null`), including on the host when Dev Containers are disabled. That avoids Claude Code waiting on a TTY or emitting “no stdin data received” in non-interactive orchestration; prompts use `-p` / inline text only.
 - **Default isolation:** a **fresh** `devcontainer up` for **each agent** in the pipeline, then `stop`/`rm` after that agent’s Ralph loop finishes (all iterations of that agent share one container so `--resume` stays valid). The git worktree is bind-mounted, so commits and files persist across agent boundaries.
 - **`--reuse-devcontainer` / `WISP_REUSE_DEVCONTAINER`:** opt into **one** `devcontainer up` for the entire agent sequence (faster, less isolation between agents).
@@ -241,7 +241,7 @@ flowchart TD
 - Dev Container lifecycle: `runner` always stops containers on the success path; per-agent containers are stopped after each agent; a reused container is stopped after the sequence. The `Drop` impl only warns if `stop()` was never called (e.g. panic before cleanup).
 - Agent session logs (JSONL / `.log`) go to **`LOG_DIR`** (default `./logs` relative to the **process working directory** where you invoke `wisp`, not the cloned repo). If every agent is skipped as “already completed,” no log files are created for those agents.
 - **Provider exits with code 1 (no stderr):** Claude Code often reports failures only on **JSONL stdout**. On non-zero exit, Wisp logs the JSONL path plus a **tail preview** and loose **error hints** in the trace; for Claude **“not logged in”** or **`rate_limit` / “You've hit your limit”** in that stream, the pipeline **fails immediately** with an actionable message instead of a Ralph stall (unchanged progress files are not treated as the root cause). For container auth and `CLAUDE_CODE_OAUTH_TOKEN`, see [prerequisites — Authentication, Dev Containers](prerequisites.md#dev-containers-wisp-agent-container). You can also open `./logs/<run-dir>/architect_iteration_*.jsonl` (path is printed when the pipeline starts).
-- **Auth inside the agent container:** `containerEnv` in [`.devcontainer/agent/devcontainer.json`](.devcontainer/agent/devcontainer.json) uses `${localEnv:ANTHROPIC_API_KEY}` and `${localEnv:CLAUDE_CODE_OAUTH_TOKEN}`. Those resolve from the **environment of the process that runs `devcontainer`** (the same shell that launches `wisp`). Ensure keys are exported or present in `.env` loaded before `wisp` runs. If the container was first created when keys were **missing**, run a fresh `devcontainer up` (or remove the old container) so `containerEnv` picks up current values.
+- **Auth inside the agent container:** `containerEnv` in [`.devenv/.devcontainer/agent/devcontainer.json`](.devenv/.devcontainer/agent/devcontainer.json) uses `${localEnv:ANTHROPIC_API_KEY}` and `${localEnv:CLAUDE_CODE_OAUTH_TOKEN}`. Those resolve from the **environment of the process that runs `devcontainer`** (the same shell that launches `wisp`). Ensure keys are exported or present in `.env` loaded before `wisp` runs. If the container was first created when keys were **missing**, run a fresh `devcontainer up` (or remove the old container) so `containerEnv` picks up current values.
 - Agent commit identity is propagated from host git config (`user.name` / `user.email`) into container execution.
 - Agent runtime logs inside containers are written under `.pipeline/logs` (excluded from git), not the target repo `logs/`.
 - Per-agent progress files are cleared at the start of each PRD run to avoid cross-PRD completion leakage.
@@ -404,7 +404,7 @@ See the [VS Code Extension Feature Guide](vscode-extension.md) for all available
 | `wisp generate context ...` | generate-context.sh | Generate context skills from repo analysis |
 | `wisp monitor` | monitor.sh | Tail agent logs, list sessions |
 | `wisp logs <file.jsonl>` | log-formatter.sh | Re-format raw .jsonl log file |
-| `wisp install skills` | scripts/install-skills.sh | Install Cursor skills as symlinks |
+| `wisp install skills` | scripts/install-skills.sh | Install skills to .ai/skills/ with IDE symlinks |
 | `wisp update` | — | Self-update the `wisp` binary |
 
 ### Unified CLI (`wisp`)
@@ -417,21 +417,21 @@ wisp generate context --repo <path-or-url> --output ./contexts/my-repo
 
 # Generate PRDs and a manifest (prompts you to describe your tasks)
 wisp generate prd \
-  --output ./prds/my-app \
-  --manifest ./manifests/my-app.json \
+  --output ./.devenv/prds/my-app \
+  --manifest ./.devenv/manifests/my-app.json \
   --repo https://github.com/org/my-repo --context ./contexts/my-repo
 
 # Run a full manifest
-wisp orchestrate --manifest ./manifests/my-project.json
+wisp orchestrate --manifest ./.devenv/manifests/my-project.json
 
 # Use Gemini CLI instead of Claude Code
-wisp orchestrate --manifest ./manifests/my-project.json --provider gemini
+wisp orchestrate --manifest ./.devenv/manifests/my-project.json --provider gemini
 
 # Interactive mode (pause between agents/iterations)
-wisp orchestrate --manifest ./manifests/my-project.json --interactive
+wisp orchestrate --manifest ./.devenv/manifests/my-project.json --interactive
 
 # Focus on a specific agent's output
-wisp orchestrate --manifest ./manifests/my-project.json --follow developer
+wisp orchestrate --manifest ./.devenv/manifests/my-project.json --follow developer
 
 # Single PRD × single repo
 wisp pipeline --prd <path> --repo <url> --context <path-or-dir>
@@ -446,7 +446,7 @@ wisp monitor --sessions
 # Re-format a raw .jsonl log file
 wisp logs ./logs/developer_iteration_1.jsonl
 
-# Install Cursor skills
+# Install skills to .ai/skills/ with IDE symlinks
 wisp install skills
 
 # Self-update

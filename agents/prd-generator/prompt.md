@@ -176,7 +176,7 @@ The schema at `schemas/manifest.schema.json` (relative to the wisp root) describ
       "description": "[What this epic accomplishes; note merge dependencies on other epics if any]",
       "subtasks": [
         {
-          "prd": "./prds/<project>/01-foundation.md",
+          "prd": "./.devenv/prds/<project>/01-foundation.md",
           "agents": ["architect", "developer", "tester", "documentation", "reviewer"],
           "repositories": [
             {
@@ -193,7 +193,7 @@ The schema at `schemas/manifest.schema.json` (relative to the wisp root) describ
 ```
 
 Manifest rules:
-- PRD paths must be **relative to the project root** (e.g. `./prds/<project>/01-foundation.md`)
+- PRD paths must be **relative to the project root** (e.g. `./.devenv/prds/<project>/01-foundation.md`)
 - Context paths must be **relative to the project root** (e.g. `./contexts/<repo>`)
 - **Epics** run **in parallel** by default (pipeline uses `{PIPELINE_WORK_DIR}/epics/{index}/` per epic). **Subtasks** in the same epic run **sequentially** (manifest order). Repositories listed under **one** subtask can run in parallel. Only group subtasks in the same epic when later subtasks do not depend on earlier ones finishing first
 - When multiple subtasks in the same epic target the same repo, the pipeline auto-stacks their branches — no extra config needed
@@ -235,7 +235,7 @@ Every PRD should at minimum include: `architect`, `developer`, `tester`, `docume
 
 ## Naming Conventions
 
-- PRD files: `NN-slug.md` (e.g., `01-foundation.md`, `02-auth-api.md`, `03-dashboard-ui.md`)
+- PRD files: `.devenv/prds/<project>/NN-slug.md` (e.g., `.devenv/prds/my-app/01-foundation.md`)
 - The number prefix reflects the **suggested execution order**, but the manifest's `epics` and `subtasks` arrays are the source of truth for actual ordering
 - Working branches: `<author-slug>/NN-slug` (e.g., `delehner/01-foundation`)
 - Use the author slug from the `--author` flag (lowercase, no spaces)

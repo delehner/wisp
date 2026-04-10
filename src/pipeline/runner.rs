@@ -411,27 +411,27 @@ fn agent_dir_from_devcontainer_path(path: &Path) -> Option<PathBuf> {
     None
 }
 
-/// When the cloned repo has no `.devcontainer/agent/` (e.g. assets were only in the IDE workspace),
+/// When the cloned repo has no `.devenv/.devcontainer/agent/` (e.g. assets were only in the IDE workspace),
 /// copy from `manifest_source` if set, else from the wisp install root (`wisp install agents`).
 fn provision_devcontainer_config(
     workdir: &Path,
     config: &Config,
     manifest_source: Option<&Path>,
 ) -> Result<()> {
-    let marker = workdir.join(".devcontainer/agent/devcontainer.json");
+    let marker = workdir.join(".devenv/.devcontainer/agent/devcontainer.json");
     if marker.is_file() {
         return Ok(());
     }
 
     if let Some(src) = manifest_source {
         if let Some(agent_dir) = agent_dir_from_devcontainer_path(src) {
-            let dest_dir = workdir.join(".devcontainer/agent");
+            let dest_dir = workdir.join(".devenv/.devcontainer/agent");
             match copy_dir_all(&agent_dir, &dest_dir) {
                 Ok(()) => {
                     info!(
                         workdir = %workdir.display(),
                         from = %agent_dir.display(),
-                        "provisioned .devcontainer/agent from manifest"
+                        "provisioned .devenv/.devcontainer/agent from manifest"
                     );
                     return Ok(());
                 }
@@ -449,7 +449,7 @@ fn provision_devcontainer_config(
         }
     }
 
-    let source_dir = config.root_dir.join(".devcontainer/agent");
+    let source_dir = config.root_dir.join(".devenv/.devcontainer/agent");
     let source_config = source_dir.join("devcontainer.json");
     if !source_config.is_file() {
         warn!(
@@ -458,7 +458,7 @@ fn provision_devcontainer_config(
         );
         return Ok(());
     }
-    let dest_dir = workdir.join(".devcontainer/agent");
+    let dest_dir = workdir.join(".devenv/.devcontainer/agent");
     copy_dir_all(&source_dir, &dest_dir).with_context(|| {
         format!(
             "failed to provision devcontainer from {} into {}",
@@ -466,7 +466,7 @@ fn provision_devcontainer_config(
             dest_dir.display()
         )
     })?;
-    info!(workdir = %workdir.display(), "provisioned .devcontainer/agent from wisp install");
+    info!(workdir = %workdir.display(), "provisioned .devenv/.devcontainer/agent from wisp install");
     Ok(())
 }
 
@@ -525,12 +525,12 @@ mod tests {
     #[test]
     fn provision_devcontainer_skips_when_marker_present() {
         let workdir = tempfile::TempDir::new().unwrap();
-        let agent = workdir.path().join(".devcontainer/agent");
-        std::fs::create_dir_all(&agent).unwrap();
-        std::fs::write(agent.join("devcontainer.json"), "keep").unwrap();
+        let dc = workdir.path().join(".devenv/.devcontainer/agent");
+        std::fs::create_dir_all(&dc).unwrap();
+        std::fs::write(dc.join("devcontainer.json"), "keep").unwrap();
 
         let install_root = tempfile::TempDir::new().unwrap();
-        let src = install_root.path().join(".devcontainer/agent");
+        let src = install_root.path().join(".devenv/.devcontainer/agent");
         std::fs::create_dir_all(&src).unwrap();
         std::fs::write(src.join("devcontainer.json"), "template").unwrap();
 
@@ -539,7 +539,7 @@ mod tests {
 
         provision_devcontainer_config(workdir.path(), &config, None).unwrap();
         assert_eq!(
-            std::fs::read_to_string(agent.join("devcontainer.json")).unwrap(),
+            std::fs::read_to_string(dc.join("devcontainer.json")).unwrap(),
             "keep"
         );
     }
@@ -548,7 +548,7 @@ mod tests {
     fn provision_devcontainer_copies_from_root_dir() {
         let workdir = tempfile::TempDir::new().unwrap();
         let install_root = tempfile::TempDir::new().unwrap();
-        let src = install_root.path().join(".devcontainer/agent");
+        let src = install_root.path().join(".devenv/.devcontainer/agent");
         std::fs::create_dir_all(&src).unwrap();
         std::fs::write(src.join("devcontainer.json"), r#"{"x":1}"#).unwrap();
         std::fs::write(src.join("Dockerfile"), "FROM scratch\n").unwrap();
@@ -558,12 +558,14 @@ mod tests {
 
         provision_devcontainer_config(workdir.path(), &config, None).unwrap();
 
-        let out = workdir.path().join(".devcontainer/agent/devcontainer.json");
+        let out = workdir
+            .path()
+            .join(".devenv/.devcontainer/agent/devcontainer.json");
         assert!(out.is_file());
         assert_eq!(std::fs::read_to_string(out).unwrap(), r#"{"x":1}"#);
         assert!(workdir
             .path()
-            .join(".devcontainer/agent/Dockerfile")
+            .join(".devenv/.devcontainer/agent/Dockerfile")
             .is_file());
     }
 
@@ -577,7 +579,7 @@ mod tests {
         provision_devcontainer_config(workdir.path(), &config, None).unwrap();
         assert!(!workdir
             .path()
-            .join(".devcontainer/agent/devcontainer.json")
+            .join(".devenv/.devcontainer/agent/devcontainer.json")
             .exists());
     }
 
@@ -595,8 +597,12 @@ mod tests {
         provision_devcontainer_config(workdir.path(), &config, Some(&agent)).unwrap();
 
         assert_eq!(
-            std::fs::read_to_string(workdir.path().join(".devcontainer/agent/devcontainer.json"))
-                .unwrap(),
+            std::fs::read_to_string(
+                workdir
+                    .path()
+                    .join(".devenv/.devcontainer/agent/devcontainer.json")
+            )
+            .unwrap(),
             r#"{"from":"manifest"}"#
         );
     }
@@ -614,8 +620,12 @@ mod tests {
         provision_devcontainer_config(workdir.path(), &config, Some(&json_path)).unwrap();
 
         assert_eq!(
-            std::fs::read_to_string(workdir.path().join(".devcontainer/agent/devcontainer.json"))
-                .unwrap(),
+            std::fs::read_to_string(
+                workdir
+                    .path()
+                    .join(".devenv/.devcontainer/agent/devcontainer.json")
+            )
+            .unwrap(),
             r#"{"ok":true}"#
         );
     }

@@ -2,7 +2,7 @@
   "name": "wisp-ai",
   "displayName": "Wisp AI",
   "description": "Run Wisp AI pipelines from your IDE — Command Palette, explorer, and live output for the wisp CLI",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "publisher": "delehner",
   "repository": {
     "type": "git",
@@ -16,8 +16,8 @@
   ],
   "activationEvents": [
     "onCommand:wisp.*",
-    "workspaceContains:**/manifests/*.json",
-    "workspaceContains:**/prds/**/*.md"
+    "workspaceContains:**/.devenv/manifests/*.json",
+    "workspaceContains:**/.devenv/prds/**/*.md"
   ],
   "main": "./out/extension.js",
   "contributes": {

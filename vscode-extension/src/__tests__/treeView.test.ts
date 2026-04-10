@@ -55,7 +55,7 @@ describe('WispTreeDataProvider', () => {
 
   describe('getChildren(SectionItem("Manifests"))', () => {
     it('returns ManifestItem for valid JSON', async () => {
-      const uri = makeUri('/ws/manifests/my-manifest.json');
+      const uri = makeUri('/ws/.devenv/manifests/my-manifest.json');
       (vscode.workspace.findFiles as jest.Mock).mockResolvedValueOnce([uri]);
       (vscode.workspace.fs.readFile as jest.Mock).mockResolvedValueOnce(
         encodeJson({ name: 'My Manifest', epics: [{ name: 'Epic 1', subtasks: [] }] }),
@@ -70,7 +70,7 @@ describe('WispTreeDataProvider', () => {
     });
 
     it('returns ErrorItem for malformed JSON', async () => {
-      const uri = makeUri('/ws/manifests/bad.json');
+      const uri = makeUri('/ws/.devenv/manifests/bad.json');
       (vscode.workspace.findFiles as jest.Mock).mockResolvedValueOnce([uri]);
       (vscode.workspace.fs.readFile as jest.Mock).mockResolvedValueOnce(
         encodeText('not valid json {{{'),
@@ -93,7 +93,7 @@ describe('WispTreeDataProvider', () => {
     });
 
     it('uses filename as manifest name when name field is absent', async () => {
-      const uri = makeUri('/ws/manifests/fallback.json');
+      const uri = makeUri('/ws/.devenv/manifests/fallback.json');
       (vscode.workspace.findFiles as jest.Mock).mockResolvedValueOnce([uri]);
       (vscode.workspace.fs.readFile as jest.Mock).mockResolvedValueOnce(
         encodeJson({ epics: [] }),
@@ -108,7 +108,7 @@ describe('WispTreeDataProvider', () => {
 
   describe('getChildren(ManifestItem)', () => {
     it('returns correct EpicItem count', async () => {
-      const manifest = new ManifestItem('Test', '/ws/manifests/test.json', [
+      const manifest = new ManifestItem('Test', '/ws/.devenv/manifests/test.json', [
         { name: 'Epic A', subtasks: [] },
         { name: 'Epic B', subtasks: [] },
       ]);
@@ -123,7 +123,7 @@ describe('WispTreeDataProvider', () => {
     });
 
     it('returns empty array for manifest with no epics', async () => {
-      const manifest = new ManifestItem('Empty', '/ws/manifests/empty.json', []);
+      const manifest = new ManifestItem('Empty', '/ws/.devenv/manifests/empty.json', []);
       const children = await provider.getChildren(manifest);
       expect(children).toHaveLength(0);
     });
@@ -131,24 +131,24 @@ describe('WispTreeDataProvider', () => {
 
   describe('getChildren(EpicItem)', () => {
     it('returns correct SubtaskItem count', async () => {
-      const epic = new EpicItem('Epic A', '/ws/manifests/test.json', [
-        { prd: 'prds/01-feature.md', repositories: [{ url: 'https://github.com/org/repo' }] },
-        { prd: 'prds/02-feature.md', repositories: [] },
+      const epic = new EpicItem('Epic A', '/ws/.devenv/manifests/test.json', [
+        { prd: '.devenv/prds/01-feature.md', repositories: [{ url: 'https://github.com/org/repo' }] },
+        { prd: '.devenv/prds/02-feature.md', repositories: [] },
       ]);
 
       const children = await provider.getChildren(epic);
 
       expect(children).toHaveLength(2);
       expect(children[0]).toBeInstanceOf(SubtaskItem);
-      expect((children[0] as SubtaskItem).prdPath).toBe('prds/01-feature.md');
+      expect((children[0] as SubtaskItem).prdPath).toBe('.devenv/prds/01-feature.md');
       expect((children[0] as SubtaskItem).repoUrl).toBe('https://github.com/org/repo');
     });
 
     it('extracts branch from repositories[0].branch, falls back to main', async () => {
-      const epic = new EpicItem('Epic B', '/ws/manifests/test.json', [
-        { prd: 'prds/01.md', repositories: [{ url: 'https://github.com/org/repo', branch: 'develop' }] },
-        { prd: 'prds/02.md', repositories: [{ url: 'https://github.com/org/repo' }] },
-        { prd: 'prds/03.md', repositories: [] },
+      const epic = new EpicItem('Epic B', '/ws/.devenv/manifests/test.json', [
+        { prd: '.devenv/prds/01.md', repositories: [{ url: 'https://github.com/org/repo', branch: 'develop' }] },
+        { prd: '.devenv/prds/02.md', repositories: [{ url: 'https://github.com/org/repo' }] },
+        { prd: '.devenv/prds/03.md', repositories: [] },
       ]);
 
       const children = await provider.getChildren(epic);
@@ -161,7 +161,7 @@ describe('WispTreeDataProvider', () => {
 
   describe('legacy key support', () => {
     it('reads "orders" key when "epics" is absent', async () => {
-      const uri = makeUri('/ws/manifests/legacy.json');
+      const uri = makeUri('/ws/.devenv/manifests/legacy.json');
       (vscode.workspace.findFiles as jest.Mock).mockResolvedValueOnce([uri]);
       (vscode.workspace.fs.readFile as jest.Mock).mockResolvedValueOnce(
         encodeJson({
@@ -179,8 +179,8 @@ describe('WispTreeDataProvider', () => {
 
     it('reads "prds" key on EpicItem when "subtasks" is absent', async () => {
       // Directly set prds key via legacy alias to simulate
-      const epicWithPrds = new EpicItem('Epic Legacy', '/ws/manifests/test.json', [
-        { prd: 'prds/task.md' },
+      const epicWithPrds = new EpicItem('Epic Legacy', '/ws/.devenv/manifests/test.json', [
+        { prd: '.devenv/prds/task.md' },
       ]);
 
       const children = await provider.getChildren(epicWithPrds);
@@ -190,7 +190,7 @@ describe('WispTreeDataProvider', () => {
 
   describe('PRD title/status extraction', () => {
     it('extracts title and status from first 10 lines', async () => {
-      const uri = makeUri('/ws/prds/feature/task.md');
+      const uri = makeUri('/ws/.devenv/prds/feature/task.md');
       (vscode.workspace.findFiles as jest.Mock).mockResolvedValueOnce([uri]);
 
       // For PRD folders
@@ -213,8 +213,8 @@ describe('WispTreeDataProvider', () => {
 
   describe('getChildren(PrdFolderItem)', () => {
     it('returns PrdFileItems for folder URIs', async () => {
-      const uri1 = makeUri('/ws/prds/feature/task1.md');
-      const uri2 = makeUri('/ws/prds/feature/task2.md');
+      const uri1 = makeUri('/ws/.devenv/prds/feature/task1.md');
+      const uri2 = makeUri('/ws/.devenv/prds/feature/task2.md');
       (vscode.workspace.fs.readFile as jest.Mock).mockResolvedValue(
         encodeText('# Title\n> **Status**: Ready'),
       );
@@ -246,7 +246,7 @@ describe('WispTreeDataProvider', () => {
 
   describe('getChildren(unknown element)', () => {
     it('returns empty array for unrecognised element types', async () => {
-      const orphan = new SubtaskItem('prds/task.md', '', '/ws/manifests/m.json', 'main');
+      const orphan = new SubtaskItem('.devenv/prds/task.md', '', '/ws/.devenv/manifests/m.json', 'main');
       const children = await provider.getChildren(orphan);
       expect(children).toHaveLength(0);
     });
@@ -265,8 +265,7 @@ describe('WispTreeDataProvider', () => {
 
   describe('PRD files at root (no subdirectory)', () => {
     it('groups into "(root)" folder when PRD has no subdirectory under prds/', async () => {
-      // Path with prds/ as last segment before filename — no subdirectory
-      const uri = makeUri('/ws/prds/task.md');
+      const uri = makeUri('/ws/.devenv/prds/task.md');
       (vscode.workspace.findFiles as jest.Mock).mockResolvedValueOnce([uri]);
 
       const section = new SectionItem('PRDs');
@@ -282,7 +281,7 @@ describe('WispTreeDataProvider', () => {
     it('returns empty title and status when readFile rejects', async () => {
       (vscode.workspace.fs.readFile as jest.Mock).mockRejectedValueOnce(new Error('ENOENT'));
 
-      const uri = makeUri('/ws/prds/feature/missing.md');
+      const uri = makeUri('/ws/.devenv/prds/feature/missing.md');
       const folder = new PrdFolderItem('feature', [uri]);
       const children = await provider.getChildren(folder);
 
@@ -298,7 +297,7 @@ describe('WispTreeDataProvider', () => {
         encodeText('no heading here'),
       );
 
-      const uri = makeUri('/ws/prds/feature/my-prd.md');
+      const uri = makeUri('/ws/.devenv/prds/feature/my-prd.md');
       const folder = new PrdFolderItem('feature', [uri]);
       const children = await provider.getChildren(folder);
 
@@ -311,7 +310,7 @@ describe('WispTreeDataProvider', () => {
         encodeText('# My PRD\nno status line'),
       );
 
-      const uri = makeUri('/ws/prds/feature/my-prd.md');
+      const uri = makeUri('/ws/.devenv/prds/feature/my-prd.md');
       const folder = new PrdFolderItem('feature', [uri]);
       const children = await provider.getChildren(folder);
 
@@ -329,7 +328,7 @@ describe('WispTreeDataProvider', () => {
 
   describe('ErrorItem properties', () => {
     it('has correct label prefix and contextValue', () => {
-      const item = new ErrorItem('/ws/manifests/bad.json', 'Invalid JSON');
+      const item = new ErrorItem('/ws/.devenv/manifests/bad.json', 'Invalid JSON');
       expect(item.label).toBe('⚠ Invalid JSON');
       expect(item.contextValue).toBe('wispError');
     });
@@ -338,9 +337,9 @@ describe('WispTreeDataProvider', () => {
   describe('getChildren(SectionItem("Agents"))', () => {
     it('returns AgentItems grouped by directory', async () => {
       const uris = [
-        makeUri('/ws/agents/_base-system.md'),
-        makeUri('/ws/agents/architect/prompt.md'),
-        makeUri('/ws/agents/developer/prompt.md'),
+        makeUri('/ws/.ai/agents/_base-system.md'),
+        makeUri('/ws/.ai/agents/architect/prompt.md'),
+        makeUri('/ws/.ai/agents/developer/prompt.md'),
       ];
       (vscode.workspace.findFiles as jest.Mock).mockResolvedValueOnce(uris);
 
@@ -367,20 +366,20 @@ describe('WispTreeDataProvider', () => {
   describe('getChildren(AgentItem)', () => {
     it('returns AgentFileItems for each file URI', async () => {
       const fileUris = [
-        makeUri('/ws/agents/architect/prompt.md'),
+        makeUri('/ws/.ai/agents/architect/prompt.md'),
       ];
-      const item = new AgentItem('architect', makeUri('/ws/agents/architect'), fileUris);
+      const item = new AgentItem('architect', makeUri('/ws/.ai/agents/architect'), fileUris);
       const children = await provider.getChildren(item);
 
       expect(children).toHaveLength(1);
       expect(children[0]).toBeInstanceOf(AgentFileItem);
-      expect((children[0] as AgentFileItem).fsPath).toBe('/ws/agents/architect/prompt.md');
+      expect((children[0] as AgentFileItem).fsPath).toBe('/ws/.ai/agents/architect/prompt.md');
     });
   });
 
   describe('AgentFileItem properties', () => {
     it('uses filename as label and sets openFile command', () => {
-      const item = new AgentFileItem('/ws/agents/architect/prompt.md');
+      const item = new AgentFileItem('/ws/.ai/agents/architect/prompt.md');
       expect(item.label).toBe('prompt.md');
       expect(item.contextValue).toBe('wispAgentFile');
       expect(item.command?.command).toBe('wisp.explorer.openFile');
@@ -388,23 +387,19 @@ describe('WispTreeDataProvider', () => {
   });
 
   describe('getChildren(SectionItem("Dev Containers"))', () => {
-    it('returns DevContainerFolderItems grouped by subdirectory', async () => {
+    it('returns DevContainerFolderItem for devcontainer files', async () => {
       const uris = [
-        makeUri('/ws/.devcontainer/devcontainer.json'),
-        makeUri('/ws/.devcontainer/Dockerfile'),
-        makeUri('/ws/.devcontainer/agent/devcontainer.json'),
-        makeUri('/ws/.devcontainer/agent/Dockerfile'),
+        makeUri('/ws/.devenv/.devcontainer/agent/devcontainer.json'),
+        makeUri('/ws/.devenv/.devcontainer/agent/Dockerfile'),
       ];
       (vscode.workspace.findFiles as jest.Mock).mockResolvedValueOnce(uris);
 
       const section = new SectionItem('Dev Containers');
       const children = await provider.getChildren(section);
 
-      expect(children).toHaveLength(2);
+      expect(children).toHaveLength(1);
       expect(children[0]).toBeInstanceOf(DevContainerFolderItem);
-      expect((children[0] as DevContainerFolderItem).folderName).toBe('(root)');
-      expect(children[1]).toBeInstanceOf(DevContainerFolderItem);
-      expect((children[1] as DevContainerFolderItem).folderName).toBe('agent');
+      expect((children[0] as DevContainerFolderItem).folderName).toBe('devcontainer');
     });
 
     it('returns empty array when no devcontainer files found', async () => {
@@ -419,10 +414,10 @@ describe('WispTreeDataProvider', () => {
   describe('getChildren(DevContainerFolderItem)', () => {
     it('returns DevContainerFileItems', async () => {
       const fileUris = [
-        makeUri('/ws/.devcontainer/devcontainer.json'),
-        makeUri('/ws/.devcontainer/Dockerfile'),
+        makeUri('/ws/.devenv/.devcontainer/agent/devcontainer.json'),
+        makeUri('/ws/.devenv/.devcontainer/agent/Dockerfile'),
       ];
-      const folder = new DevContainerFolderItem('(root)', fileUris);
+      const folder = new DevContainerFolderItem('devcontainer', fileUris);
       const children = await provider.getChildren(folder);
 
       expect(children).toHaveLength(2);
@@ -433,7 +428,7 @@ describe('WispTreeDataProvider', () => {
 
   describe('DevContainerFileItem properties', () => {
     it('uses filename as label and sets openFile command', () => {
-      const item = new DevContainerFileItem('/ws/.devcontainer/devcontainer.json');
+      const item = new DevContainerFileItem('/ws/.devenv/.devcontainer/agent/devcontainer.json');
       expect(item.label).toBe('devcontainer.json');
       expect(item.contextValue).toBe('wispDevcontainerFile');
       expect(item.command?.command).toBe('wisp.explorer.openFile');

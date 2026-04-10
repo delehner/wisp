@@ -57,7 +57,7 @@ cp .env.example .env
 This downloads only the agent prompt files without cloning the full repo. Useful after a Homebrew or curl install when you just need agents.
 
 ```bash
-# 1. Download agent prompts to ~/.wisp/agents/
+# 1. Download agent prompts to ~/.wisp/.ai/agents/
 wisp install agents
 
 # 2. Create ~/.wisp/.env from the template (download once)

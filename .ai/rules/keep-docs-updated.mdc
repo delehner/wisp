@@ -17,7 +17,7 @@ When making changes to this repository, you MUST update the relevant documentati
 | Add/remove/rename source files or directories | `docs/project-structure.md` |
 | Change environment variables | `.env.example`, `docs/project-structure.md` (file reference table) |
 | Change dev container setup | `docs/project-structure.md` |
-| Add/modify Cursor skills | `docs/project-structure.md` |
+| Add/modify IDE skills | `docs/project-structure.md` |
 | Change context skill format or assembly | `docs/pipeline-overview.md`, `docs/project-structure.md`, `templates/context-skill.md` |
 | Change PRD generation | `docs/pipeline-overview.md`, `docs/project-structure.md` |
 | Change installation or CLI setup | `README.md` (installation section), `docs/prerequisites.md`, `scripts/install.sh` |

@@ -58,7 +58,7 @@ The Wisp AI extension (publisher `delehner`) is a thin IDE front-end for the CLI
 - Dev Containers — optional execution inside the target repo’s Dev Container.
 - Logging and recovery — JSONL logs, `wisp monitor`, `wisp logs`, session hints for CLI resume.
 - IDE integration — Wisp AI extension: run orchestrate/pipeline, browse manifests and PRDs, install/update CLI helpers from the UI.
-- Cursor skills — `wisp install skills` symlinks project skills.
+- IDE skills — `wisp install skills` installs skills to `.ai/skills/` with symlinks for Cursor, Antigravity, and VS Code.
 
 For command tables, manifest JSON shape, and pipeline details, see [Pipeline overview](docs/pipeline-overview.md).
 

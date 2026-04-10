@@ -40,7 +40,7 @@ pub struct Config {
     // Per-agent iteration overrides
     pub agent_max_iterations: AgentIterationOverrides,
 
-    // Installation root (where agents/, templates/ live)
+    // Installation root (where .ai/agents/, .devenv/templates/ live)
     pub root_dir: PathBuf,
 }
 
@@ -154,11 +154,11 @@ fn env_bool(key: &str) -> Option<bool> {
 /// Locate the installation root by walking up from the current executable.
 fn find_root_dir() -> PathBuf {
     if let Ok(exe) = std::env::current_exe() {
-        // In dev: target/debug/wisp -> walk up to find agents/ + templates/
+        // In dev: target/debug/wisp -> walk up to find .ai/agents/ + .devenv/templates/
         // In install: /usr/local/bin/wisp -> fall back to ~/.wisp
         let mut dir = exe.parent().map(Path::to_path_buf).unwrap_or_default();
         for _ in 0..4 {
-            if dir.join("agents").is_dir() && dir.join("templates").is_dir() {
+            if dir.join(".ai/agents").is_dir() && dir.join(".devenv/templates").is_dir() {
                 return dir;
             }
             if let Some(parent) = dir.parent() {

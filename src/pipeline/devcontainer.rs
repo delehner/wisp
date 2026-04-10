@@ -12,7 +12,7 @@ use crate::cli::ProviderKind;
 use crate::utils::exec_capture;
 
 fn agent_devcontainer_config(workdir: &Path) -> PathBuf {
-    workdir.join(".devcontainer/agent/devcontainer.json")
+    workdir.join(".devenv/.devcontainer/agent/devcontainer.json")
 }
 
 /// One `devcontainer up` at a time per Wisp process. Parallel `up` calls (e.g. multiple epics) race
