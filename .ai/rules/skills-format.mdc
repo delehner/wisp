@@ -1,5 +1,5 @@
 ---
-description: Conventions for writing Cursor-compatible agent skills
+description: Conventions for writing IDE-compatible agent skills
 globs: skills/**/SKILL.md
 alwaysApply: false
 ---
@@ -30,7 +30,7 @@ description: >-
 
 ## Description Best Practices
 
-The description determines when Cursor activates the skill. Include both WHAT and WHEN:
+The description determines when the IDE activates the skill. Include both WHAT and WHEN:
 
 ```yaml
 # Good

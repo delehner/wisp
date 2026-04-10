@@ -35,7 +35,7 @@ No runtime data flow — all files are static configuration read by the IDE at w
   - `rust-conventions.mdc` — cargo commands, module patterns, external commands
   - `agent-prompts.mdc` — agent prompt file conventions and how to add agents
   - `keep-docs-updated.mdc` — documentation update triggers
-  - `skills-format.mdc` — Cursor skill YAML frontmatter conventions
+  - `skills-format.mdc` — IDE skill YAML frontmatter conventions
   - `templates.mdc` — (contents not shown, assumed template conventions)
   - **Gap**: No rule covering module-level boundaries, the Provider trait, or the Ralph Loop data flow. → Add `architecture.mdc`.
 

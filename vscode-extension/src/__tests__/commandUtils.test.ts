@@ -53,18 +53,18 @@ describe('pickManifestFile()', () => {
   });
 
   it('shows QuickPick when workspace files are found', async () => {
-    const fakeUri = { fsPath: '/workspace/manifests/test.json' };
+    const fakeUri = { fsPath: '/workspace/.devenv/manifests/test.json' };
     (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([fakeUri]);
-    (vscode.window.showQuickPick as jest.Mock).mockResolvedValue('/workspace/manifests/test.json');
+    (vscode.window.showQuickPick as jest.Mock).mockResolvedValue('/workspace/.devenv/manifests/test.json');
 
     const result = await pickManifestFile('/workspace');
 
-    expect(vscode.workspace.findFiles).toHaveBeenCalledWith('**/manifests/*.json');
+    expect(vscode.workspace.findFiles).toHaveBeenCalledWith('**/.devenv/manifests/*.json');
     expect(vscode.window.showQuickPick).toHaveBeenCalledWith(
-      ['/workspace/manifests/test.json'],
+      ['/workspace/.devenv/manifests/test.json'],
       expect.objectContaining({ placeHolder: expect.any(String) }),
     );
-    expect(result).toBe('/workspace/manifests/test.json');
+    expect(result).toBe('/workspace/.devenv/manifests/test.json');
   });
 
   it('falls back to showInputBox when no files found', async () => {
@@ -84,14 +84,14 @@ describe('pickPrdFile()', () => {
   });
 
   it('shows QuickPick when workspace PRD files are found', async () => {
-    const fakeUri = { fsPath: '/workspace/prds/my-feature/prd.md' };
+    const fakeUri = { fsPath: '/workspace/.devenv/prds/my-feature/prd.md' };
     (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([fakeUri]);
-    (vscode.window.showQuickPick as jest.Mock).mockResolvedValue('/workspace/prds/my-feature/prd.md');
+    (vscode.window.showQuickPick as jest.Mock).mockResolvedValue('/workspace/.devenv/prds/my-feature/prd.md');
 
     const result = await pickPrdFile('/workspace');
 
-    expect(vscode.workspace.findFiles).toHaveBeenCalledWith('**/prds/**/*.md');
-    expect(result).toBe('/workspace/prds/my-feature/prd.md');
+    expect(vscode.workspace.findFiles).toHaveBeenCalledWith('**/.devenv/prds/**/*.md');
+    expect(result).toBe('/workspace/.devenv/prds/my-feature/prd.md');
   });
 
   it('falls back to showInputBox when no PRD files found', async () => {

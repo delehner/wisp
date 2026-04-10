@@ -1,6 +1,6 @@
 ## Summary
 
-- Adds `wisp install agents` subcommand under `InstallCmd` that downloads the canonical `agents/` directory from the wisp GitHub repository into `~/.wisp/agents/` (or a user-specified `--output` path).
+- Adds `wisp install agents` subcommand under `InstallCmd` that downloads the canonical `agents/` directory from the wisp GitHub repository into `~/.wisp/.ai/agents/` (or a user-specified `--output` path).
 - Supports `--force` to overwrite existing files; idempotent by default (existing files are skipped).
 - Respects `GITHUB_TOKEN` for authenticated requests to avoid rate-limiting.
 - Updates installation docs to explain the new quickstart path for Homebrew / curl installs.

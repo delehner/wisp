@@ -21,7 +21,7 @@ All commands are available via the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+
 | `wisp.generatePrd` | Wisp: Generate PRDs | Generate PRD files from a description and optional repo URLs |
 | `wisp.generateContext` | Wisp: Generate Context | Generate context skill files for a repository |
 | `wisp.monitor` | Wisp: Monitor Logs | Select a log session and stream its output live |
-| `wisp.installSkills` | Wisp: Install Skills | Install Cursor-compatible skill files into the workspace |
+| `wisp.installSkills` | Wisp: Install Skills | Install skills to .ai/skills/ with IDE symlinks (Cursor, Antigravity) |
 | `wisp.update` | Wisp: Update | Self-update the wisp binary to the latest release |
 | `wisp.stopPipeline` | Wisp: Stop Pipeline | Kill the currently-running wisp process |
 | `wisp.showOutput` | Wisp: Show Output | Bring the Wisp output channel into focus |
@@ -41,10 +41,10 @@ Right-clicking nodes in the Wisp Explorer triggers these commands:
 
 ## Features
 
-- **Wisp Explorer sidebar** — Activity Bar panel showing all `manifests/*.json` and `prds/**/*.md` files in a browsable tree; auto-refreshes when files change
+- **Wisp Explorer sidebar** — Activity Bar panel showing all `.devenv/manifests/*.json` and `.devenv/prds/**/*.md` files in a browsable tree; auto-refreshes when files change
 - **Structured output channel** — pipeline output streams line-by-line into the "Wisp AI" Output Channel with native VSCode timestamps and a log-level filter dropdown (uses `LogOutputChannel`). Each line is automatically classified as `error`, `warn`, `debug`, or `info` based on its content so you can filter to warnings or errors instantly. A run header (`▶ wisp <args>` + started timestamp) and a completion footer (exit status + elapsed time) bracket every pipeline invocation.
 - **Status bar indicator** — shows `$(sync~spin) Wisp: Running` during active pipelines and `$(check) Wisp: Idle` otherwise; click to open the Output Channel
-- **File pickers** — manifest commands filter to `**/manifests/*.json`; PRD commands filter to `**/prds/**/*.md`
+- **File pickers** — manifest commands filter to `**/.devenv/manifests/*.json`; PRD commands filter to `**/.devenv/prds/**/*.md`
 - **Process cancellation** — `wisp.stopPipeline` sends SIGTERM to the running process and resets the status bar
 - **Injection-safe** — all child process arguments are passed as array entries to `child_process.spawn`; no shell string interpolation
 
@@ -69,7 +69,7 @@ The Wisp Explorer appears in the Activity Bar (look for the Wisp icon). It organ
 
 **Clicking** a PRD node opens the file in the editor. **Right-clicking** any node shows context menu actions (see [Explorer Context Menu Commands](#explorer-context-menu-commands) above).
 
-The tree auto-refreshes (500 ms debounce) whenever a file matching `**/manifests/*.json` or `**/prds/**/*.md` is created, deleted, or renamed. Use the **$(refresh) Refresh** button in the toolbar to force an immediate rescan. Malformed manifest JSON shows a `⚠ Invalid JSON` error node rather than crashing the tree.
+The tree auto-refreshes (500 ms debounce) whenever a file matching `**/.devenv/manifests/*.json` or `**/.devenv/prds/**/*.md` is created, deleted, or renamed. Use the **$(refresh) Refresh** button in the toolbar to force an immediate rescan. Malformed manifest JSON shows a `⚠ Invalid JSON` error node rather than crashing the tree.
 
 ## Configuration
 

@@ -16,10 +16,10 @@ describe('WispFileWatcher', () => {
     const watcher = new WispFileWatcher(onRefresh);
 
     expect(vscode.workspace.createFileSystemWatcher).toHaveBeenCalledTimes(4);
-    expect(vscode.workspace.createFileSystemWatcher).toHaveBeenCalledWith('**/manifests/*.json');
-    expect(vscode.workspace.createFileSystemWatcher).toHaveBeenCalledWith('**/prds/**/*.md');
-    expect(vscode.workspace.createFileSystemWatcher).toHaveBeenCalledWith('**/agents/**/*.md');
-    expect(vscode.workspace.createFileSystemWatcher).toHaveBeenCalledWith('**/.devcontainer/**');
+    expect(vscode.workspace.createFileSystemWatcher).toHaveBeenCalledWith('**/.devenv/manifests/*.json');
+    expect(vscode.workspace.createFileSystemWatcher).toHaveBeenCalledWith('**/.devenv/prds/**/*.md');
+    expect(vscode.workspace.createFileSystemWatcher).toHaveBeenCalledWith('**/.ai/agents/**/*.md');
+    expect(vscode.workspace.createFileSystemWatcher).toHaveBeenCalledWith('**/.devenv/.devcontainer/agent/**');
 
     watcher.dispose();
   });

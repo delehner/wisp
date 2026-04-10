@@ -18,7 +18,7 @@ export async function promptGeneratePrdArgs(
 
   const output = await vscode.window.showInputBox({
     prompt: 'Output directory for generated PRDs',
-    value: './prds',
+    value: './.devenv/prds',
     ignoreFocusOut: true,
     validateInput: (val) => (val.trim() ? undefined : 'Output directory is required'),
   });
@@ -32,7 +32,7 @@ export async function promptGeneratePrdArgs(
   } else {
     const manifestInput = await vscode.window.showInputBox({
       prompt: 'Manifest JSON path',
-      value: './manifests/project.json',
+      value: './.devenv/manifests/project.json',
       ignoreFocusOut: true,
       validateInput: (val) => (val.trim() ? undefined : 'Manifest path is required'),
     });

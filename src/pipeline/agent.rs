@@ -359,14 +359,14 @@ impl<'a> AgentRunner<'a> {
         let mut prompt = String::new();
 
         // 1. Base system prompt
-        let base_path = root.join("agents/_base-system.md");
+        let base_path = root.join(".ai/agents/_base-system.md");
         if base_path.is_file() {
             prompt.push_str(&std::fs::read_to_string(&base_path)?);
             prompt.push_str("\n\n");
         }
 
         // 2. Agent-specific prompt
-        let agent_prompt_path = root.join(format!("agents/{agent}/prompt.md"));
+        let agent_prompt_path = root.join(format!(".ai/agents/{agent}/prompt.md"));
         if agent_prompt_path.is_file() {
             prompt.push_str(&std::fs::read_to_string(&agent_prompt_path)?);
             prompt.push_str("\n\n");
@@ -760,10 +760,10 @@ fn claude_container_auth_fatal_message(hints: &[String]) -> Option<String> {
     Some(
         "Claude Code is not authenticated in the agent container (JSONL: not logged in). \
          Set ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN in the .env file Wisp loads \
-         (repository root next to agents/ when running from source, or ~/.wisp/.env for installs), \
+         (repository root next to .ai/agents/ when running from source, or ~/.wisp/.env for installs), \
          or run `claude setup-token` for subscription accounts and put the token in .env. \
          The shell that launches `wisp` must expose those variables so `devcontainer` can resolve \
-         ${localEnv:...} in .devcontainer/agent/devcontainer.json. \
+         ${localEnv:...} in .devenv/.devcontainer/agent/devcontainer.json. \
          If the container was created when keys were missing, remove it or run a fresh devcontainer up \
          so containerEnv picks up current values. See docs/prerequisites.md (Authentication, Dev Containers)."
             .to_string(),

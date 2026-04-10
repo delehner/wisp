@@ -92,7 +92,7 @@ export class WispTreeDataProvider implements vscode.TreeDataProvider<WispTreeIte
   }
 
   private async _getManifestChildren(): Promise<WispTreeItem[]> {
-    const uris = await vscode.workspace.findFiles('**/manifests/*.json');
+    const uris = await vscode.workspace.findFiles('**/.devenv/manifests/*.json');
     if (uris.length === 0) {
       return [];
     }
@@ -114,7 +114,7 @@ export class WispTreeDataProvider implements vscode.TreeDataProvider<WispTreeIte
   }
 
   private async _getPrdFolderChildren(): Promise<WispTreeItem[]> {
-    const uris = await vscode.workspace.findFiles('**/prds/**/*.md');
+    const uris = await vscode.workspace.findFiles('**/.devenv/prds/**/*.md');
     if (uris.length === 0) {
       return [];
     }
@@ -147,7 +147,7 @@ export class WispTreeDataProvider implements vscode.TreeDataProvider<WispTreeIte
   }
 
   private async _getAgentChildren(): Promise<WispTreeItem[]> {
-    const uris = await vscode.workspace.findFiles('**/agents/**/*.md');
+    const uris = await vscode.workspace.findFiles('**/.ai/agents/**/*.md');
     if (uris.length === 0) {
       return [];
     }
@@ -196,39 +196,13 @@ export class WispTreeDataProvider implements vscode.TreeDataProvider<WispTreeIte
   }
 
   private async _getDevContainerChildren(): Promise<WispTreeItem[]> {
-    const uris = await vscode.workspace.findFiles('**/.devcontainer/**');
+    const uris = await vscode.workspace.findFiles('**/.devenv/.devcontainer/agent/**');
     if (uris.length === 0) {
       return [];
     }
 
-    const folderMap = new Map<string, vscode.Uri[]>();
-
-    for (const uri of uris) {
-      const parts = uri.fsPath.split('/');
-      const dcIdx = parts.lastIndexOf('.devcontainer');
-      if (dcIdx < 0) {
-        continue;
-      }
-      const depth = parts.length - dcIdx - 1;
-      if (depth === 1) {
-        const existing = folderMap.get('(root)') ?? [];
-        existing.push(uri);
-        folderMap.set('(root)', existing);
-      } else if (depth >= 2) {
-        const subDir = parts[dcIdx + 1];
-        const existing = folderMap.get(subDir) ?? [];
-        existing.push(uri);
-        folderMap.set(subDir, existing);
-      }
-    }
-
-    return Array.from(folderMap.entries())
-      .sort(([a], [b]) => {
-        if (a === '(root)') { return -1; }
-        if (b === '(root)') { return 1; }
-        return a.localeCompare(b);
-      })
-      .map(([name, fileUris]) => new DevContainerFolderItem(name, fileUris));
+    // All devcontainer files live under .devenv/.devcontainer/agent/
+    return [new DevContainerFolderItem('devcontainer', uris)];
   }
 
   private async _extractPrdMeta(uri: vscode.Uri): Promise<{ title: string; status: string }> {

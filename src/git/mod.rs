@@ -421,7 +421,7 @@ const GIT_EXCLUDE_SNIPPETS: &[&str] = &[
     ".agent-progress/",
     ".pipeline/",
     "logs/",
-    ".devcontainer/agent/",
+    ".devenv/.devcontainer/",
 ];
 
 /// Write git exclude patterns for pipeline artifacts.

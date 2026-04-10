@@ -15,7 +15,7 @@ This feature extends the wisp VSCode extension scaffold to expose all 9 wisp CLI
 - **`commands/run.ts`**: FR-3 — agent QuickPick (14 agents) + workdir + PRD picker → `wisp run --agent --workdir --prd`.
 - **`commands/generate.ts`**: FR-4 + FR-5 — description + repeatable repo URLs → `wisp generate prd`; repo + branch → `wisp generate context`.
 - **`commands/monitor.ts`**: FR-6 — session list via `wisp monitor --list` → QuickPick → `wisp monitor --session <id>`.
-- **`commands/utils.ts`**: FR-7 + FR-8 — `wisp install skills`, `wisp update`.
+- **`commands/utils.ts`**: FR-7 + FR-8 — `wisp install skills` (to `.ai/skills/` with IDE symlinks), `wisp update`.
 - **`extension.ts`**: `activate()` wires all commands, owns single Output Channel + StatusBar instances, tracks `activeCli` for stop support.
 
 ### Data Flow

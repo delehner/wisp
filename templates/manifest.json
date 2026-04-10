@@ -1,7 +1,7 @@
 {
   "name": "Project Name",
   "description": "Brief description of what this manifest delivers.",
-  "devcontainer": "./.devcontainer/agent",
+  "devcontainer": "./.devenv/.devcontainer/agent",
   "max_iterations": 2,
   "agent_max_iterations": {
     "developer": 4
@@ -12,7 +12,7 @@
       "description": "First batch — sets up the base that later epics may depend on (merge PRs before dependent work).",
       "subtasks": [
         {
-          "prd": "./prds/01-example.md",
+          "prd": "./.devenv/prds/01-example.md",
           "agents": ["architect", "designer"],
           "repositories": [
             {
@@ -24,7 +24,7 @@
           ]
         },
         {
-          "prd": "./prds/02-parallel-work.md",
+          "prd": "./.devenv/prds/02-parallel-work.md",
           "agents": ["architect"],
           "repositories": [
             {
@@ -48,7 +48,7 @@
       "description": "Depends on prior work being merged. This epic can run in parallel with other epics; subtasks inside it still run one after another.",
       "subtasks": [
         {
-          "prd": "./prds/03-feature.md",
+          "prd": "./.devenv/prds/03-feature.md",
           "repositories": [
             {
               "url": "https://github.com/org/repo-1",

@@ -28,14 +28,14 @@ Non-blocking agents (failures don't stop pipeline): Designer, Migration, Accessi
 ## Key CLI Commands
 
 ```bash
-wisp orchestrate --manifest manifests/my.json   # Run full manifest
+wisp orchestrate --manifest .devenv/manifests/my.json   # Run full manifest
 wisp pipeline --prd path/to/prd.md --repo https://github.com/org/repo
 wisp run --agent developer --workdir /path --prd path/to/prd.md
-wisp generate prd --output prds/ --manifest manifests/my.json --repo https://github.com/org/repo
+wisp generate prd --output .devenv/prds/ --manifest .devenv/manifests/my.json --repo https://github.com/org/repo
 wisp generate context --repo https://github.com/org/repo --output contexts/myrepo
 wisp monitor --log-dir ./logs                    # Tail agent logs in real-time
 wisp logs path/to/file.jsonl                     # Re-format a raw JSONL log
-wisp install skills                              # Symlink Cursor skills
+wisp install skills                              # Install skills to .ai/skills/ with IDE symlinks
 wisp update                                      # Self-update to latest version
 ```
 
@@ -72,11 +72,13 @@ src/
     ├── formatter.rs           # JSONL → human-readable output (Claude + Gemini event types)
     └── monitor.rs             # Real-time log tailing via notify crate
 
-agents/                        # Agent prompt files (_base-system.md + per-agent prompt.md)
+.ai/agents/                    # Agent prompt files (_base-system.md + per-agent prompt.md)
+.devenv/templates/             # PRD, manifest, context-skill templates
+.devenv/.devcontainer/agent/   # Pipeline devcontainer config (devcontainer.json + Dockerfile)
+.devenv/prds/                  # Generated PRD files
+.devenv/manifests/             # Generated manifest JSON files
 contexts/                      # Per-repo context skill directories (assembled into CLAUDE.md)
-manifests/                     # Manifest JSON files
-skills/                        # Cursor-compatible agent skills
-templates/                     # PRD, manifest, context-skill templates
+skills/                        # Agent skills (installed to .ai/skills/ with IDE symlinks)
 docs/                          # Mermaid diagrams and reference documentation
 ```
 
@@ -257,11 +259,11 @@ dc.stop().await?;   // must call explicitly; Drop warns if skipped
 
 **Schema sync requirement**: `schemas/manifest.schema.json` mirrors the Rust structs (`Manifest`, `Epic`, `PrdEntry`, `Repository`) in `src/manifest/mod.rs`. When adding, removing, or renaming fields in those structs, update the schema file to match. The JSON Schema is used for documentation and as an agent self-validation tool — the Rust parser remains the authoritative validator at runtime.
 
-## Agent Prompts (`agents/`)
+## Agent Prompts (`.ai/agents/`)
 
 Each agent has:
-- `agents/<name>/prompt.md`: Agent-specific instructions, responsibilities, workflow, completion criteria
-- `agents/_base-system.md`: Shared conventions — progress tracking format, git conventions, quality standards
+- `.ai/agents/<name>/prompt.md`: Agent-specific instructions, responsibilities, workflow, completion criteria
+- `.ai/agents/_base-system.md`: Shared conventions — progress tracking format, git conventions, quality standards
 
 When adding a new agent, always read `_base-system.md` first to avoid duplicating shared instructions.
 
@@ -499,7 +501,7 @@ Required for PR operations:
 - `devcontainer up --workspace-folder <path>` — start container, returns JSON with `containerId`
 - `devcontainer exec --workspace-folder <path> -- <cmd>` — run command in container
 - Container cleanup: `docker stop <id> && docker rm <id>`
-- Dev Container config expected at `.devcontainer/devcontainer.json` in the target repo
+- Dev Container config expected at `.devenv/.devcontainer/agent/devcontainer.json` in the target repo
 
 ## MCP Servers (optional)
 

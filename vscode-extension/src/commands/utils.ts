@@ -20,7 +20,7 @@ export const KNOWN_AGENTS = [
 ];
 
 export async function pickManifestFile(cwd: string): Promise<string | undefined> {
-  const uris = await vscode.workspace.findFiles('**/manifests/*.json');
+  const uris = await vscode.workspace.findFiles('**/.devenv/manifests/*.json');
   if (uris.length > 0) {
     const items = uris.map((u) => u.fsPath);
     const picked = await vscode.window.showQuickPick(items, {
@@ -31,13 +31,13 @@ export async function pickManifestFile(cwd: string): Promise<string | undefined>
   }
   return vscode.window.showInputBox({
     prompt: 'No manifest files found. Enter path to manifest JSON',
-    placeHolder: `${cwd}/manifests/my-manifest.json`,
+    placeHolder: `${cwd}/.devenv/manifests/my-manifest.json`,
     ignoreFocusOut: true,
   });
 }
 
 export async function pickPrdFile(cwd: string): Promise<string | undefined> {
-  const uris = await vscode.workspace.findFiles('**/prds/**/*.md');
+  const uris = await vscode.workspace.findFiles('**/.devenv/prds/**/*.md');
   if (uris.length > 0) {
     const items = uris.map((u) => u.fsPath);
     const picked = await vscode.window.showQuickPick(items, {
@@ -48,7 +48,7 @@ export async function pickPrdFile(cwd: string): Promise<string | undefined> {
   }
   return vscode.window.showInputBox({
     prompt: 'No PRD files found. Enter path to PRD markdown file',
-    placeHolder: `${cwd}/prds/my-feature/prd.md`,
+    placeHolder: `${cwd}/.devenv/prds/my-feature/prd.md`,
     ignoreFocusOut: true,
   });
 }

@@ -41,7 +41,7 @@ Wisp is a single Rust binary that turns Product Requirements Documents (PRDs) in
 | `agents/` | Agent prompt files (base system + per-agent) |
 | `contexts/` | Per-repo context skill directories |
 | `manifests/` | Manifest JSON files |
-| `skills/` | Cursor-compatible agent skills |
+| `skills/` | IDE-compatible agent skills (installed to `.ai/skills/` with IDE symlinks) |
 | `templates/` | PRD, manifest, and context skill templates |
 
 ## Pipeline Flow

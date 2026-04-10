@@ -19,14 +19,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - **Wisp AI Explorer sidebar** — Activity Bar panel (custom Wisp icon) with two sections:
-  - **Manifests** — parses all `manifests/*.json` in the workspace and displays epics, subtasks, and target repos as a collapsible tree; malformed JSON shows an error node
-  - **PRDs** — lists all `prds/**/*.md` files grouped by subdirectory; clicking a node opens the file in the editor with title and status shown as tooltip/description
+  - **Manifests** — parses all `.devenv/manifests/*.json` in the workspace and displays epics, subtasks, and target repos as a collapsible tree; malformed JSON shows an error node
+  - **PRDs** — lists all `.devenv/prds/**/*.md` files grouped by subdirectory; clicking a node opens the file in the editor with title and status shown as tooltip/description
 - **Context menus** on tree nodes:
   - Manifest nodes: "Run Orchestrate" (inline), "Open File"
   - Epic nodes: "Run Orchestrate (this epic only)" (inline)
   - Subtask nodes: "Run Pipeline" (inline)
   - PRD file nodes: "Open File"
-- **Auto-refresh** — file system watcher detects changes to `**/manifests/*.json` and `**/prds/**/*.md` and refreshes the tree automatically (500 ms debounce)
+- **Auto-refresh** — file system watcher detects changes to `**/.devenv/manifests/*.json` and `**/.devenv/prds/**/*.md` and refreshes the tree automatically (500 ms debounce)
 - **Refresh button** (`$(refresh)`) in the Wisp AI Explorer toolbar for manual rescan
 
 ## [0.1.0] — 2026-03-20
@@ -41,13 +41,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - `Wisp AI: Generate PRDs` — generate PRD files from a description and optional repo URLs
   - `Wisp AI: Generate Context` — generate context skill files for a repository
   - `Wisp AI: Monitor Logs` — select a log session and stream its output live
-  - `Wisp AI: Install Skills` — install Cursor-compatible skill files into the workspace
+  - `Wisp AI: Install Skills` — install skills to .ai/skills/ with IDE symlinks
   - `Wisp AI: Update` — self-update the wisp binary to the latest release
   - `Wisp AI: Stop Pipeline` — kill the currently-running wisp process
   - `Wisp AI: Show Output` — bring the Wisp AI output channel into focus
 - **Real-time streaming output** in a dedicated "Wisp AI" Output Channel — no buffering
 - **Status bar indicator** showing `$(sync~spin) Wisp AI: Running` / `$(check) Wisp AI: Idle`; click to open the Output Channel
-- **File pickers** — manifest commands filter to `**/manifests/*.json`; PRD commands filter to `**/prds/**/*.md`
+- **File pickers** — manifest commands filter to `**/.devenv/manifests/*.json`; PRD commands filter to `**/.devenv/prds/**/*.md`
 - **Process cancellation** — `Wisp AI: Stop Pipeline` sends SIGTERM and resets the status bar
 - **Concurrent pipeline guard** — attempting to start a second pipeline while one is running shows a warning
 - **`wisp.binaryPath` setting** (machine-scoped) to point to a wisp binary not on `PATH`

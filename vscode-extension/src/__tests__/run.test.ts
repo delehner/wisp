@@ -97,10 +97,10 @@ describe('registerRunCommand', () => {
   it('returns early without spawning when max-iterations prompt is cancelled', async () => {
     (vscode.window.showQuickPick as jest.Mock)
       .mockResolvedValueOnce('developer')
-      .mockResolvedValueOnce('/workspace/prds/feat/prd.md');
+      .mockResolvedValueOnce('/workspace/.devenv/prds/feat/prd.md');
     (vscode.window.showInputBox as jest.Mock).mockResolvedValueOnce('/workspace');
     (vscode.workspace.findFiles as jest.Mock).mockResolvedValue([
-      { fsPath: '/workspace/prds/feat/prd.md' },
+      { fsPath: '/workspace/.devenv/prds/feat/prd.md' },
     ]);
     (vscode.window.showInputBox as jest.Mock).mockResolvedValueOnce(undefined); // max-iterations cancelled
 
