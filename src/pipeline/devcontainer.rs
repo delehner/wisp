@@ -219,6 +219,30 @@ impl DevContainer {
         Ok((status.code().unwrap_or(-1), stderr_lines))
     }
 
+    /// Verify the provider CLI is installed inside the running container.
+    ///
+    /// Bails with an actionable error when missing so a missing/failed CLI install never silently
+    /// degrades into a Ralph stall. Called immediately after [`DevContainer::start`].
+    pub async fn validate_provider_cli(&self, provider_cli: &str) -> Result<()> {
+        let (code, stdout, stderr) = self
+            .exec(&["sh", "-lc", &format!("command -v {provider_cli}")], &[])
+            .await
+            .with_context(|| {
+                format!("failed to run `command -v {provider_cli}` inside container")
+            })?;
+        if code != 0 || stdout.trim().is_empty() {
+            bail!(
+                "provider CLI `{provider_cli}` is not installed inside the agent Dev Container \
+                 (container {}). The Dockerfile should bake it in via `npm install -g`. \
+                 If you customized .devenv/.devcontainer/agent/Dockerfile, ensure node + the CLI \
+                 are installed at build time (postCreateCommand has been removed because Docker \
+                 Desktop OOM-kills the install). devcontainer exec stderr: {stderr}",
+                self.container_id
+            );
+        }
+        Ok(())
+    }
+
     /// Stop and remove the container.
     pub async fn stop(&mut self) {
         if self.container_id.is_empty() {

@@ -266,6 +266,14 @@ impl<'a> AgentRunner<'a> {
                         return Ok(AgentOutcome::Failed(msg));
                     }
                 }
+                if let Some(msg) = provider_cli_missing_fatal_message(
+                    exit_code,
+                    opts.log_jsonl.as_deref(),
+                    &stderr_lines,
+                    self.provider.cli_name(),
+                ) {
+                    return Ok(AgentOutcome::Failed(msg));
+                }
             }
 
             if self.is_completed(agent, workdir)? {
@@ -285,8 +293,10 @@ impl<'a> AgentRunner<'a> {
                 );
                 if stall_streak >= MAX_STALL_STREAK {
                     return Ok(AgentOutcome::Failed(format!(
-                        "Ralph stall: `.agent-progress/{agent}.md` did not change for {stall_streak} consecutive iterations — update that file and set `## Status: COMPLETED` (or `## Status: BLOCKED`). \
-                         If you only used Read on `.pipeline/` prompt files, use Write/Edit on the repo and progress file instead."
+                        "Ralph stall: `.agent-progress/{agent}.md` did not change for {stall_streak} consecutive iterations \
+                         (last CLI exit code: {exit_code}). Update that file and set `## Status: COMPLETED` (or `## Status: BLOCKED`). \
+                         If you only used Read on `.pipeline/` prompt files, use Write/Edit on the repo and progress file instead. \
+                         If exit code != 0, also check the provider CLI is installed and authenticated inside the Dev Container."
                     )));
                 }
             } else {
@@ -770,6 +780,53 @@ fn claude_container_auth_fatal_message(hints: &[String]) -> Option<String> {
     )
 }
 
+/// Non-zero CLI exit + no JSONL output (or `command not found` in stderr) -> the provider CLI itself
+/// failed to start. Surface the real cause instead of letting the Ralph loop accumulate stall
+/// iterations against an empty progress file.
+fn provider_cli_missing_fatal_message(
+    exit_code: i32,
+    jsonl_path: Option<&Path>,
+    stderr_lines: &[String],
+    cli: &str,
+) -> Option<String> {
+    if exit_code == 0 {
+        return None;
+    }
+    let stderr_blob = stderr_lines.join("\n").to_lowercase();
+    let stderr_indicates_missing = stderr_blob.contains("command not found")
+        || stderr_blob.contains("not found")
+            && (stderr_blob.contains(cli) || stderr_blob.contains("executable"))
+        || stderr_blob.contains("no such file or directory")
+        || stderr_blob.contains("executable file not found");
+
+    let jsonl_empty = match jsonl_path {
+        Some(p) => match std::fs::metadata(p) {
+            Ok(meta) => meta.len() == 0,
+            Err(_) => true,
+        },
+        None => true,
+    };
+
+    if !stderr_indicates_missing && !jsonl_empty {
+        return None;
+    }
+
+    let stderr_preview: String = stderr_lines.join(" | ");
+    let truncated = if stderr_preview.len() > 800 {
+        format!("{}... (truncated)", &stderr_preview[..800])
+    } else {
+        stderr_preview
+    };
+
+    Some(format!(
+        "Provider CLI `{cli}` failed to run inside the agent container (exit code {exit_code}, no JSONL output). \
+         The CLI is likely missing or the container's `npm install` was killed (commonly Docker Desktop OOM, exit 137). \
+         Bake the CLI into `.devenv/.devcontainer/agent/Dockerfile` (RUN npm install -g {cli}-related-package) instead of relying on `postCreateCommand`, \
+         then rebuild the container (e.g. `docker rm <id>` and re-run wisp). \
+         Stderr preview: {truncated}"
+    ))
+}
+
 /// When Claude JSONL reports quota / rate limit exhaustion, fail fast (not a Ralph stall).
 fn claude_rate_limit_fatal_message(hints: &[String]) -> Option<String> {
     let blob = hints.join(" ").to_lowercase();
@@ -865,7 +922,7 @@ mod tests {
     use super::{
         claude_container_auth_fatal_message, claude_rate_limit_fatal_message,
         diagnose_failed_jsonl_log, extract_jsonl_error_hints, progress_status_blocked,
-        progress_status_completed, read_utf8_tail,
+        progress_status_completed, provider_cli_missing_fatal_message, read_utf8_tail,
     };
 
     #[test]
@@ -921,6 +978,45 @@ mod tests {
         let msg = claude_container_auth_fatal_message(&hints).unwrap();
         assert!(msg.contains("ANTHROPIC_API_KEY"));
         assert!(msg.contains("prerequisites"));
+    }
+
+    #[test]
+    fn provider_cli_missing_message_fires_on_command_not_found() {
+        let stderr = vec!["sh: 1: claude: command not found".to_string()];
+        let msg = provider_cli_missing_fatal_message(127, None, &stderr, "claude");
+        assert!(msg.is_some(), "expected fatal message for missing CLI");
+        let msg = msg.unwrap();
+        assert!(msg.contains("Provider CLI `claude`"));
+        assert!(msg.contains("Dockerfile"));
+    }
+
+    #[test]
+    fn provider_cli_missing_message_fires_on_empty_jsonl() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("run.jsonl");
+        std::fs::write(&p, "").unwrap();
+        let msg = provider_cli_missing_fatal_message(1, Some(&p), &[], "claude");
+        assert!(msg.is_some(), "expected fatal message for empty JSONL");
+    }
+
+    #[test]
+    fn provider_cli_missing_message_silent_on_normal_failure() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("run.jsonl");
+        std::fs::write(&p, "{\"type\":\"error\",\"message\":\"bad\"}\n").unwrap();
+        let stderr = vec!["some unrelated warning".to_string()];
+        let msg = provider_cli_missing_fatal_message(1, Some(&p), &stderr, "claude");
+        assert!(
+            msg.is_none(),
+            "should not fire when JSONL has content and stderr does not indicate missing CLI"
+        );
+    }
+
+    #[test]
+    fn provider_cli_missing_message_silent_on_zero_exit() {
+        let stderr = vec!["claude: command not found".to_string()];
+        let msg = provider_cli_missing_fatal_message(0, None, &stderr, "claude");
+        assert!(msg.is_none(), "should not fire when CLI exited 0");
     }
 
     #[test]

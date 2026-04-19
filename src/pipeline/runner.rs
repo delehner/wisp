@@ -164,7 +164,13 @@ pub async fn run(
     // Run agents (stop reused Dev Container after the sequence; per-agent containers stop inside the loop)
     let mut shared_container: Option<DevContainer> = None;
     if run_config.use_devcontainer && run_config.reuse_devcontainer {
-        shared_container = Some(DevContainer::start(&workdir).await?);
+        let dc = DevContainer::start(&workdir).await?;
+        if let Err(e) = dc.validate_provider_cli(provider.cli_name()).await {
+            let mut dc = dc;
+            dc.stop().await;
+            return Err(e);
+        }
+        shared_container = Some(dc);
     }
 
     let agents_result = run_agent_sequence(
@@ -307,7 +313,13 @@ async fn run_agent_sequence(
         } else if run_config.reuse_devcontainer {
             shared_devcontainer
         } else {
-            per_agent_container = Some(DevContainer::start(workdir).await?);
+            let dc = DevContainer::start(workdir).await?;
+            if let Err(e) = dc.validate_provider_cli(provider.cli_name()).await {
+                let mut dc = dc;
+                dc.stop().await;
+                return Err(e);
+            }
+            per_agent_container = Some(dc);
             per_agent_container.as_ref()
         };
 
