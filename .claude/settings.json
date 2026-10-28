@@ -1,0 +1,14 @@
+{
+  "extraKnownMarketplaces": {
+    "delehner": {
+      "source": {
+        "source": "github",
+        "repo": "delehner/claude-plugins"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "delehner-core@delehner": true,
+    "delehner-workstation@delehner": true
+  }
+}

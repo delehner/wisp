@@ -519,3 +519,7 @@ MCP is only active when `claude` is the provider and the target repo has Claude 
 ## notify Crate (log monitoring)
 
 `src/logging/monitor.rs` uses the `notify` crate to watch log directories for new `.log` and `.jsonl` files and tail them in real-time. This powers `wisp monitor`.
+
+## Shared context
+
+Common rules for all of Denilson's personal repositories live in the [`handbook`](https://github.com/delehner/handbook/blob/main/AGENTS.md), loaded through the root `CLAUDE.md` of the [`workspace`](https://github.com/delehner/workspace) (clone it and run `./ws sync`). Specialist agents and the `council` and `orchestrate` skills come from the `delehner-core` plugin, enabled in `.claude/settings.json`. Rules in this file win when they are more specific.
